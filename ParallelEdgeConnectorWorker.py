@@ -11,6 +11,7 @@ class ParallelEdgeConnectorWorker(threading.Thread):
     def run(self) -> None:
 
         for node in self._batch:
+
             for ip in node.ip:
                 new_neighbors = self._dispatcher.list_of_ips[ip].get_domains()
                 node.add_neighbours(new_neighbors)

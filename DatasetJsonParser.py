@@ -129,6 +129,10 @@ class DatasetJsonParser:
         with open (self.conf, 'r') as config_file:
             for line in config_file:
                 line = line.strip()
+
+                if line[0] == '#':
+                    continue
+
                 splt = line.split(' ')
                 is_bening = splt[1].strip() == 'b'
                 datasets.append((splt[0],is_bening))

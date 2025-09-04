@@ -14,7 +14,6 @@ class Node:
 
     def add_neighbours(self, neighbours: list[int]):
 
-        neighbours.pop(neighbours.index(self.id))
         for neighbour in neighbours:
-            if neighbour not in self.neighbours:
+            if neighbour not in self.neighbours and neighbour != self.id:
                 self.neighbours.append(neighbour)
