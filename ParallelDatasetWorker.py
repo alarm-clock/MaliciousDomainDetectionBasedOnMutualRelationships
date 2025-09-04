@@ -2,16 +2,16 @@ import threading
 from Node import Node
 from IPEdge import IPEdge
 import ipaddress
+import time
 
 class ParallelDatasetWorker(threading.Thread):
 
-    def __init__(self, dispatcher, w_id, json_data, cnt, b):
+    def __init__(self, dispatcher, start_id: int, json_data, c_size, b):
         super().__init__()
         self._dispatcher = dispatcher
-        self._w_id = w_id
-        fcd = json_data[(w_id * cnt):]
-        self.dataset = fcd[:(((w_id + 1) * cnt) - 1)]
-        self.max = cnt
+        self.curr_id = start_id
+        self.dataset = json_data
+        self.chunk_size = c_size
         self.b = b
 
         self.nodes_result: list[Node] = []
@@ -28,14 +28,16 @@ class ParallelDatasetWorker(threading.Thread):
             self.IPs_result[ip] = edge
 
     def _return_results(self):
-
+        self._dispatcher.add_ips_conc(self.IPs_result)
+        self._dispatcher.add_nodes_conc(self.nodes_result)
 
     def run(self):
 
-        for cnt in range(len(self.dataset)):
+        start_time = time.perf_counter()
 
-            item = self.dataset[cnt]
-            domain_id = (self._w_id * self.max) + cnt
+        for item in self.dataset:
+
+            self.curr_id += 1
 
             ips: list[int] = []
             ip_strs: list[str] = item['dns']['A']
@@ -43,9 +45,13 @@ class ParallelDatasetWorker(threading.Thread):
             if ip_strs is not None:
                 for ip_str in ip_strs:
                     ip_int = int(ipaddress.ip_address(ip_str))
-                    self._add_ip_to_htable(ip_int, domain_id)
+                    self._add_ip_to_htable(ip_int, self.curr_id)
                     ips.append(ip_int)
 
             domain = item['domain_name']
-            nd = Node(domain_id , domain, ips, self.b, [])
+            nd = Node(self.curr_id , domain, ips, self.b, [])
             self.nodes_result.append(nd)
+
+        self._return_results()
+
+        #self._dispatcher.debug_fun____(start_time,self.curr_id - len(self.dataset))
