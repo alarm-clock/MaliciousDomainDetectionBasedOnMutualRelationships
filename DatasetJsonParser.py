@@ -1,3 +1,4 @@
+import copy
 import threading
 import ijson
 from Node import Node
@@ -6,26 +7,11 @@ from ParallelDatasetWorker import ParallelDatasetWorker
 from ParallelEdgeConnectorWorker import ParallelEdgeConnectorWorker
 import time
 
-#225243
-# chcem nacitat dataset na viacerych vlaknach
-# povedze ze na 20, tim padom potrebujem rozdelit pracu medzi n vlakien: pocet json entries / n
-# vlakno bude mat svoje ID ako int od 0 do n-1
-# vlakno bude pracovat na zaznamoch od n* pocet zaznamov na jedno vlakno do (n+1) * pzjv - 1
-# domenovy zaznam dostane ID podla svojho poradia v datasete
-# problem je ze domeny od roznych workerov sa mozu prekladat na stejnu adresu
-# tim padom sa IPecky musia ukladat do osobytnej hash tabulky
-# na konci ked worker dopracuje tak sa vojde do krytickej sekcie kde si bude porovnavat svoje IPcky
-# s uz ulozenymi IPckami, ak najde tak updatne existujucu inak prida ako novu
-# takto sa skonci cast nacitania vstupu
-# nasledne sa vytvoria novy workery ktory si znova rovnako rozdelia Domeny (uzly grafu)
-# kazdy uzol si najde v hash tabulke svoje IPcky a ulozi si svojich susedov
-
-
 class DatasetJsonParser:
 
     def __init__(self, config: str = 'dataset_config.txt'):
 
-        self._chunk_size = 20
+        self._chunk_size = 25000
         self.worker_limit = 10
         self.num_of_w = 0
 
@@ -62,7 +48,6 @@ class DatasetJsonParser:
         self._nodes_lock.acquire()
         self.list_of_nodes.extend(new_nodes)
         self.max_w_semaphore.release()
-        print('fin')
         self._nodes_lock.release()
 
     def _add_edges(self) -> None:
@@ -82,7 +67,7 @@ class DatasetJsonParser:
         self.max_w_semaphore.acquire()
 
         print(f'Sending batch to new worker, current start is: {self._curr_start_cnt}, size is: {len(batch)}')
-        new_worker = ParallelDatasetWorker(self, self._curr_start_cnt, batch, self._chunk_size,b)
+        new_worker = ParallelDatasetWorker(self, self._curr_start_cnt, copy.deepcopy(batch), self._chunk_size,b)
         self.workers.append(new_worker)
         new_worker.start()
         self._curr_start_cnt += len(batch)
@@ -113,6 +98,11 @@ class DatasetJsonParser:
 
             self._wait_on_workers()
             self.list_of_nodes = sorted(self.list_of_nodes, key=lambda node: node.id)
+
+            cnt = 0
+            for kokot in self.list_of_nodes:
+                print(f'{kokot.id} -> {cnt},')
+                cnt += 1
 
             print(f'Finished parsing {json_file_path}')
 
@@ -145,5 +135,11 @@ class DatasetJsonParser:
         self._parse_json_datasets(dsets)
         self._add_edges()
 
-        for nd in self.list_of_nodes:
-            print(f'nd {nd.id} - {nd.neighbours}')
+        with open("out.txt", 'w') as f:
+
+            for nd in self.list_of_nodes:
+                print(f'nd {nd.id} - {nd.domain}\nNeighbors: ', file=f)
+                for neighbor in nd.neighbors():
+                    print(f'{neighbor[0]} - j={neighbor[1]}', file=f)
+
+                print('\n', file=f)

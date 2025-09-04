@@ -34,10 +34,9 @@ class ParallelDatasetWorker(threading.Thread):
     def run(self):
 
         start_time = time.perf_counter()
-
+        cnt = 0
         for item in self.dataset:
-
-            self.curr_id += 1
+            cnt +=1
 
             ips: list[int] = []
             ip_strs: list[str] = item['dns']['A']
@@ -52,6 +51,9 @@ class ParallelDatasetWorker(threading.Thread):
             nd = Node(self.curr_id , domain, ips, self.b, [])
             self.nodes_result.append(nd)
 
+            self.curr_id += 1
+
+        self.dataset.clear()
         self._return_results()
 
         #self._dispatcher.debug_fun____(start_time,self.curr_id - len(self.dataset))
