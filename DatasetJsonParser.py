@@ -1,11 +1,13 @@
 import copy
 import threading
 import ijson
+import torch
 from Node import Node
 from IPEdge import IPEdge
 from ParallelDatasetWorker import ParallelDatasetWorker
 from ParallelEdgeConnectorWorker import ParallelEdgeConnectorWorker
-import time
+import torch as th
+import dgl
 
 class DatasetJsonParser:
 
@@ -18,12 +20,16 @@ class DatasetJsonParser:
         self.conf = config
         self.list_of_ips: dict[int,IPEdge] = {}
         self.list_of_nodes: list[Node] = []
+        self._u = th.tensor([])
+        self._v = th.tensor([])
+        self._jacc = th.tensor([])
         self._curr_node_id = 0
         self._curr_start_cnt = 0
 
         self.workers = []
         self._ip_lock = threading.Lock()
         self._nodes_lock = threading.Lock()
+        self._tensor_lock = threading.Lock()
         self.max_w_semaphore = threading.Semaphore(value=self.worker_limit)
         self.___debug_lock = threading.Lock()
 
@@ -50,7 +56,14 @@ class DatasetJsonParser:
         self.max_w_semaphore.release()
         self._nodes_lock.release()
 
-    def _add_edges(self) -> None:
+    def add_tensor_conc(self, u: th.Tensor, v: th.Tensor, jacc: th.Tensor) -> None:
+        self._tensor_lock.acquire()
+        self._u = th.cat((self._u,u)).to(th.long)
+        self._v = th.cat((self._v,v)).to(th.long)
+        self._jacc = th.cat((self._jacc,jacc)).to(th.double)
+        self._tensor_lock.release()
+
+    def _add_edges(self) -> dgl.DGLGraph:
 
         print("Adding edges to graph")
         for cnt in range(0, len(self.list_of_nodes), self._chunk_size):
@@ -60,7 +73,16 @@ class DatasetJsonParser:
 
         self._wait_on_workers()
 
+        print(self._u)
+        print(self._v)
+
+        g = dgl.graph((self._u,self._v), num_nodes=len(self.list_of_nodes))
+        g.edata['weight'] = self._jacc
+
+        #plot_graph(g) #note that my computer hasn't enough ram to handle this, he is strong, but not that strong
         print("Graph complete, enjoy")
+
+        return g
 
     def _send_batch(self, batch: list, b: bool) -> None:
 
@@ -99,19 +121,12 @@ class DatasetJsonParser:
             self._wait_on_workers()
             self.list_of_nodes = sorted(self.list_of_nodes, key=lambda node: node.id)
 
-            cnt = 0
-            for kokot in self.list_of_nodes:
-                print(f'{kokot.id} -> {cnt},')
-                cnt += 1
-
             print(f'Finished parsing {json_file_path}')
 
     def _parse_json_datasets(self,json_datasets):
 
         for path, benign in json_datasets:
             self._parse_json_file(path, benign)
-
-
 
     def _read_config(self) -> list[tuple]:
 
@@ -130,16 +145,18 @@ class DatasetJsonParser:
 
         return datasets
 
-    def parse(self):
+    def parse(self) -> dgl.DGLGraph:
         dsets = self._read_config()
         self._parse_json_datasets(dsets)
-        self._add_edges()
+        g = self._add_edges()
 
-        with open("out.txt", 'w') as f:
+        return g
 
-            for nd in self.list_of_nodes:
-                print(f'nd {nd.id} - {nd.domain}\nNeighbors: ', file=f)
-                for neighbor in nd.neighbors():
-                    print(f'{neighbor[0]} - j={neighbor[1]}', file=f)
+        #with open("out.txt", 'w') as f:
 
-                print('\n', file=f)
+        #    for nd in self.list_of_nodes:
+        #        print(f'nd {nd.id} - {nd.domain}\nNeighbors: ', file=f)
+        #        for neighbor in nd.neighbors():
+        #            print(f'{neighbor[0]} - j={neighbor[1]}', file=f)
+
+        #        print('\n', file=f)

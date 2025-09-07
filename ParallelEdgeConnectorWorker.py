@@ -1,5 +1,7 @@
 import threading
 import copy
+
+import DGLTest
 from Node import Node
 
 
@@ -50,3 +52,6 @@ class ParallelEdgeConnectorWorker(threading.Thread):
             neighbor_jacc_tup = list(zip(new_neighbors, new_neighbors_jaccard))
 
             node.add_neighbours(neighbor_jacc_tup)
+
+        u, v, jacc = DGLTest.convert_to_dgl(self._batch)
+        self._dispatcher.add_tensor_conc(u,v,jacc)
