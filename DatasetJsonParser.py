@@ -1,7 +1,9 @@
 import copy
 import threading
 import ijson
-import torch
+from Graph import create_graph
+
+from Visualize import plot_graph
 from Node import Node
 from IPEdge import IPEdge
 from ParallelDatasetWorker import ParallelDatasetWorker
@@ -20,15 +22,18 @@ class DatasetJsonParser:
         self.conf = config
         self.list_of_ips: dict[int,IPEdge] = {}
         self.list_of_nodes: list[Node] = []
+        self.domains: list[tuple[int,str]] = []
         self._u = th.tensor([])
         self._v = th.tensor([])
         self._jacc = th.tensor([])
+        self._labels = th.tensor([])
         self._curr_node_id = 0
         self._curr_start_cnt = 0
 
         self.workers = []
         self._ip_lock = threading.Lock()
         self._nodes_lock = threading.Lock()
+        self._domains_lock = threading.Lock()
         self._tensor_lock = threading.Lock()
         self.max_w_semaphore = threading.Semaphore(value=self.worker_limit)
         self.___debug_lock = threading.Lock()
@@ -56,33 +61,55 @@ class DatasetJsonParser:
         self.max_w_semaphore.release()
         self._nodes_lock.release()
 
-    def add_tensor_conc(self, u: th.Tensor, v: th.Tensor, jacc: th.Tensor) -> None:
+    def add_domains_conc(self, new_domains: list[tuple[int,str]]) -> None:
+        self._domains_lock.acquire()
+        self.domains.extend(new_domains)
+        self._domains_lock.release()
+
+    def add_tensor_conc(self, u: th.Tensor, v: th.Tensor, jacc: th.Tensor, lab: th.Tensor) -> None:
         self._tensor_lock.acquire()
         self._u = th.cat((self._u,u)).to(th.long)
         self._v = th.cat((self._v,v)).to(th.long)
         self._jacc = th.cat((self._jacc,jacc)).to(th.double)
+        self._labels = th.cat((self._labels,lab)).to(th.int)
         self._tensor_lock.release()
+
+   # def _gen_train_test_masks(self,n_nodes: int) -> tuple[th.Tensor,th.Tensor]:
+   #     train_mask = th.rand(n_nodes) < 0.9
+   #     test_mask = th.tensor([ not bool(m) for m in train_mask], dtype=th.bool)
+
+   #     return train_mask, test_mask
 
     def _add_edges(self) -> dgl.DGLGraph:
 
         print("Adding edges to graph")
+        d = True
         for cnt in range(0, len(self.list_of_nodes), self._chunk_size):
-            worker = ParallelEdgeConnectorWorker(self,self.list_of_nodes[cnt:cnt+self._chunk_size])
+            worker = ParallelEdgeConnectorWorker(self,self.list_of_nodes[cnt:cnt+self._chunk_size],d)
+            d = False
             self.workers.append(worker)
             worker.start()
 
         self._wait_on_workers()
 
-        print(self._u)
-        print(self._v)
+        #g = dgl.graph((self._u,self._v), num_nodes=len(self.list_of_nodes))
 
-        g = dgl.graph((self._u,self._v), num_nodes=len(self.list_of_nodes))
-        g.edata['weight'] = self._jacc
+        #g.edata['weight'] = self._jacc
+        #g.ndata['label'] = self._labels
 
-        #plot_graph(g) #note that my computer hasn't enough ram to handle this, he is strong, but not that strong
+        #train_mask, test_mask = self._gen_train_test_masks(len(self.list_of_nodes))
+        #g.ndata['train_mask'] = train_mask
+        #g.ndata['test_mask'] = test_mask
+
+
         print("Graph complete, enjoy")
+        num_of_nodes = len(self.list_of_nodes)
 
-        return g
+        self.list_of_nodes.clear()
+        self.domains.clear()
+        self.list_of_ips.clear()
+
+        return create_graph(self._u,self._v,self._jacc,self._labels,num_of_nodes)
 
     def _send_batch(self, batch: list, b: bool) -> None:
 
@@ -120,6 +147,7 @@ class DatasetJsonParser:
 
             self._wait_on_workers()
             self.list_of_nodes = sorted(self.list_of_nodes, key=lambda node: node.id)
+            self.domains = sorted(self.domains, key=lambda domain: domain[0])
 
             print(f'Finished parsing {json_file_path}')
 
@@ -145,12 +173,13 @@ class DatasetJsonParser:
 
         return datasets
 
-    def parse(self) -> dgl.DGLGraph:
+    def parse(self) -> tuple[dgl.DGLGraph, list[tuple[int,str]]]:
+
         dsets = self._read_config()
         self._parse_json_datasets(dsets)
         g = self._add_edges()
 
-        return g
+        return g, self.domains
 
         #with open("out.txt", 'w') as f:
 

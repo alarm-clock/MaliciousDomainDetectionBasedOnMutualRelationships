@@ -1,8 +1,9 @@
 import threading
 from Node import Node
 from IPEdge import IPEdge
+from helper_func import get_ips_from_record
 import ipaddress
-import time
+
 
 class ParallelDatasetWorker(threading.Thread):
 
@@ -16,7 +17,7 @@ class ParallelDatasetWorker(threading.Thread):
 
         self.nodes_result: list[Node] = []
         self.IPs_result: dict[int, IPEdge] = {}
-
+        self.domains: list[tuple[int, str]] = []
 
     def _add_ip_to_htable(self, ip: int, domain: int) -> None:
 
@@ -30,16 +31,14 @@ class ParallelDatasetWorker(threading.Thread):
     def _return_results(self):
         self._dispatcher.add_ips_conc(self.IPs_result)
         self._dispatcher.add_nodes_conc(self.nodes_result)
+        self._dispatcher.add_domains_conc(self.domains)
 
     def run(self):
 
-        start_time = time.perf_counter()
-        cnt = 0
         for item in self.dataset:
-            cnt +=1
 
             ips: list[int] = []
-            ip_strs: list[str] = item['dns']['A']
+            ip_strs: list[str] = get_ips_from_record(item)
 
             if ip_strs is not None:
                 for ip_str in ip_strs:
@@ -48,6 +47,7 @@ class ParallelDatasetWorker(threading.Thread):
                     ips.append(ip_int)
 
             domain = item['domain_name']
+            self.domains.append((self.curr_id, domain))
             nd = Node(self.curr_id , domain, ips, self.b, [])
             self.nodes_result.append(nd)
 
@@ -56,4 +56,3 @@ class ParallelDatasetWorker(threading.Thread):
         self.dataset.clear()
         self._return_results()
 
-        #self._dispatcher.debug_fun____(start_time,self.curr_id - len(self.dataset))

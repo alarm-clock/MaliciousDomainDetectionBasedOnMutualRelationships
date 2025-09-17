@@ -3,11 +3,19 @@ import torch
 import torch as th
 from Node import Node
 
-def convert_to_dgl(g_old: list[Node]):
+def convert_to_dgl(g_old: list[Node]) -> tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:
 
-    u, v, jacc = th.tensor([]), th.tensor([]), th.tensor([])
+    u, v, jacc, label = th.tensor([]), th.tensor([]), th.tensor([]), th.tensor([])
 
     for nd in g_old:
+
+        if nd.b:
+            b = th.ones(1)
+        else:
+            b = th.zeros(1)
+
+        label = th.cat((label,b)).to(th.int)
+
         if not nd.neighbors():
             continue
 
@@ -21,4 +29,4 @@ def convert_to_dgl(g_old: list[Node]):
         v = th.cat((v,v_ext)).to(torch.long)
         jacc = th.cat((jacc,jacc_ext)).to(torch.double)
 
-    return u, v, jacc
+    return u, v, jacc, label
