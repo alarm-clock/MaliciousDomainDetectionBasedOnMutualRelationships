@@ -1,11 +1,11 @@
 import sys
 from argparse import Namespace
-from DatasetJsonParser import DatasetJsonParser
-from DatasetDBParser import DatasetDBParser
-from Visualize import plot_graph
-from ExportGraph import export_graph, load_graph
-from helper_func import parse_ranges
-import Learning
+from dataset_parsers.raw.DatasetJsonParser import DatasetJsonParser
+from dataset_parsers.db.DatasetDBParser import DatasetDBParser
+from misc.Visualize import plot_graph
+from dataset_parsers.dglGraph.ExportGraph import export_graph, load_graph
+from misc.helper_func import parse_ranges
+from ml.deepwalk import Learning
 import argparse
 
 

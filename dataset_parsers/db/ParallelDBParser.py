@@ -1,7 +1,7 @@
 import threading
 import pymongo
-from ParallelEdgeConnectorWorker import calc_jaccard_f_l
-from helper_func import get_ips_from_record
+from dataset_parsers.raw.ParallelEdgeConnectorWorker import calc_jaccard_f_l
+from misc.helper_func import get_ips_from_record
 
 
 

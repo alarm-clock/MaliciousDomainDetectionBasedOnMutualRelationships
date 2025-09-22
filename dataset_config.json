@@ -1,3 +1,20 @@
-../datasets/benign_umbrella.json b 
-#testing.json b
-../datasets/phishing.json m
+[
+    {
+        "path": "../datasets/benign_umbrella.json",
+        "benign" : true,
+        "ranges" : [50000,150000],
+        "use" : true
+    },
+    {
+      "path": "../datasets/phishing.json",
+      "benign": false,
+      "ranges": [0,50000],
+      "use": true
+    },
+    {
+      "path": "testing.json",
+      "benign": true,
+      "ranges": [],
+      "use": false
+    }
+]

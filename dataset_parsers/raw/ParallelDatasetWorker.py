@@ -1,7 +1,7 @@
 import threading
-from Node import Node
-from IPEdge import IPEdge
-from helper_func import get_ips_from_record
+from dataset_parsers.raw.Node import Node
+from dataset_parsers.raw.IPEdge import IPEdge
+from misc.helper_func import get_ips_from_record
 import ipaddress
 
 

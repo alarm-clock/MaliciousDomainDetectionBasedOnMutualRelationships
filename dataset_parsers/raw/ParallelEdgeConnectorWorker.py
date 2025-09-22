@@ -3,7 +3,7 @@ import copy
 
 import DGLTest
 import torch as th
-from Node import Node
+from dataset_parsers.raw.Node import Node
 
 
 def list_intersection(l_ip1: list, l_ip2: list) -> list:

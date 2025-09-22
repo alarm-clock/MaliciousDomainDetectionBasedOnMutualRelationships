@@ -1,9 +1,9 @@
-from Node import Node
+from dataset_parsers.raw.Node import Node
 import random
 import dgl
 import torch as th
 import threading
-from CustomWalkThread import WalksGenerator
+from ml.deepwalk.CustomWalkThread import WalksGenerator
 
 
 def pick_based_on_jacc(g: dgl.DGLGraph, neighbors: list[int]) -> int:

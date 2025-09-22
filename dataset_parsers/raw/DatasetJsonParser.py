@@ -2,7 +2,7 @@ import copy
 import threading
 import ijson
 import json as jslib
-from Graph import create_graph
+from dataset_parsers.Graph import create_graph
 from Node import Node
 from IPEdge import IPEdge
 from ParallelDatasetWorker import ParallelDatasetWorker

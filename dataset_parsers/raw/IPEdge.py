@@ -1,5 +1,3 @@
-from numbers import Number
-
 
 class IPEdge:
 

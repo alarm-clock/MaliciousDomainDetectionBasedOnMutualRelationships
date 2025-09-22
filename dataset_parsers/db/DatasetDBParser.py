@@ -2,7 +2,7 @@ import threading
 from pymongo import MongoClient
 import json
 from ParallelDBParser import ParallelDBParser
-from Graph import create_graph
+from dataset_parsers.Graph import create_graph
 import torch as th
 from dgl import DGLGraph
 

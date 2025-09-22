@@ -1,7 +1,6 @@
-import dgl
 import torch
 import torch as th
-from Node import Node
+from dataset_parsers.raw.Node import Node
 
 def convert_to_dgl(g_old: list[Node]) -> tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]:
 

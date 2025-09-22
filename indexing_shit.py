@@ -1,6 +1,5 @@
-import pymongo
 from pymongo import MongoClient
-from helper_func import get_ips_from_record
+from misc.helper_func import get_ips_from_record
 
 client = MongoClient('localhost', 27017)
 db = client['datasets']
