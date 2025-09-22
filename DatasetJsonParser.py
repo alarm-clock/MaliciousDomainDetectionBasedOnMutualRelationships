@@ -1,9 +1,8 @@
 import copy
 import threading
 import ijson
+import json as jslib
 from Graph import create_graph
-
-from Visualize import plot_graph
 from Node import Node
 from IPEdge import IPEdge
 from ParallelDatasetWorker import ParallelDatasetWorker
@@ -13,7 +12,7 @@ import dgl
 
 class DatasetJsonParser:
 
-    def __init__(self, config: str = 'dataset_config.txt'):
+    def __init__(self, config: str = 'dataset_config.json'):
 
         self._chunk_size = 25000
         self.worker_limit = 10
@@ -74,12 +73,6 @@ class DatasetJsonParser:
         self._labels = th.cat((self._labels,lab)).to(th.int)
         self._tensor_lock.release()
 
-   # def _gen_train_test_masks(self,n_nodes: int) -> tuple[th.Tensor,th.Tensor]:
-   #     train_mask = th.rand(n_nodes) < 0.9
-   #     test_mask = th.tensor([ not bool(m) for m in train_mask], dtype=th.bool)
-
-   #     return train_mask, test_mask
-
     def _add_edges(self) -> dgl.DGLGraph:
 
         print("Adding edges to graph")
@@ -91,16 +84,6 @@ class DatasetJsonParser:
             worker.start()
 
         self._wait_on_workers()
-
-        #g = dgl.graph((self._u,self._v), num_nodes=len(self.list_of_nodes))
-
-        #g.edata['weight'] = self._jacc
-        #g.ndata['label'] = self._labels
-
-        #train_mask, test_mask = self._gen_train_test_masks(len(self.list_of_nodes))
-        #g.ndata['train_mask'] = train_mask
-        #g.ndata['test_mask'] = test_mask
-
 
         print("Graph complete, enjoy")
         num_of_nodes = len(self.list_of_nodes)
@@ -116,7 +99,7 @@ class DatasetJsonParser:
         self.max_w_semaphore.acquire()
 
         print(f'Sending batch to new worker, current start is: {self._curr_start_cnt}, size is: {len(batch)}')
-        new_worker = ParallelDatasetWorker(self, self._curr_start_cnt, copy.deepcopy(batch), self._chunk_size,b)
+        new_worker = ParallelDatasetWorker(self, self._curr_start_cnt, copy.deepcopy(batch), b)
         self.workers.append(new_worker)
         new_worker.start()
         self._curr_start_cnt += len(batch)
@@ -151,25 +134,91 @@ class DatasetJsonParser:
 
             print(f'Finished parsing {json_file_path}')
 
-    def _parse_json_datasets(self,json_datasets):
+    def _parse_json_file_w_ranges(self,json_file_path: str, b: bool, ranges: list[tuple[int,int]]) -> None:
 
-        for path, benign in json_datasets:
-            self._parse_json_file(path, benign)
+        with open(json_file_path, 'r') as file:
+            print(f'Parsing {json_file_path}')
+            items = ijson.items(file, 'item')
+            batch = []
 
-    def _read_config(self) -> list[tuple]:
+            cnt = 0
+            range_counter = 0
+            all_ranges_used = False
+            for item in items:
+
+                if all_ranges_used:
+                    break
+
+                if not all_ranges_used and cnt >= ranges[range_counter][0]:
+                    batch.append(item)
+
+                if len(batch) >= self._chunk_size:
+                    self._send_batch(batch, b)
+                    batch.clear()
+
+                if not all_ranges_used and cnt >= ranges[range_counter][1]:
+                    self._send_batch(batch, b)
+                    batch.clear()
+
+                    range_counter += 1
+                    all_ranges_used = False if range_counter < len(ranges) else True
+
+                cnt += 1
+
+            if not all_ranges_used:
+                self._send_batch(batch, b)
+                batch.clear()
+
+            self._wait_on_workers()
+            self.list_of_nodes = sorted(self.list_of_nodes, key=lambda node: node.id)
+            self.domains = sorted(self.domains, key=lambda domain: domain[0])
+
+
+    def _parse_json_datasets(self,json_datasets: list[tuple[str,bool,list[tuple[int,int] | None]]]):
+
+        for path, benign, ranges in json_datasets:
+
+            if ranges is None:
+                self._parse_json_file(path, benign)
+            else:
+                self._parse_json_file_w_ranges(path, benign, ranges)
+
+
+    @staticmethod
+    def _parse_config_ranges(ranges) -> list[tuple[int,int]] | None:
+
+        if ranges is None or ranges == []:
+            return None
+
+        parsed_ranges = []
+        for cnt in range(0,len(ranges),2):
+            start = ranges[cnt]
+            end = ranges[cnt + 1]
+
+            if start > end:
+                raise ValueError(f'Parsing ranges error: Start {start} is greater than end {end}')
+            if end < 0 or start < 0:
+                raise ValueError(f'Parsing ranges error: One of the numbers in ranges is negative')
+
+            parsed_ranges.append((int(ranges[cnt]),int(ranges[cnt+1])))
+
+        return parsed_ranges
+
+    def _read_config(self) -> list[tuple[str,bool,list[tuple[int,int]] | None]]:
 
         datasets = []
+        conf = []
         with open (self.conf, 'r') as config_file:
-            for line in config_file:
-                line = line.strip()
+            conf = jslib.load(config_file)
 
-                if line[0] == '#':
-                    continue
 
-                splt = line.split(' ')
-                is_bening = splt[1].strip() == 'b'
-                datasets.append((splt[0],is_bening))
-                print(f'{splt[0]} is {is_bening}')
+        for record in conf:
+            if record['use']:
+                path = record['path']
+                benign = record['benign']
+                ranges = self._parse_config_ranges(record['ranges'])
+
+                datasets.append((path,benign,ranges))
 
         return datasets
 
@@ -189,3 +238,16 @@ class DatasetJsonParser:
         #            print(f'{neighbor[0]} - j={neighbor[1]}', file=f)
 
         #        print('\n', file=f)
+
+
+
+##            for line in config_file:
+#                line = line.strip()
+
+#                if line[0] == '#':
+#                    continue
+
+ #               splt = line.split()
+#                is_bening = splt[1].strip() == 'b'
+#                datasets.append((splt[0],is_bening))
+#                print(f'{splt[0]} is {is_bening}')

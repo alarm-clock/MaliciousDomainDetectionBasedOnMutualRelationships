@@ -7,12 +7,11 @@ import ipaddress
 
 class ParallelDatasetWorker(threading.Thread):
 
-    def __init__(self, dispatcher, start_id: int, json_data, c_size, b):
+    def __init__(self, dispatcher, start_id: int, json_data, b):
         super().__init__()
         self._dispatcher = dispatcher
         self.curr_id = start_id
         self.dataset = json_data
-        self.chunk_size = c_size
         self.b = b
 
         self.nodes_result: list[Node] = []

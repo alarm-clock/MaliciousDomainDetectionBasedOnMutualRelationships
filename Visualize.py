@@ -4,7 +4,7 @@ import networkx as nx
 
 def plot_graph(g: dgl.DGLGraph ):
 
-    G = dgl.to_networkx(g,edge_attrs=['weight'])
+    G = dgl.to_networkx(g, edge_attrs=['weight'])
     plt.figure(figsize=(15, 7))
 
     pos = nx.spring_layout(G, seed=42)

@@ -5,18 +5,18 @@ import sklearn.linear_model as sk
 
 import Walks
 
-def train(g: dgl.DGLGraph):
 
-    model = DeepWalk(g,walk_length=32)
+def train(g: dgl.DGLGraph):
+    model = DeepWalk(g, walk_length=8)
     optimizer = th.optim.SparseAdam(model.parameters(), lr=0.01)
-    num_of_epochs = 5
+    num_of_epochs = 3
 
     for epoch in range(num_of_epochs):
         print(f'Epoch {epoch}...')
-        for cnt in range(20):
+        for cnt in range(2):
             print(f'Epoch {epoch} walk batch {cnt}...')
-            walks = Walks.generate_walks_tensor(g, 128, 32)
-            #print(walks)
+            walks = Walks.generate_walks_tensor_parallel(g, 5, 8)
+            print(f'Epoch {epoch} walk batch {cnt} done...')
             loss = model(walks)
             optimizer.zero_grad()
             loss.backward()
