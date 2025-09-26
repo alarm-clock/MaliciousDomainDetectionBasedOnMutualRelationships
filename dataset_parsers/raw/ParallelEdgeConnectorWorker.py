@@ -82,19 +82,5 @@ class ParallelEdgeConnectorWorker(threading.Thread):
             for neighbor in new_neighbors:
                  jacc.append(calc_jaccard(nd, self._dispatcher.list_of_nodes[neighbor]))
 
-            if self._display_progress:
-                cnt += 1
-
-                p = (len(self._batch) // 100) * cnt
-                if p == 25:
-                   print('25% done')
-                elif p == 50:
-                    print('50% done')
-                elif p == 75:
-                    print('75% done')
-
-        if self._display_progress:
-            print('100% done')
-
         self._batch.clear()
         self._dispatcher.add_tensor_conc(th.tensor(u), th.tensor(v), th.tensor(jacc), th.tensor(label))

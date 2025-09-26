@@ -2,6 +2,7 @@ import sys
 from argparse import Namespace
 from dataset_parsers.raw.DatasetJsonParser import DatasetJsonParser
 from dataset_parsers.db.DatasetDBParser import DatasetDBParser
+from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components
 from misc.Visualize import plot_graph
 from dataset_parsers.dglGraph.ExportGraph import export_graph, load_graph
 from misc.helper_func import parse_ranges
@@ -32,6 +33,8 @@ def main():
     parser.add_argument('-e','--export',metavar='EXPORT', type=str, help="Specifies that graph should be exported, defaults to False")
     parser.add_argument('-r','--ranges',metavar='RANGES', type=str, help="Specifies ranges of nodes from which nodes should be created, NOTE works only with database, NOTE2 that real number of nodes will be much larger because neighbors that are not specified in the ranges are still created")
     parser.add_argument('--plot', action='store_true', help="Specifies that graph should be plotted or not, defaults to False, NOTE that large graphs might crash due to HW limitations")
+    parser.add_argument("-c1", "--customf1", action='store_true', help="Custom function 1")
+    parser.add_argument("-c2", "--customf2", action='store_true', help="Custom function 2")
 
     args = parser.parse_args()
 
@@ -58,6 +61,18 @@ def main():
             return
     else:
         return
+
+    if args.customf1:
+        kokot = get_connected_components(g)
+        for k in kokot:
+            print("---------------")
+            print(k.num_edges())
+            print(k.num_nodes())
+
+    if args.customf2:
+        print(g.num_edges())
+        kokot = remove_isolated_nodes(g)
+        print(kokot.num_edges())
 
     if args.plot:
         plot_graph(g)

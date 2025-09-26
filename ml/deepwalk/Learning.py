@@ -3,7 +3,7 @@ from dgl.nn.pytorch import DeepWalk
 import torch as th
 import sklearn.linear_model as sk
 
-import Walks
+import ml.deepwalk.Walks as Walks
 
 
 def train(g: dgl.DGLGraph):

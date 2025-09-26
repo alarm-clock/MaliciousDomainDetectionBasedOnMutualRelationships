@@ -3,10 +3,10 @@ import threading
 import ijson
 import json as jslib
 from dataset_parsers.Graph import create_graph
-from Node import Node
-from IPEdge import IPEdge
-from ParallelDatasetWorker import ParallelDatasetWorker
-from ParallelEdgeConnectorWorker import ParallelEdgeConnectorWorker
+from dataset_parsers.raw.Node import Node
+from dataset_parsers.raw.IPEdge import IPEdge
+from dataset_parsers.raw.ParallelDatasetWorker import ParallelDatasetWorker
+from dataset_parsers.raw.ParallelEdgeConnectorWorker import ParallelEdgeConnectorWorker
 import torch as th
 import dgl
 

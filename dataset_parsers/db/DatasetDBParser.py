@@ -1,14 +1,14 @@
 import threading
 from pymongo import MongoClient
 import json
-from ParallelDBParser import ParallelDBParser
+from dataset_parsers.db.ParallelDBParser import ParallelDBParser
 from dataset_parsers.Graph import create_graph
 import torch as th
 from dgl import DGLGraph
 
 class DatasetDBParser:
 
-    def __init__(self, client: str, port: int, db: str, collection: str, pwd: str = None, user: str = None):
+    def __init__(self,no_lone_nd: bool, client: str, port: int, db: str, collection: str, pwd: str = None, user: str = None):
 
         if pwd is not None and user is not None:
             self.client = MongoClient(f"mongodb://{user}:{pwd}@{client}:{port}/{db}")
@@ -20,6 +20,7 @@ class DatasetDBParser:
         self._chunk_size = 50000
         self.worker_limit = 10
         self.num_of_w = 0
+        self.no_lone_nd = no_lone_nd
 
         self._u: list[int] = []
         self._v: list[int] = []
