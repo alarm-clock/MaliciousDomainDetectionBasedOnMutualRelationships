@@ -34,7 +34,7 @@ def main():
     parser.add_argument('-r','--ranges',metavar='RANGES', type=str, help="Specifies ranges of nodes from which nodes should be created, NOTE works only with database, NOTE2 that real number of nodes will be much larger because neighbors that are not specified in the ranges are still created")
     parser.add_argument('--plot', action='store_true', help="Specifies that graph should be plotted or not, defaults to False, NOTE that large graphs might crash due to HW limitations")
     parser.add_argument("-c1", "--customf1", action='store_true', help="Custom function 1")
-    parser.add_argument("-c2", "--customf2", action='store_true', help="Custom function 2")
+    parser.add_argument("--rm_iso_nds", action='store_true', help="Custom function 2")
 
     args = parser.parse_args()
 
@@ -50,6 +50,7 @@ def main():
         g = load_graph(args.dglformat.name)
         if g is None:
             return
+
     elif args.dataset is not None:
 
         parser = DatasetJsonParser(args.dataset.name)
@@ -69,10 +70,9 @@ def main():
             print(k.num_edges())
             print(k.num_nodes())
 
-    if args.customf2:
-        print(g.num_edges())
-        kokot = remove_isolated_nodes(g)
-        print(kokot.num_edges())
+    if args.rm_iso_nds:
+        g = remove_isolated_nodes(g)
+        
 
     if args.plot:
         plot_graph(g)
