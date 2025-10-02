@@ -14,9 +14,11 @@ def train(g: dgl.DGLGraph):
     for epoch in range(num_of_epochs):
         print(f'Epoch {epoch}...')
         for cnt in range(2):
-            print(f'Epoch {epoch} walk batch {cnt}...')
-            walks = Walks.generate_walks_tensor_parallel(g, 5, 8)
-            print(f'Epoch {epoch} walk batch {cnt} done...')
+
+            print(f'Generating walks...')
+            walks, _ = dgl.sampling.random_walk(g,g.nodes(),length=8,prob='weight')
+            print(f'Finished generating walks...')
+
             loss = model(walks)
             optimizer.zero_grad()
             loss.backward()
