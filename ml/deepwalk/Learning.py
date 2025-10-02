@@ -7,13 +7,14 @@ import ml.deepwalk.Walks as Walks
 
 
 def train(g: dgl.DGLGraph):
-    model = DeepWalk(g, walk_length=8)
+    model = DeepWalk(g, walk_length=12)
     optimizer = th.optim.SparseAdam(model.parameters(), lr=0.01)
-    num_of_epochs = 3
+    num_of_epochs = 6
 
     for epoch in range(num_of_epochs):
         print(f'Epoch {epoch}...')
-        for cnt in range(2):
+        total_loss = 0.0
+        for cnt in range(5):
 
             print(f'Generating walks...')
             walks, _ = dgl.sampling.random_walk(g,g.nodes(),length=8,prob='weight')
@@ -23,6 +24,15 @@ def train(g: dgl.DGLGraph):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            total_loss += loss.item()
+
+            print(f"Epoch {epoch + 1}/{6}, Step {cnt + 1}/{5}, Loss: {loss.item():.4f}")
+
+        avg_loss = total_loss / 5
+        print(f"Epoch {epoch + 1} finished, Avg Loss = {avg_loss:.4f}")
+
+
 
     train_mask = g.ndata['train_mask']
     test_mask = g.ndata['test_mask']
