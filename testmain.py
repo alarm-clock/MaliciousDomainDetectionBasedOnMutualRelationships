@@ -2,7 +2,7 @@ import sys
 from argparse import Namespace
 from dataset_parsers.raw.DatasetJsonParser import DatasetJsonParser
 from dataset_parsers.db.DatasetDBParser import DatasetDBParser
-from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components
+from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components, get_and_exp_connected_components
 from misc.Visualize import plot_graph
 from dataset_parsers.dglGraph.ExportGraph import export_graph, load_graph
 from misc.helper_func import parse_ranges
@@ -33,8 +33,9 @@ def main():
     parser.add_argument('-e','--export',metavar='EXPORT', type=str, help="Specifies that graph should be exported, defaults to False")
     parser.add_argument('-r','--ranges',metavar='RANGES', type=str, help="Specifies ranges of nodes from which nodes should be created, NOTE works only with database, NOTE2 that real number of nodes will be much larger because neighbors that are not specified in the ranges are still created")
     parser.add_argument('--plot', action='store_true', help="Specifies that graph should be plotted or not, defaults to False, NOTE that large graphs might crash due to HW limitations")
-    parser.add_argument("-c1", "--customf1", action='store_true', help="Custom function 1")
-    parser.add_argument("--rm_iso_nds", action='store_true', help="Custom function 2")
+    parser.add_argument("--gen_strong_comp", action='store_true', help="NOTE: do not call when you are low on ram")
+    parser.add_argument("--rm_iso_nds", action='store_true', help="Remove isolated nodes from created/imported graph")
+    parser.add_argument("--gen_exp_strong_comp", metavar='FILE4', type=str, help='Export strongly connected components into own graph')
 
     args = parser.parse_args()
 
@@ -63,15 +64,16 @@ def main():
     else:
         return
 
-    if args.customf1:
+    if args.gen_strong_comp:
         kokot = get_connected_components(g)
-        for k in kokot:
-            print("---------------")
-            print(k.num_edges())
-            print(k.num_nodes())
+    
 
     if args.rm_iso_nds:
         g = remove_isolated_nodes(g)
+
+    if args.get_exp_strong_comp is not None:
+        prefix = args.get_exp_strong_comp
+        get_and_exp_connected_components(g,prefix)
         
 
     if args.plot:

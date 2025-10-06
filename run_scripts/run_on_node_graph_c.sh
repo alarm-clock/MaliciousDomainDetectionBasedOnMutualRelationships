@@ -1,8 +1,8 @@
 #!/bin/bash
-#PBS -N deepwalk_training
-#PBS -q gpu
-#PBS -l select=1:ncpus=8:mem=500gb:ngpus=1:scratch_local=10gb
-#PBS -l walltime=02:00:00
+#PBS -N graph_creation
+#PBS -q default
+#PBS -l select=1:ncpus=6:mem=250gb:ngpus=0:scratch_local=50gb
+#PBS -l walltime=18:00:00
 
 source /storage/brno2/home/xbukas00/.node_bashrc
 
@@ -14,4 +14,4 @@ trap 'clean_scratch' TERM EXIT
 
 echo Starting main script...
 #singularity exec $CONTAINER python3 $RUN_SCRIPT --dataset $SCRATCHDIR/dataset_config.json --export $BRNO_HOME/diplomka/ful.dgld --remove_free_nodes
-singularity exec $CONTAINER $PROJECT_DIR/run_scripts/singularity_exec.sh
+singularity exec $CONTAINER $PROJECT_DIR/run_scripts/singularity_exec_graph_c.sh

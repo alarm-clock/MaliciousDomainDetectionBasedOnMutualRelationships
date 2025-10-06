@@ -17,7 +17,7 @@ def train(g: dgl.DGLGraph):
         for cnt in range(5):
 
             print(f'Generating walks...')
-            walks, _ = dgl.sampling.random_walk(g,g.nodes(),length=8,prob='weight')
+            walks, _ = dgl.sampling.random_walk(g,g.nodes(),length=12,prob='weight')
             print(f'Finished generating walks...')
 
             loss = model(walks)

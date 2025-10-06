@@ -1,6 +1,7 @@
 import torch as th
 import dgl
 import networkx as nx
+from dataset_parsers.dglGraph.ExportGraph import export_graph  
 
 def gen_train_test_masks(n_nodes: int) -> tuple[th.Tensor, th.Tensor]:
     train_mask = th.rand(n_nodes) < 0.9
@@ -43,3 +44,19 @@ def get_connected_components(g: dgl.DGLGraph, without_isolated_nodes: bool = Tru
     res = [ dgl.node_subgraph(g,list(c)) for c in components]
 
     return res
+
+def get_and_export_connected_components(g: dgl.DGLGraph, export_prefix: str, without_isolated_nodes: bool = True) -> None:
+    
+    if without_isolated_nodes:
+        g = remove_isolated_nodes(g)
+
+    nx_g = dgl.to_networkx(g).to_undirected()
+    components = list(nx.connected_components(nx_g))
+
+    for cnt, c in enumerate(components):
+
+        n_comp = dgl.node_subgraph(g,list(c))
+        export_graph(n_comp, export_prefix + f"{cnt}" + '.dglg')
+
+    return
+
