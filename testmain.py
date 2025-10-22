@@ -2,7 +2,7 @@ import sys
 from argparse import Namespace
 from dataset_parsers.raw.DatasetJsonParser import DatasetJsonParser
 from dataset_parsers.db.DatasetDBParser import DatasetDBParser
-from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components, get_and_exp_connected_components
+from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components, get_and_export_connected_components
 from misc.Visualize import plot_graph
 from dataset_parsers.dglGraph.ExportGraph import export_graph, load_graph
 from misc.helper_func import parse_ranges
@@ -71,11 +71,10 @@ def main():
     if args.rm_iso_nds:
         g = remove_isolated_nodes(g)
 
-    if args.get_exp_strong_comp is not None:
-        prefix = args.get_exp_strong_comp
-        get_and_exp_connected_components(g,prefix)
+    if args.gen_exp_strong_comp is not None:
+        prefix = args.gen_exp_strong_comp
+        get_and_export_connected_components(g,prefix)
         
-
     if args.plot:
         plot_graph(g)
 

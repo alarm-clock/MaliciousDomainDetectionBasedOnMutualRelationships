@@ -3,18 +3,18 @@
         "path": "../datasets/benign_umbrella.json",
         "benign" : true,
         "ranges" : [50000,150000],
-        "use" : true
+        "use" : false
     },
     {
       "path": "../datasets/phishing.json",
       "benign": false,
       "ranges": [0,50000],
-      "use": true
+      "use": false
     },
     {
       "path": "testing.json",
       "benign": true,
       "ranges": [],
-      "use": false
+      "use": true
     }
 ]

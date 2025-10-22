@@ -9,15 +9,19 @@ def gen_train_test_masks(n_nodes: int) -> tuple[th.Tensor, th.Tensor]:
 
     return train_mask, test_mask
 
+
+def regenerate_train_test_mask(g: dgl.DGLGraph):
+    train, test = gen_train_test_masks(g.num_nodes())
+    g.ndata['train_mask'] = train
+    g.ndata['test_mask'] = test
+
 def create_graph(u: th.Tensor, v: th.Tensor, jacc: th.Tensor, labels: th.Tensor, num_nodes: int) -> dgl.DGLGraph:
     g = dgl.graph((u, v), num_nodes=num_nodes)
 
     g.edata['weight'] = jacc
     g.ndata['label'] = labels
 
-    train_mask, test_mask = gen_train_test_masks(num_nodes)
-    g.ndata['train_mask'] = train_mask
-    g.ndata['test_mask'] = test_mask
+    regenerate_train_test_mask(g)
 
     g = dgl.add_reverse_edges(g,copy_ndata=True,copy_edata=True)
 
