@@ -1,0 +1,35 @@
+[{
+    "_id": {
+      "$oid": "63a58637e1317d2b68628a68"
+    },
+    "domain_name": "D8.at",
+    "dns": {
+      "A": [
+        "56.56.56.56"
+      ]
+    },
+    "ip_data":  [
+		{
+			"ip": "255.255.255.255",
+			"from_record": "A",
+			"remarks": {
+				"rdap_evaluated_on": {
+					"$date": "2023-07-15T01:43:38.988Z"
+				},
+				"asn_evaluated_on": {
+					"$date": "2023-07-15T01:43:38.994Z"
+				},
+				"geo_evaluated_on": {
+					"$date": "2023-09-10T13:01:58.774Z"
+				},
+				"icmp_evaluated_on": {
+					"$date": "2023-07-15T01:43:38.994Z"
+				},
+				"is_alive": true,
+				"average_rtt": 4.823
+			}
+        },{
+        "rdap": "kokot"
+      }
+      ]
+  }]

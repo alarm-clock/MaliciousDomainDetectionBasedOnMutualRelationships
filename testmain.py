@@ -33,6 +33,7 @@ def main():
     parser.add_argument('-e','--export',metavar='EXPORT', type=str, help="Specifies that graph should be exported, defaults to False")
     parser.add_argument('-r','--ranges',metavar='RANGES', type=str, help="Specifies ranges of nodes from which nodes should be created, NOTE works only with database, NOTE2 that real number of nodes will be much larger because neighbors that are not specified in the ranges are still created")
     parser.add_argument('--plot', action='store_true', help="Specifies that graph should be plotted or not, defaults to False, NOTE that large graphs might crash due to HW limitations")
+    parser.add_argument('--export_plot', metavar='EXPORT', type=str, help="Specifies that graph should be exported, defaults to False")
     parser.add_argument("--gen_strong_comp", action='store_true', help="NOTE: do not call when you are low on ram")
     parser.add_argument("--rm_iso_nds", action='store_true', help="Remove isolated nodes from created/imported graph")
     parser.add_argument("--gen_exp_strong_comp", metavar='FILE4', type=str, help='Export strongly connected components into own graph')
@@ -76,7 +77,10 @@ def main():
         get_and_export_connected_components(g,prefix)
         
     if args.plot:
-        plot_graph(g)
+        plot_graph(g,False)
+
+    if args.export_plot:
+        plot_graph(g, True, args.export_plot)
 
     if args.export:
         export_graph(g, args.export)

@@ -16,5 +16,11 @@
       "benign": true,
       "ranges": [],
       "use": true
+    },
+    {
+      "path": "testing2.json",
+      "benign": false,
+      "ranges": [],
+      "use": true
     }
 ]
