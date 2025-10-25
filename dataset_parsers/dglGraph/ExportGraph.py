@@ -18,5 +18,4 @@ def load_graph(filename: str) -> dgl.DGLGraph | None:
 
     g = load_graphs(filename)[0][0]  #it says it returns list of graphs but in reality it returns tuple with list
 
-    print(type(g))
     return g

@@ -30,7 +30,7 @@ def main():
     subs = {}
 
     for domain in domains:
-
+        print(trie)
         if trie.has_key(domain[1]):
             #print(f"{domain[1]} is superdomain")
             children = list(trie.keys(prefix=domain[1]))
@@ -52,12 +52,15 @@ def main():
 
         trie[domain[1]] = True
 
-    for key, value in subs.items():
-        print(f"{key}:")
-        for val in value:
-            print(f"{val},", end="")
+        domain_parts = domain[1].split('.')
+        domain = '.'.join(domain_parts[:2])
+        trie[domain] = True
+        for cnt in range(1, len(domain_parts)):
+            domain = domain + '.' + domain_parts[cnt]
+            trie[domain] = True
 
-        print(" ")
+
+
 
 if __name__ == "__main__":
     main()

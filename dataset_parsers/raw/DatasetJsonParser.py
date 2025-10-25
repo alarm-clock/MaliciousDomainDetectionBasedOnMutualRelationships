@@ -73,7 +73,7 @@ class DatasetJsonParser:
         self._labels = th.cat((self._labels,lab)).to(th.int)
         self._tensor_lock.release()
 
-    def _add_edges(self) -> dgl.DGLGraph:
+    def _add_edges(self) -> dgl.DGLGraph | None:
 
         print("Adding edges to graph")
         d = True
@@ -92,7 +92,13 @@ class DatasetJsonParser:
         self.domains.clear()
         self.list_of_ips.clear()
 
-        return create_graph(self._u,self._v,self._jacc,self._labels,num_of_nodes)
+        try:
+            g = create_graph(self._u,self._v,self._jacc,self._labels,num_of_nodes)
+        except Exception as e:
+            print(e)
+            g = None
+
+        return g
 
     def _send_batch(self, batch: list, b: bool) -> None:
 
@@ -222,7 +228,7 @@ class DatasetJsonParser:
 
         return datasets
 
-    def parse(self) -> tuple[dgl.DGLGraph, list[tuple[int,str]]]:
+    def parse(self) -> tuple[dgl.DGLGraph | None, list[tuple[int,str]]]:
 
         dsets = self._read_config()
         self._parse_json_datasets(dsets)

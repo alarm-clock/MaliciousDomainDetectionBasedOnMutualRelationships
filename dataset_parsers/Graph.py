@@ -12,8 +12,13 @@ def gen_train_test_masks(n_nodes: int) -> tuple[th.Tensor, th.Tensor]:
 
 def regenerate_train_test_mask(g: dgl.DGLGraph):
     train, test = gen_train_test_masks(g.num_nodes())
+
+    #if g.is_homogeneous:
     g.ndata['train_mask'] = train
     g.ndata['test_mask'] = test
+    #else:
+    #    g.ndata['train_mask'] = {'d':train}
+    #    g.ndata['test_mask'] = {'d':test}
 
 def create_graph(u: th.Tensor, v: th.Tensor, jacc: th.Tensor, labels: th.Tensor, num_nodes: int) -> dgl.DGLGraph:
     g = dgl.graph((u, v), num_nodes=num_nodes)
@@ -27,15 +32,38 @@ def create_graph(u: th.Tensor, v: th.Tensor, jacc: th.Tensor, labels: th.Tensor,
 
     return g
 
+def create_hetero_graph(edges: dict[tuple[str,str,str], tuple[th.Tensor, th.Tensor]], weights: dict[ tuple[str,str,str], th.Tensor] | None, labels: list[int], num_nodes: int) -> dgl.DGLGraph:
+
+    g = dgl.heterograph(edges, num_nodes_dict={'d':num_nodes})
+    g.ndata['label'] = th.tensor(labels).to(th.int)
+    if weights is not None:
+        g.edata['weight'] = weights
+
+    regenerate_train_test_mask(g)
+
+    return g
+
+def get_in_out_degrees(g: dgl.DGLGraph) -> tuple[th.Tensor, th.Tensor]:
+
+    if g.is_homogeneous:
+        return g.in_degrees(), g.out_degrees()
+    else:
+        return g.in_degrees(etype='d'), g.out_degrees(etype='d')
+
+def remove_given_nodes(g: dgl.DGLGraph, isolated_nodes: th.Tensor) -> dgl.DGLGraph:
+
+    if g.is_homogeneous:
+        return dgl.remove_nodes(g, isolated_nodes)
+    else:
+        return dgl.remove_nodes(g, isolated_nodes, ntype='d')
+
 def remove_isolated_nodes(g: dgl.DGLGraph) -> dgl.DGLGraph:
 
-    ins = g.in_degrees()
-    out = g.out_degrees()
+    ins, out = get_in_out_degrees(g)
 
     isolated_nodes = th.nonzero((ins == 0) & (out == 0), as_tuple=True)[0]
 
-    new_g = dgl.remove_nodes(g, isolated_nodes)
-    return new_g
+    return remove_given_nodes(g, isolated_nodes)
 
 def get_connected_components(g: dgl.DGLGraph, without_isolated_nodes: bool = True) :#-> list[dgl.DGLGraph]:
 

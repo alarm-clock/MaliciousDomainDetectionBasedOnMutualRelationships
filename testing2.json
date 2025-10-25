@@ -1,8 +1,8 @@
 [{
     "_id": {
-      "$oid": "63a58637e1317d2b68628a68"
+      "$oid": "63a58637e1317d2b68628a69"
     },
-    "domain_name": "D8.at",
+    "domain_name": "7.C.at",
     "dns": {
       "A": [
         "56.56.56.56"
@@ -31,5 +31,7 @@
         },{
         "rdap": "kokot"
       }
-      ]
+      ],
+    "node_id": 7,
+    "label": "malware"
   }]

@@ -31,16 +31,19 @@ class DatasetDBParser:
 
         self._result_lock = threading.Lock()
 
+    def identify(self) -> str:
+        return 'DatasetDBParser'
+
     @classmethod
-    def from_config(cls, config: str):
+    def from_config(cls, no_lone_nd: bool ,config: str):
 
         with open(config) as f:
             conf = json.load(f)
 
             if conf["pwd"] is not None:
-                return cls(conf["client"], conf["port"], conf["db"], conf["collection"], conf["pwd"], conf["user"])
+                return cls( no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"], conf["pwd"], conf["user"])
             else:
-                return cls(conf["client"], conf["port"], conf["db"], conf["collection"])
+                return cls( no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"])
 
 
     def store_results(self, u: list[int], v: list[int], jacc: list[float], labels: list[int]) -> None:
@@ -48,7 +51,7 @@ class DatasetDBParser:
         self._u.extend(u)
         self._v.extend(v)
         self._jacc.extend(jacc)
-        self._labels.extend(labels)
+        self._labels.extend(labels)  #TODO bug, I have no idea if list labels will be in the right order after this operation
         self._result_lock.release()
 
     def _send_worker(self, start_id: int, size: int) -> None:

@@ -1,0 +1,6 @@
+{
+	"client" : "localhost",
+	"port" : 27017,
+	"db" : "test_datasets",
+	"collection" : "domains"
+}

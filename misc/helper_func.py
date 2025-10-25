@@ -1,3 +1,4 @@
+import sys
 
 def get_ips_from_record(doc) -> list[str]:
     ips = doc['dns']['A']
