@@ -9,6 +9,7 @@ from dataset_parsers.Graph import create_hetero_graph
 from dataset_parsers.heterograph.SubdomainEdge import SubdomainEdge
 from dataset_parsers.heterograph.CNAMEEdge import CNAMEEdge
 from dataset_parsers.db.ParallelDBParser import ParallelDBParser
+from dataset_parsers.heterograph.ipv4_parallel_api import IPV4ParallelAPI
 
 
 class HeterographCreator:
@@ -91,11 +92,15 @@ class HeterographCreator:
 
     def _get_ipv4_edges(self):
 
-        step = 25000
-        for start_idx in range(0, self._n_nodes, step):
-            worker = ParallelDBParser(self, start_idx, start_idx + step if start_idx + step < self._n_nodes else self._n_nodes, self._collection)
-            worker.start()
-            self._edge_type_workers.append(worker)
+        #step = 25000
+        #for start_idx in range(0, self._n_nodes, step):
+        #    worker = ParallelDBParser(self, start_idx, start_idx + step if start_idx + step < self._n_nodes else self._n_nodes, self._collection)
+        #    worker.start()
+        #    self._edge_type_workers.append(worker)
+
+        parallel_ipv4_parser = IPV4ParallelAPI(self, self._collection)
+        parallel_ipv4_parser.start()
+        self._edge_type_workers.append(parallel_ipv4_parser)
 
     def _parse_label(self, doc) -> tuple[int, int]:
         return int(doc['node_id']), int(doc['label'].find("benign") != -1)
@@ -148,6 +153,7 @@ class HeterographCreator:
         weights = self._weights if self._weights.keys().__len__() != 0 else None
 
         try:
+            print(self._edges)
             g = create_hetero_graph(self._edges, weights , labels, self._n_nodes)
         except Exception as e:
             print(e)

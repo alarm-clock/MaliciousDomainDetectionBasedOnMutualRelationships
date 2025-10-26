@@ -9,6 +9,7 @@ from dataset_parsers.raw.ParallelDatasetWorker import ParallelDatasetWorker
 from dataset_parsers.raw.ParallelEdgeConnectorWorker import ParallelEdgeConnectorWorker
 import torch as th
 import dgl
+import pymongo
 
 class DatasetJsonParser:
 
@@ -22,10 +23,10 @@ class DatasetJsonParser:
         self.list_of_ips: dict[int,IPEdge] = {}
         self.list_of_nodes: list[Node] = []
         self.domains: list[tuple[int,str]] = []
-        self._u = th.tensor([])
-        self._v = th.tensor([])
-        self._jacc = th.tensor([])
-        self._labels = th.tensor([])
+        self._u = []#th.tensor([])
+        self._v = []#th.tensor([])
+        self._jacc = []#th.tensor([])
+        self._labels = []#th.tensor([])
         self._curr_node_id = 0
         self._curr_start_cnt = 0
 
@@ -57,7 +58,7 @@ class DatasetJsonParser:
     def add_nodes_conc(self, new_nodes: list[Node]) -> None:
         self._nodes_lock.acquire()
         self.list_of_nodes.extend(new_nodes)
-        self.max_w_semaphore.release()
+        #self.max_w_semaphore.release()
         self._nodes_lock.release()
 
     def add_domains_conc(self, new_domains: list[tuple[int,str]]) -> None:
@@ -65,25 +66,28 @@ class DatasetJsonParser:
         self.domains.extend(new_domains)
         self._domains_lock.release()
 
-    def add_tensor_conc(self, u: th.Tensor, v: th.Tensor, jacc: th.Tensor, lab: th.Tensor) -> None:
+    def add_tensor_conc(self, u: list, v: list, jacc: list, lab: list ) -> None:#u: th.Tensor, v: th.Tensor, jacc: th.Tensor, lab: th.Tensor) -> None:
         self._tensor_lock.acquire()
-        self._u = th.cat((self._u,u)).to(th.long)
-        self._v = th.cat((self._v,v)).to(th.long)
-        self._jacc = th.cat((self._jacc,jacc)).to(th.double)
-        self._labels = th.cat((self._labels,lab)).to(th.int)
+        self._u.extend(u) #= #th.cat((self._u,u)).to(th.long)
+        self._v.extend(v) #= #th.cat((self._v,v)).to(th.long)
+        self._jacc.extend(jacc) #= #th.cat((self._jacc,jacc)).to(th.double)
+        self._labels.extend(lab) #= #th.cat((self._labels,lab)).to(th.int)
         self._tensor_lock.release()
 
-    def _add_edges(self) -> dgl.DGLGraph | None:
-
+    def _create_and_send_edge_workers(self, parallel: bool):
         print("Adding edges to graph")
         d = True
         for cnt in range(0, len(self.list_of_nodes), self._chunk_size):
-            worker = ParallelEdgeConnectorWorker(self,self.list_of_nodes[cnt:cnt+self._chunk_size],d)
+            worker = ParallelEdgeConnectorWorker(self, self.list_of_nodes[cnt:cnt + self._chunk_size], d, parallel)
             d = False
             self.workers.append(worker)
             worker.start()
 
         self._wait_on_workers()
+
+    def _add_edges(self, parallel: bool) -> dgl.DGLGraph | None:
+
+        self._create_and_send_edge_workers(parallel)
 
         print("Graph complete, enjoy")
         num_of_nodes = len(self.list_of_nodes)
@@ -93,7 +97,7 @@ class DatasetJsonParser:
         self.list_of_ips.clear()
 
         try:
-            g = create_graph(self._u,self._v,self._jacc,self._labels,num_of_nodes)
+            g = create_graph(th.Tensor(self._u).to(th.int),th.Tensor(self._v).to(th.int),th.Tensor(self._jacc).to(th.float),th.Tensor(self._labels).to(th.int),num_of_nodes)
         except Exception as e:
             print(e)
             g = None
@@ -102,9 +106,9 @@ class DatasetJsonParser:
 
     def _send_batch(self, batch: list, b: bool) -> None:
 
-        self.max_w_semaphore.acquire()
+        #self.max_w_semaphore.acquire()
 
-        print(f'Sending batch to new worker, current start is: {self._curr_start_cnt}, size is: {len(batch)}')
+        #print(f'Sending batch to new worker, current start is: {self._curr_start_cnt}, size is: {len(batch)}')
         new_worker = ParallelDatasetWorker(self, self._curr_start_cnt, copy.deepcopy(batch), b)
         self.workers.append(new_worker)
         new_worker.start()
@@ -232,9 +236,56 @@ class DatasetJsonParser:
 
         dsets = self._read_config()
         self._parse_json_datasets(dsets)
-        g = self._add_edges()
+        g = self._add_edges(False)
 
         return g, self.domains
+
+    def _parse_db(self, collection):
+
+        cursor = collection.find({}, {'_id': 0, 'domain_name': 1, 'dns.A': 1, 'ip_data': 1 }, batch_size=25000 ).sort("node_id",
+                                                                                                                      pymongo.ASCENDING)
+
+        batch = []
+        cnt = 0
+        for record in cursor:
+            batch.append(record)
+
+            if cnt >= self._chunk_size:
+                self._send_batch(batch, True)
+                batch.clear()
+                cnt = 0
+
+        if len(batch) > 0:
+            self._send_batch(batch, True)
+
+        self._wait_on_workers()
+        self.list_of_nodes = sorted(self.list_of_nodes, key=lambda node: node.id)
+
+    def _add_db_edges(self, dispatcher):
+
+        self._create_and_send_edge_workers(True)
+        self.list_of_nodes.clear()
+        self.domains.clear()
+        self.list_of_ips.clear()
+
+        g = dgl.graph((th.tensor(self._u).to(th.int), th.tensor(self._v).to(th.int)))
+        g.edata['weight'] = th.tensor(self._jacc).to(th.float)
+
+        g = dgl.add_reverse_edges(g, copy_ndata=True, copy_edata=True)
+
+        u_th, v_th = g.edges()
+
+        jacc_th = g.edata['weight']
+        u, v, jacc = list(u_th), list(v_th), list(jacc_th)
+
+        dispatcher.submit_edges(u, v, 'ipv4', jacc)
+
+
+
+    def parse_from_db(self, dispatcher, collection):
+
+        self._parse_db(collection)
+        self._add_db_edges(dispatcher)
 
         #with open("out.txt", 'w') as f:
 

@@ -27,11 +27,13 @@ def train_hetero(g: dgl.DGLGraph):
     optimizer = th.optim.SparseAdam(model.parameters(), lr=0.05)
     homo_g = dgl.to_homogeneous(g)
 
+    print("Getting edge type ids...")
     etype_eids = {}
     for e_type in g.etypes:
         eids_homo = homo_g.edata[dgl.ETYPE] == g.get_etype_id(e_type)
         etype_eids[e_type] = torch.nonzero(eids_homo, as_tuple=False).squeeze().to(th.int32)
 
+    print("Generating homogenous subgraphs for given edge type...")
     e_type_subgraphs = {
         e_type: dgl.edge_subgraph(homo_g, etype_eids[e_type])
         for e_type in g.etypes
@@ -40,7 +42,7 @@ def train_hetero(g: dgl.DGLGraph):
 
     losses = []
     avg_losses = []
-
+    print("Starting training...")
     for epoch in range(num_of_epochs):
         print(f'Epoch {epoch}...')
         total_loss = 0.0
