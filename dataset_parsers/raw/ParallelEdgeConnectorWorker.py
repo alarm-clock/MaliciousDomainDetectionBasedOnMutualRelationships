@@ -44,26 +44,6 @@ class ParallelEdgeConnectorWorker(threading.Thread):
         self._display_progress = display_progress
         self._do_parrallel_version = do_parrallel_version
 
-    def kokot(self) -> None:
-
-        for node in self._batch:
-
-            new_neighbors: list[int] = []
-            for ip in node.ip:
-                new_neighbors.extend(self._dispatcher.list_of_ips[ip].get_domains())
-
-            new_neighbors_jaccard: list[float] = []
-            for neighbor in new_neighbors:
-                neighbor_node = self._dispatcher.list_of_nodes[neighbor]
-                new_neighbors_jaccard.append(calc_jaccard(node, neighbor_node))
-
-            neighbor_jacc_tup = list(zip(new_neighbors, new_neighbors_jaccard))
-
-            node.add_neighbours(neighbor_jacc_tup)
-
-        u, v, jacc, lab = DGLTest.convert_to_dgl(self._batch)
-        self._dispatcher.add_tensor_conc(u,v,jacc,lab)
-
     def _parallel_edge(self, nd: Node):
 
         #label.append(int(nd.b))
@@ -99,8 +79,16 @@ class ParallelEdgeConnectorWorker(threading.Thread):
                     v.extend(v_r)
                     jacc.extend(jacc_r)
 
+                    u_r.clear()
+                    v_r.clear()
+                    jacc_r.clear()
+
         self._batch.clear()
         self._dispatcher.add_tensor_conc(u, v, jacc, [])
+
+        u.clear()
+        v.clear()
+        jacc.clear()
 
     def normal(self):
         u, v, jacc, label = [], [], [], []
@@ -123,6 +111,11 @@ class ParallelEdgeConnectorWorker(threading.Thread):
 
         self._batch.clear()
         self._dispatcher.add_tensor_conc(th.tensor(u), th.tensor(v), th.tensor(jacc), th.tensor(label))
+
+        u.clear()
+        v.clear()
+        jacc.clear()
+        label.clear()
 
     def run(self) -> None:
 

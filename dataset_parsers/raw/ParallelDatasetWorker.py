@@ -32,6 +32,10 @@ class ParallelDatasetWorker(threading.Thread):
         self._dispatcher.add_nodes_conc(self.nodes_result)
         self._dispatcher.add_domains_conc(self.domains)
 
+        self.IPs_result.clear()
+        self.nodes_result.clear()
+        self.domains.clear()
+
     def run(self):
 
         for item in self.dataset:

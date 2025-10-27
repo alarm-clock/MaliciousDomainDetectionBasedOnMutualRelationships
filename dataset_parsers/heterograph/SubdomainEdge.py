@@ -57,6 +57,9 @@ class SubdomainEdge(threading.Thread):
                     self._of_v.extend(v)
                     self._of_u.extend(u)
 
+                    u.clear()
+                    v.clear()
+
     def _create_edges(self) -> None:
 
         if self._subdomains:
@@ -70,6 +73,11 @@ class SubdomainEdge(threading.Thread):
             self._dispatcher.submit_edges(self._u,self._v,'subdomain')
         if self._subdomain_of:
             self._dispatcher.submit_edges(self._of_u,self._of_v,'subdomain_of')
+
+        self._u.clear()
+        self._v.clear()
+        self._of_u.clear()
+        self._of_v.clear()
 
     def _check_domain_and_put_it_in_trie(self, trie: pygtrie.StringTrie, domain: tuple[int, str], domain_id_dict: dict):
 

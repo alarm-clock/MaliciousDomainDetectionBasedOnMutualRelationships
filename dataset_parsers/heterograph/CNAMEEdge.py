@@ -14,6 +14,9 @@ class CNAMEEdge(threading.Thread):
 
     def _submit_result(self):
         self._dispatcher.submit_edges(self._u, self._v, 'cname')
+        self._u.clear()
+        self._v.clear()
+        self._domains.clear()
 
     def _find_in_db(self, domain: str) -> tuple[int, str] | None:
 
