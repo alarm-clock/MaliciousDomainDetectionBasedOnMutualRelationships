@@ -13,7 +13,16 @@ def get_ips_from_record(doc) -> list[str]:
 
     return ips
 
-def parse_ranges(ranges: str) -> list[tuple[int, int]] | None:
+def add_project_into_pipeline( project_body: dict, pipeline: list):
+    pipeline.append({"$project": project_body})
+
+def add_sort_into_pipeline( sort_body: dict, pipeline: list):
+    pipeline.append({"$sort": sort_body})
+
+def parse_ranges(ranges: str | None) -> list[tuple[int, int]] | None:
+
+    if ranges is None:
+        return None
 
     split_ranges = ranges.split(',')
 

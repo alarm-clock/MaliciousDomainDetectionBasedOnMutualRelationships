@@ -3,14 +3,18 @@ from concurrent.futures import ThreadPoolExecutor
 import pygtrie
 import pymongo
 from misc.Logger import MyLogger
+from misc.helper_func import add_project_into_pipeline
 
 
 class SubdomainEdge(threading.Thread):
 
-    def __init__(self, dispatcher, collection: pymongo.collection.Collection, subdomains: bool, subdomain_of: bool):
+    def __init__(self, dispatcher, collection: pymongo.collection.Collection, ranges: list, subdomains: bool, subdomain_of: bool):
         super().__init__()
         self._collection = collection
         self._dispatcher = dispatcher
+
+        add_project_into_pipeline({"_id": 0, "domain_name": 1, "node_id": 1}, ranges)
+        self._pipeline = ranges
 
         self._u: list[int] = []
         self._v: list[int] = []
@@ -42,6 +46,7 @@ class SubdomainEdge(threading.Thread):
         u = []
         v = []
 
+        print(values)
         for cnt in range(len(values)):
             u.extend([values[cnt]] * (len(values) - 1))
             for cnt2 in range(len(values)):
@@ -62,8 +67,7 @@ class SubdomainEdge(threading.Thread):
                     self._of_v.extend(v)
                     self._of_u.extend(u)
 
-                    u.clear()
-                    v.clear()
+                    del u, v
 
     def _create_edges(self) -> None:
 
@@ -115,7 +119,8 @@ class SubdomainEdge(threading.Thread):
                     self._subs[parent_id].append(domain[0])
 
     def _get_domains(self) -> list[tuple[int, str]]:
-        cursor = self._collection.find({}, {'_id': 0, 'domain_name': 1, 'node_id': 1}, batch_size=10000)
+        #cursor = self._collection.find({}, {'_id': 0, 'domain_name': 1, 'node_id': 1}, batch_size=10000)
+        cursor = self._collection.aggregate(self._pipeline, batchSize=10000)
         domains = []
 
         with ThreadPoolExecutor(max_workers=16) as executor:
@@ -127,6 +132,7 @@ class SubdomainEdge(threading.Thread):
                 if result:
                     domains.append(result)
 
+        cursor.close()
         return domains
 
     def _create_domain_tree(self, domains: list[tuple[int,str]], domain_id_dict: dict[str, int]) -> None:

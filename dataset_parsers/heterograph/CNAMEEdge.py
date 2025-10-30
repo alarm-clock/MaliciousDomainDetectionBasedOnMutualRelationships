@@ -1,17 +1,21 @@
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from misc.Logger import MyLogger
+from misc.helper_func import add_project_into_pipeline
 import pymongo
 
 class CNAMEEdge(threading.Thread):
 
-    def __init__(self, dispatcher, collection:  pymongo.collection.Collection):
+    def __init__(self, dispatcher, collection:  pymongo.collection.Collection, ranges: list):
         super().__init__()
         self._dispatcher = dispatcher
         self._collection = collection
         self._domains: dict[str, list] = {}
         self._u: list[int] = []
         self._v: list[int] = []
+
+        add_project_into_pipeline({'_id': 0, "dns.CNAME.value": 1, "node_id": 1}, ranges)
+        self._pipeline = ranges
 
     def _submit_result(self):
         self._dispatcher.submit_edges(self._u, self._v, 'cname')
@@ -64,7 +68,8 @@ class CNAMEEdge(threading.Thread):
 
 
     def _match_entries_with_same_cname(self):
-        cursor = self._collection.find({}, {'_id': 0, "dns.CNAME.value": 1, "node_id": 1}, batch_size=10000)
+        #cursor = self._collection.find({}, {'_id': 0, "dns.CNAME.value": 1, "node_id": 1}, batch_size=10000)
+        cursor = self._collection.aggregate(self._pipeline, batchSize=10000)
 
         for doc in cursor:
             if doc.get('dns'):
@@ -74,6 +79,7 @@ class CNAMEEdge(threading.Thread):
                     self._domains[doc['dns']['CNAME']['value']].append(int(doc['node_id']))
 
         self._find_cnames_in_db()
+        cursor.close()
 
     def run(self):
         MyLogger.get_instance().log("Starting to match CNAME entries...")

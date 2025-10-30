@@ -12,6 +12,8 @@ from misc.Logger import MyLogger
 import torch as th
 import dgl
 import pymongo
+from misc.helper_func import add_project_into_pipeline, add_sort_into_pipeline
+
 
 class DatasetJsonParser:
 
@@ -242,10 +244,12 @@ class DatasetJsonParser:
 
         return g, self.domains
 
-    def _parse_db(self, collection):
+    def _parse_db(self, collection, ranges: list):
 
-        cursor = collection.find({}, {'_id': 0, 'domain_name': 1, 'dns.A': 1, 'ip_data': 1 }, batch_size=25000 ).sort("node_id",
-                                                                                                                      pymongo.ASCENDING)
+        add_project_into_pipeline({'_id': 0, 'domain_name': 1, 'dns.A': 1, 'ip_data': 1, 'node_id': 1 }, ranges)
+        add_sort_into_pipeline({'node_id': pymongo.ASCENDING}, ranges)
+        cursor = collection.aggregate(ranges, batchSize=25000 )
+
         batch = []
         cnt = 0
         for record in cursor:
@@ -259,6 +263,7 @@ class DatasetJsonParser:
         if len(batch) > 0:
             self._send_batch(batch, True)
 
+        cursor.close()
         self._wait_on_workers()
         self.list_of_nodes = sorted(self.list_of_nodes, key=lambda node: node.id)
 
@@ -286,10 +291,10 @@ class DatasetJsonParser:
 
 
 
-    def parse_from_db(self, dispatcher, collection):
+    def parse_from_db(self, dispatcher, collection, ranges: list):
 
         MyLogger.get_instance().log("Started parsing ipv4 relations, starting workers...")
-        self._parse_db(collection)
+        self._parse_db(collection, ranges)
         MyLogger.get_instance().log("Started to create ipv4 edges, starting workers...")
         self._add_db_edges(dispatcher)
 

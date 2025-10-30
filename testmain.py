@@ -88,14 +88,14 @@ def main():
         if not check_if_db_was_given(args):
             return
 
-        hg_creator = HeterographCreator.from_config(args.db_config.name, args.heterograph)
+        hg_creator = HeterographCreator.from_config(args.db_config.name, args.heterograph, args.ranges)
         g = hg_creator.createHeterograph()
     else:
         return
 
     if g is None:
         print("No graph was created or imported so can not continue...", file=sys.stderr)
-        MyLogger.get_instance().log("No graph was created or imported so can not continue...", file=sys.stderr)
+        MyLogger.get_instance().log("No graph was created or imported so can not continue...")
         return
 
     if args.regenerate_test_mask:
@@ -126,6 +126,7 @@ def main():
         #Learning.train(g)
         Learning.train_hetero(g)
 
+    MyLogger.get_instance().log("Finished!")
     return
 
 

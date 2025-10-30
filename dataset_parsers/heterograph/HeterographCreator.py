@@ -1,3 +1,4 @@
+import copy
 import json
 import sys
 import threading
@@ -11,11 +12,11 @@ from dataset_parsers.heterograph.CNAMEEdge import CNAMEEdge
 from dataset_parsers.db.ParallelDBParser import ParallelDBParser
 from dataset_parsers.heterograph.ipv4_parallel_api import IPV4ParallelAPI
 from misc.Logger import MyLogger
-
+from misc.helper_func import parse_ranges
 
 class HeterographCreator:
 
-    def __init__(self, edge_types: str | None = None, no_lone_nd: bool = False, client: str = 'localhost', port: int = 27017, db: str = "datasets", collection: str = "domains", pwd: str = None,
+    def __init__(self, edge_types: str | None = None, ranges: str | None = None, no_lone_nd: bool = False, client: str = 'localhost', port: int = 27017, db: str = "datasets", collection: str = "domains", pwd: str = None,
                  user: str = None):
 
         if pwd is not None and user is not None:
@@ -27,6 +28,7 @@ class HeterographCreator:
         self._n_nodes = self._collection.count_documents({})
         self._no_lone_nd = no_lone_nd
         self._edge_type_workers = []
+        self._ranges = self._create_or_conditions(ranges)
 
         self._edges: dict[tuple[str,str,str], tuple[th.Tensor, th.Tensor]] = {}
         self._weights: dict[tuple[str,str,str], th.Tensor] = {}
@@ -43,17 +45,28 @@ class HeterographCreator:
             edge_type_str = edge_type_str.strip()
             self._edge_types.append(edge_type_str)
 
+    @staticmethod
+    def _create_or_conditions(ranges: str | None) -> list | None:
+        ranges_list = parse_ranges(ranges)
+        if ranges_list is None:
+            MyLogger.get_instance().log("Heterograph is using all collection entries to create graph")
+            return []
+
+        MyLogger.get_instance().log("Heterograph is using entries with node_id in ranges intervals: " + str(ranges))
+        or_conditions = [ {"node_id": {"$gte": start, "$lte": end}} for start, end in ranges_list ]
+        return [{"$match": {"$or": or_conditions}}]
+
     @classmethod
-    def from_config(cls, config: str, edge_types: str | None = None , no_lone_nd: bool = False):
+    def from_config(cls, config: str, edge_types: str | None = None, ranges: str | None = None, no_lone_nd: bool = False):
 
         with open(config) as f:
             conf = json.load(f)
 
             if conf.get('pwd'):
-                return cls(edge_types, no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"], conf["pwd"],
+                return cls(edge_types, ranges, no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"], conf["pwd"],
                            conf["user"])
             else:
-                return cls(edge_types, no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"])
+                return cls(edge_types, ranges ,no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"])
 
     def identify(self) -> str:
         return 'HeterographCreator'
@@ -83,24 +96,18 @@ class HeterographCreator:
 
     def _get_subdomain_edges(self, do_subdomain: bool, do_subdomain_of: bool):
 
-        sub_edge = SubdomainEdge(self, self._collection, do_subdomain, do_subdomain_of)
+        sub_edge = SubdomainEdge(self, self._collection, copy.deepcopy(self._ranges), do_subdomain, do_subdomain_of)
         sub_edge.start()
         self._edge_type_workers.append(sub_edge)
 
     def _get_cname_edges(self):
-        cname_edge = CNAMEEdge(self, self._collection)
+        cname_edge = CNAMEEdge(self, self._collection, copy.deepcopy(self._ranges))
         cname_edge.start()
         self._edge_type_workers.append(cname_edge)
 
     def _get_ipv4_edges(self):
 
-        #step = 25000
-        #for start_idx in range(0, self._n_nodes, step):
-        #    worker = ParallelDBParser(self, start_idx, start_idx + step if start_idx + step < self._n_nodes else self._n_nodes, self._collection)
-        #    worker.start()
-        #    self._edge_type_workers.append(worker)
-
-        parallel_ipv4_parser = IPV4ParallelAPI(self, self._collection)
+        parallel_ipv4_parser = IPV4ParallelAPI(self, self._collection, copy.deepcopy(self._ranges))
         parallel_ipv4_parser.start()
         self._edge_type_workers.append(parallel_ipv4_parser)
 
@@ -163,7 +170,7 @@ class HeterographCreator:
             MyLogger.get_instance().log("Created dgl heterograph")
         except Exception as e:
             print(e)
-            MyLogger.get_instance().log(e)
+            MyLogger.get_instance().log(repr(e))
             g = None
 
         return g
