@@ -7,6 +7,7 @@ from dataset_parsers.heterograph.HeterographCreator import HeterographCreator
 from misc.Visualize import plot_graph#, export_graph_gpu
 from dataset_parsers.dglGraph.ExportGraph import export_graph, load_graph
 from misc.helper_func import parse_ranges
+from misc.Logger import MyLogger
 from ml.deepwalk import Learning
 import argparse
 
@@ -51,8 +52,12 @@ def main():
     parser.add_argument("--gen_exp_strong_comp", metavar='FILE4', type=str, help='Export strongly connected components into own graph')
     parser.add_argument("-t1", "--test1", metavar="TEST1" ,type=argparse.FileType('r'), help="Test function 1")
     parser.add_argument("--regenerate_test_mask", action='store_true', help="Regenerate test mask for given graph")
+    parser.add_argument('--log_file', metavar='LOGFILE', type=argparse.FileType('a'), help="Log file")
 
     args = parser.parse_args()
+
+    if args.log_file is not None:
+        MyLogger(args.log_file.name)
 
     if not check_args_logic(args):
         return
@@ -77,7 +82,7 @@ def main():
         try:
             g, _ = parser.parse()
         except ValueError as e:
-            print(e)
+            MyLogger.get_instance().log(e)
             return
     elif args.heterograph is not None:
         if not check_if_db_was_given(args):
@@ -90,6 +95,7 @@ def main():
 
     if g is None:
         print("No graph was created or imported so can not continue...", file=sys.stderr)
+        MyLogger.get_instance().log("No graph was created or imported so can not continue...", file=sys.stderr)
         return
 
     if args.regenerate_test_mask:

@@ -10,6 +10,7 @@ from dataset_parsers.heterograph.SubdomainEdge import SubdomainEdge
 from dataset_parsers.heterograph.CNAMEEdge import CNAMEEdge
 from dataset_parsers.db.ParallelDBParser import ParallelDBParser
 from dataset_parsers.heterograph.ipv4_parallel_api import IPV4ParallelAPI
+from misc.Logger import MyLogger
 
 
 class HeterographCreator:
@@ -75,6 +76,7 @@ class HeterographCreator:
         for edge_str in edge_strs:
             if edge_str not in self._known_edges:
                 print(f"Unknown edge type: {edge_str}", file=sys.stderr)
+                MyLogger.get_instance().log(f"Unknown edge type: {edge_str}")
                 return False
 
         return True
@@ -107,6 +109,7 @@ class HeterographCreator:
 
     def _get_labels(self) -> list[int]:
 
+        MyLogger.get_instance().log("Getting labels...")
         labels_w_ids: list[tuple[int, int]] = []
         cursor = self._collection.find({}, {'_id': 0, 'label': 1, 'node_id': 1}, batch_size=10000)
 
@@ -121,6 +124,7 @@ class HeterographCreator:
         labels_w_ids = sorted(labels_w_ids, key=lambda x: x[0])  #sort by node id
 
         _ , labels = zip(*labels_w_ids)
+        MyLogger.get_instance().log("Got and sorted all labes")
         return list(labels)
 
     def createHeterograph(self, edge_types: list[str] | None = None) -> DGLGraph | None:
@@ -130,33 +134,36 @@ class HeterographCreator:
         if not self._check_edge_strs(edge_types):
             return None
 
-        print("Creating Heterograph...")
+        MyLogger.get_instance().log("Creating Heterograph...")
 
         if "subdomain" in edge_types:
-            print("Creating subdomain edges" + " and subdomain_of edges" if 'subdomain_of' in edge_types else "")
+            MyLogger.get_instance().log("Creating subdomain edges" + " and subdomain_of edges" if 'subdomain_of' in edge_types else "")
             self._get_subdomain_edges(True, 'subdomain_of' in edge_types)
         elif 'subdomain_of' in edge_types:
-            print("Creating subdomain_of edges")
+            MyLogger.get_instance().log("Creating subdomain_of edges")
             self._get_subdomain_edges(False, True)
         if 'cname' in edge_types:
-            print("Creating cname edges")
+            MyLogger.get_instance().log("Creating cname edges")
             self._get_cname_edges()
         if 'ipv4' in edge_types:
-            print("Creating ipv4 edges")
+            MyLogger.get_instance().log("Creating ipv4 edges")
             self._get_ipv4_edges()
 
         for w in self._edge_type_workers:
             w.join()
 
-        print("Created all edges...")
+        MyLogger.get_instance().log("Created all edges...")
         labels = self._get_labels()
         weights = self._weights if self._weights.keys().__len__() != 0 else None
 
         try:
             print(self._edges)
+            MyLogger.get_instance().log("Creating dgl heterograph...")
             g = create_hetero_graph(self._edges, weights , labels, self._n_nodes)
+            MyLogger.get_instance().log("Created dgl heterograph")
         except Exception as e:
             print(e)
+            MyLogger.get_instance().log(e)
             g = None
 
         return g

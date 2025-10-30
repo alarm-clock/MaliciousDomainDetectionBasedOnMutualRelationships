@@ -1,7 +1,8 @@
 import torch as th
 import dgl
 import networkx as nx
-from dataset_parsers.dglGraph.ExportGraph import export_graph  
+from dataset_parsers.dglGraph.ExportGraph import export_graph
+from misc.Logger import MyLogger
 
 def gen_train_test_masks(n_nodes: int) -> tuple[th.Tensor, th.Tensor]:
     train_mask = th.rand(n_nodes) < 0.9

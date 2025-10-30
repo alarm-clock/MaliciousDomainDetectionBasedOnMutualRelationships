@@ -1,3 +1,4 @@
+import array
 import copy
 import threading
 import ijson
@@ -7,6 +8,7 @@ from dataset_parsers.raw.Node import Node
 from dataset_parsers.raw.IPEdge import IPEdge
 from dataset_parsers.raw.ParallelDatasetWorker import ParallelDatasetWorker
 from dataset_parsers.raw.ParallelEdgeConnectorWorker import ParallelEdgeConnectorWorker
+from misc.Logger import MyLogger
 import torch as th
 import dgl
 import pymongo
@@ -23,9 +25,9 @@ class DatasetJsonParser:
         self.list_of_ips: dict[int,IPEdge] = {}
         self.list_of_nodes: list[Node] = []
         self.domains: list[tuple[int,str]] = []
-        self._u = []#th.tensor([])
-        self._v = []#th.tensor([])
-        self._jacc = []#th.tensor([])
+        self._u = array.array('I')#th.tensor([])
+        self._v = array.array('I')#th.tensor([])
+        self._jacc = array.array('d')#th.tensor([])
         self._labels = []#th.tensor([])
         self._curr_node_id = 0
         self._curr_start_cnt = 0
@@ -66,7 +68,7 @@ class DatasetJsonParser:
         self.domains.extend(new_domains)
         self._domains_lock.release()
 
-    def add_tensor_conc(self, u: list, v: list, jacc: list, lab: list ) -> None:#u: th.Tensor, v: th.Tensor, jacc: th.Tensor, lab: th.Tensor) -> None:
+    def add_tensor_conc(self, u: array.array, v: array.array, jacc: array.array, lab: list ) -> None:#u: th.Tensor, v: th.Tensor, jacc: th.Tensor, lab: th.Tensor) -> None:
         self._tensor_lock.acquire()
         self._u.extend(u) #= #th.cat((self._u,u)).to(th.long)
         self._v.extend(v) #= #th.cat((self._v,v)).to(th.long)
@@ -244,7 +246,6 @@ class DatasetJsonParser:
 
         cursor = collection.find({}, {'_id': 0, 'domain_name': 1, 'dns.A': 1, 'ip_data': 1 }, batch_size=25000 ).sort("node_id",
                                                                                                                       pymongo.ASCENDING)
-
         batch = []
         cnt = 0
         for record in cursor:
@@ -264,6 +265,7 @@ class DatasetJsonParser:
     def _add_db_edges(self, dispatcher):
 
         self._create_and_send_edge_workers(True)
+        MyLogger.get_instance().log("Finished creating ipv4 edges")
         self.list_of_nodes.clear()
         self.domains.clear()
         self.list_of_ips.clear()
@@ -271,7 +273,9 @@ class DatasetJsonParser:
         g = dgl.graph((th.tensor(self._u).to(th.int), th.tensor(self._v).to(th.int)))
         g.edata['weight'] = th.tensor(self._jacc).to(th.float)
 
+        MyLogger.get_instance().log("Creating reverse ipv4 edges")
         g = dgl.add_reverse_edges(g, copy_ndata=True, copy_edata=True)
+        MyLogger.get_instance().log("Finished creating reverse ipv4 edges")
 
         u_th, v_th = g.edges()
 
@@ -284,7 +288,9 @@ class DatasetJsonParser:
 
     def parse_from_db(self, dispatcher, collection):
 
+        MyLogger.get_instance().log("Started parsing ipv4 relations, starting workers...")
         self._parse_db(collection)
+        MyLogger.get_instance().log("Started to create ipv4 edges, starting workers...")
         self._add_db_edges(dispatcher)
 
         #with open("out.txt", 'w') as f:

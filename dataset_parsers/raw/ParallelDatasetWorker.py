@@ -2,6 +2,7 @@ import threading
 from dataset_parsers.raw.Node import Node
 from dataset_parsers.raw.IPEdge import IPEdge
 from misc.helper_func import get_ips_from_record
+from misc.Logger import MyLogger
 import ipaddress
 
 
@@ -10,6 +11,7 @@ class ParallelDatasetWorker(threading.Thread):
     def __init__(self, dispatcher, start_id: int, json_data, b):
         super().__init__()
         self._dispatcher = dispatcher
+        self._s = start_id
         self.curr_id = start_id
         self.dataset = json_data
         self.b = b
@@ -32,11 +34,14 @@ class ParallelDatasetWorker(threading.Thread):
         self._dispatcher.add_nodes_conc(self.nodes_result)
         self._dispatcher.add_domains_conc(self.domains)
 
+        MyLogger.get_instance().log(f"Dataset worker with start_id {self._s} has finished...")
+
         self.IPs_result.clear()
         self.nodes_result.clear()
         self.domains.clear()
 
     def run(self):
+        MyLogger.get_instance().log(f"Dataset worker with start_id {self._s} has started...")
 
         for item in self.dataset:
 

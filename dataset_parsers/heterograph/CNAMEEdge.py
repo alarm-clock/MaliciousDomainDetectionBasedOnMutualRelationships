@@ -1,5 +1,6 @@
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from misc.Logger import MyLogger
 import pymongo
 
 class CNAMEEdge(threading.Thread):
@@ -75,6 +76,9 @@ class CNAMEEdge(threading.Thread):
         self._find_cnames_in_db()
 
     def run(self):
+        MyLogger.get_instance().log("Starting to match CNAME entries...")
         self._match_entries_with_same_cname()
+        MyLogger.get_instance().log("Creating CNAME edges...")
         self._create_edges()
+        MyLogger.get_instance().log("All CNAME edges created")
         self._submit_result()

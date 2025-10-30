@@ -2,6 +2,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import pygtrie
 import pymongo
+from misc.Logger import MyLogger
 
 
 class SubdomainEdge(threading.Thread):
@@ -30,8 +31,12 @@ class SubdomainEdge(threading.Thread):
         for key, vals in self._subs.items():
             if key < 0:
                 continue
-            self._u.extend([key] * vals.__len__())
-            self._v.extend(vals)
+            u = [key] * len(vals)
+            v = vals
+            self._u.extend(u) #edges from superdomain to subdomains
+            self._v.extend(v)
+            self._u.extend(v) #edges from subdomains to superdomain
+            self._v.extend(u)
 
     def _create_edges_between_subdomains(self, values: list[int]) -> tuple[list[int],list[int]]:
         u = []
@@ -63,21 +68,24 @@ class SubdomainEdge(threading.Thread):
     def _create_edges(self) -> None:
 
         if self._subdomains:
+            MyLogger.get_instance().log("Creating subdomain edges...")
             self._create_subdomain_edges()
+            MyLogger.get_instance().log("Created subdomain edges")
         if self._subdomain_of:
+            MyLogger.get_instance().log("Creating subdomain_of edges...")
             self._create_subdomain_of_edges()
+            MyLogger.get_instance().log("Created subdomain_of edges")
 
     def _submit_edges(self):
 
         if self._subdomains:
             self._dispatcher.submit_edges(self._u,self._v,'subdomain')
+            MyLogger.get_instance().log("Submitted all subdomain edges")
         if self._subdomain_of:
             self._dispatcher.submit_edges(self._of_u,self._of_v,'subdomain_of')
+            MyLogger.get_instance().log("Submitted all subdomain_of edges")
 
-        self._u.clear()
-        self._v.clear()
-        self._of_u.clear()
-        self._of_v.clear()
+        del self._u, self._v, self._of_u, self._of_v
 
     def _check_domain_and_put_it_in_trie(self, trie: pygtrie.StringTrie, domain: tuple[int, str], domain_id_dict: dict):
 
@@ -106,24 +114,22 @@ class SubdomainEdge(threading.Thread):
                 else:
                     self._subs[parent_id].append(domain[0])
 
-
-    def run(self):
-
+    def _get_domains(self) -> list[tuple[int, str]]:
         cursor = self._collection.find({}, {'_id': 0, 'domain_name': 1, 'node_id': 1}, batch_size=10000)
         domains = []
 
         with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [executor.submit(self._reverse, d) for d in cursor] #reverse domains so tree can be built from top level domain
+            futures = [executor.submit(self._reverse, d) for d in
+                       cursor]  # reverse domains so tree can be built from top level domain
 
             for future in futures:
                 result = future.result()
                 if result:
                     domains.append(result)
 
-        domain_id_dict = {}
-        for domain in domains:
-            domain_id_dict[domain[1]] = domain[0]  #store node ids in the hash table for fast retrieval
+        return domains
 
+    def _create_domain_tree(self, domains: list[tuple[int,str]], domain_id_dict: dict[str, int]) -> None:
         trie = pygtrie.StringTrie(separator='.')
 
         non_dset_id = -1
@@ -134,18 +140,31 @@ class SubdomainEdge(threading.Thread):
             trie[domain[1]] = True
 
             domain_parts = domain[1].split('.')
-            for cnt in range(2, len(domain_parts)): #add every superdomain except the whole domain (-1)
+            for cnt in range(2, len(domain_parts)):  # add every superdomain except the whole domain (-1)
                 domain = '.'.join(domain_parts[:cnt])
 
-                if domain_id_dict.get(domain):  #unique id for non dataset domains
+                if domain_id_dict.get(domain):  # unique id for non dataset domains
                     domain_id = domain_id_dict[domain]
                 else:
                     domain_id = non_dset_id
                     domain_id_dict[domain] = domain_id
                     non_dset_id -= 1
 
-                self._check_domain_and_put_it_in_trie(trie, (domain_id,domain), domain_id_dict) #even if it isn't in dataset I still need it for subdomain_of
+                self._check_domain_and_put_it_in_trie(trie, (domain_id, domain),
+                                                      domain_id_dict)  # even if it isn't in dataset I still need it for subdomain_of
                 trie[domain] = True
 
+        del trie
+
+    def run(self):
+        MyLogger.get_instance().log("Getting domains for domain tree...")
+        domains = self._get_domains()
+
+        domain_id_dict = {}
+        for domain in domains:
+            domain_id_dict[domain[1]] = domain[0]  #store node ids in the hash table for fast retrieval
+
+        MyLogger.get_instance().log("Got all domains. Creating subdomain tree...")
+        self._create_domain_tree(domains, domain_id_dict)
         self._create_edges()
         self._submit_edges()
