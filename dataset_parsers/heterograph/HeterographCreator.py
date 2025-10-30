@@ -12,7 +12,8 @@ from dataset_parsers.heterograph.CNAMEEdge import CNAMEEdge
 from dataset_parsers.db.ParallelDBParser import ParallelDBParser
 from dataset_parsers.heterograph.ipv4_parallel_api import IPV4ParallelAPI
 from misc.Logger import MyLogger
-from misc.helper_func import parse_ranges
+from misc.helper_func import parse_ranges, add_project_into_pipeline
+import traceback
 
 class HeterographCreator:
 
@@ -25,10 +26,11 @@ class HeterographCreator:
             self.client = MongoClient(client, port)
         self._db = self.client[db]
         self._collection = self._db[collection]
-        self._n_nodes = self._collection.count_documents({})
         self._no_lone_nd = no_lone_nd
         self._edge_type_workers = []
-        self._ranges = self._create_or_conditions(ranges)
+
+        self._ranges, max_id = self._create_or_conditions(ranges)
+        self._n_nodes = self._collection.count_documents({}) if ranges is None else max_id
 
         self._edges: dict[tuple[str,str,str], tuple[th.Tensor, th.Tensor]] = {}
         self._weights: dict[tuple[str,str,str], th.Tensor] = {}
@@ -46,15 +48,19 @@ class HeterographCreator:
             self._edge_types.append(edge_type_str)
 
     @staticmethod
-    def _create_or_conditions(ranges: str | None) -> list | None:
-        ranges_list = parse_ranges(ranges)
+    def _create_or_conditions(ranges: str | None) -> tuple[list | None, int]:
+        try:
+            ranges_list = parse_ranges(ranges)
+        except ValueError as _:
+            return None, -1
+
         if ranges_list is None:
             MyLogger.get_instance().log("Heterograph is using all collection entries to create graph")
-            return []
+            return [], 0
 
         MyLogger.get_instance().log("Heterograph is using entries with node_id in ranges intervals: " + str(ranges))
         or_conditions = [ {"node_id": {"$gte": start, "$lte": end}} for start, end in ranges_list ]
-        return [{"$match": {"$or": or_conditions}}]
+        return [{"$match": {"$or": or_conditions}}], ranges_list[len(ranges_list)-1][1]
 
     @classmethod
     def from_config(cls, config: str, edge_types: str | None = None, ranges: str | None = None, no_lone_nd: bool = False):
@@ -117,8 +123,10 @@ class HeterographCreator:
     def _get_labels(self) -> list[int]:
 
         MyLogger.get_instance().log("Getting labels...")
+        project = [{"$match": { "node_id": {"$lte": self._n_nodes}}}]
+        add_project_into_pipeline({'_id': 0, 'label': 1, 'node_id': 1}, project)
         labels_w_ids: list[tuple[int, int]] = []
-        cursor = self._collection.find({}, {'_id': 0, 'label': 1, 'node_id': 1}, batch_size=10000)
+        cursor = self._collection.aggregate(project, batchSize=10000)
 
         with ThreadPoolExecutor(max_workers=20) as executor:
             futures = [executor.submit(self._parse_label, doc) for doc in cursor]
@@ -132,10 +140,13 @@ class HeterographCreator:
 
         _ , labels = zip(*labels_w_ids)
         MyLogger.get_instance().log("Got and sorted all labes")
+        cursor.close()
         return list(labels)
 
     def createHeterograph(self, edge_types: list[str] | None = None) -> DGLGraph | None:
 
+        if self._ranges is None:
+            return None
         if edge_types is None:
             edge_types = self._edge_types
         if not self._check_edge_strs(edge_types):
@@ -160,16 +171,19 @@ class HeterographCreator:
             w.join()
 
         MyLogger.get_instance().log("Created all edges...")
-        labels = self._get_labels()
+        labels= self._get_labels()
         weights = self._weights if self._weights.keys().__len__() != 0 else None
 
         try:
-            print(self._edges)
+
             MyLogger.get_instance().log("Creating dgl heterograph...")
-            g = create_hetero_graph(self._edges, weights , labels, self._n_nodes)
+            if not self._ranges:
+                g = create_hetero_graph(self._edges, weights , labels, self._n_nodes)
+            else:
+                g = create_hetero_graph(self._edges, weights, labels)
             MyLogger.get_instance().log("Created dgl heterograph")
         except Exception as e:
-            print(e)
+            traceback.print_exc()
             MyLogger.get_instance().log(repr(e))
             g = None
 

@@ -46,7 +46,10 @@ class SubdomainEdge(threading.Thread):
         u = []
         v = []
 
-        print(values)
+        #print(values)
+        #todo I must rework this to calculate some probability value for every edge that will reflect that all
+        #todo domains that share same top level domains like kokot.a.d.cz and pica.a.d.cz will have higher probability
+        #todo of being chosen in walk from one to another then domain like jebaci.d.cz
         for cnt in range(len(values)):
             u.extend([values[cnt]] * (len(values) - 1))
             for cnt2 in range(len(values)):

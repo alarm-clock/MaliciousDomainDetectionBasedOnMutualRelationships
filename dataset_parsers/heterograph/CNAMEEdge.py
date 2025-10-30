@@ -1,3 +1,4 @@
+import copy
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from misc.Logger import MyLogger
@@ -14,6 +15,7 @@ class CNAMEEdge(threading.Thread):
         self._u: list[int] = []
         self._v: list[int] = []
 
+        self._match = copy.deepcopy(ranges)
         add_project_into_pipeline({'_id': 0, "dns.CNAME.value": 1, "node_id": 1}, ranges)
         self._pipeline = ranges
 
@@ -25,7 +27,8 @@ class CNAMEEdge(threading.Thread):
 
     def _find_in_db(self, domain: str) -> tuple[int, str] | None:
 
-        doc = self._collection.find_one({"domain_name": domain})
+        match = {"$and": [{"domain_name": domain}, self._match[0]["$match"]]} if len(self._match) != 0 else {"domain_name": domain}
+        doc = self._collection.find_one(match)
         if doc is None:
             return None
         else:

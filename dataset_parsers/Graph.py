@@ -33,9 +33,12 @@ def create_graph(u: th.Tensor, v: th.Tensor, jacc: th.Tensor, labels: th.Tensor,
 
     return g
 
-def create_hetero_graph(edges: dict[tuple[str,str,str], tuple[th.Tensor, th.Tensor]], weights: dict[ tuple[str,str,str], th.Tensor] | None, labels: list[int], num_nodes: int) -> dgl.DGLGraph:
+def create_hetero_graph(edges: dict[tuple[str,str,str], tuple[th.Tensor, th.Tensor]], weights: dict[ tuple[str,str,str], th.Tensor] | None, labels: list[int], num_nodes: int | None = None) -> dgl.DGLGraph:
 
-    g = dgl.heterograph(edges, num_nodes_dict={'d':num_nodes})
+    if num_nodes is None:
+        g = dgl.heterograph(edges)
+    else:
+        g = dgl.heterograph(edges, num_nodes_dict={'d':num_nodes})
     g.ndata['label'] = th.tensor(labels).to(th.int)
     #if weights is not None:
     #    g.edata['weight'] = weights

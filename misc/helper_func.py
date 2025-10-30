@@ -1,4 +1,5 @@
 import sys
+from misc.Logger import MyLogger
 
 def get_ips_from_record(doc) -> list[str]:
     ips = doc['dns']['A']
@@ -28,11 +29,32 @@ def parse_ranges(ranges: str | None) -> list[tuple[int, int]] | None:
 
     if len(split_ranges) % 2 != 0:
         print("The ranges provided are not even", file=sys.stderr)
+        MyLogger.get_instance().log("The ranges provided are not even")
         return None
 
+    max = 0
     ranges: list[tuple[int, int]] = []
     for cnt in range(0, len(split_ranges), 2):
         start, end = split_ranges[cnt], split_ranges[cnt + 1]
-        ranges.append((int(start), int(end)))
+        start_n, end_n = int(start), int(end)
+
+        if start_n > end_n:
+            errstr = f"Start index in ranges is greater the end index: {start_n} > {end_n}"
+            MyLogger.get_instance().log(errstr)
+            print(errstr,file=sys.stderr)
+            raise ValueError
+        if start_n < 0 or end_n < 0:
+            errstr = f"Either starting index or ending index in ranges is negative: {start_n} or {end_n}"
+            MyLogger.get_instance().log(errstr)
+            print(errstr,file=sys.stderr)
+            raise ValueError
+        if start_n < max or end_n < max:
+            errstr = f"Ranges must be in ascending order. Tuple ({start_n},{end_n}) is smaller then current max value: {max}"
+            MyLogger.get_instance().log(errstr)
+            print(errstr,file=sys.stderr)
+            raise ValueError
+
+        max = end_n
+        ranges.append((start_n, end_n))
 
     return ranges
