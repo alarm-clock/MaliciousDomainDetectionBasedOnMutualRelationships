@@ -81,7 +81,9 @@ class CNAMEEdge(threading.Thread):
                 else:
                     self._domains[doc['dns']['CNAME']['value']].append(int(doc['node_id']))
 
+        MyLogger.get_instance().log("Stored all CNAME domains in the internal structure")
         self._find_cnames_in_db()
+        MyLogger.get_instance().log("Found all CNAME domains that are also in the database")
         cursor.close()
 
     def run(self):

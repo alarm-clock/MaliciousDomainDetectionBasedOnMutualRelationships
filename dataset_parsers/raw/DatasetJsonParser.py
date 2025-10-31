@@ -296,6 +296,7 @@ class DatasetJsonParser:
         u, v, jacc = list(u_th), list(v_th), list(jacc_th)
 
         dispatcher.submit_edges(u, v, 'ipv4', jacc)
+        MyLogger.get_instance().log("Submitted all ipv4 edges")
 
 
 
@@ -305,25 +306,3 @@ class DatasetJsonParser:
         self._parse_db(collection, ranges)
         MyLogger.get_instance().log("Started to create ipv4 edges, starting workers...")
         self._add_db_edges(dispatcher)
-
-        #with open("out.txt", 'w') as f:
-
-        #    for nd in self.list_of_nodes:
-        #        print(f'nd {nd.id} - {nd.domain}\nNeighbors: ', file=f)
-        #        for neighbor in nd.neighbors():
-        #            print(f'{neighbor[0]} - j={neighbor[1]}', file=f)
-
-        #        print('\n', file=f)
-
-
-
-##            for line in config_file:
-#                line = line.strip()
-
-#                if line[0] == '#':
-#                    continue
-
- #               splt = line.split()
-#                is_bening = splt[1].strip() == 'b'
-#                datasets.append((splt[0],is_bening))
-#                print(f'{splt[0]} is {is_bening}')
