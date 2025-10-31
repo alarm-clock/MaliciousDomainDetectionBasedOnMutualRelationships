@@ -82,6 +82,7 @@ class DatasetJsonParser:
         print("Adding edges to graph")
         d = True
         for cnt in range(0, len(self.list_of_nodes), self._chunk_size):
+            #print(self.list_of_nodes[cnt:cnt + self._chunk_size])
             worker = ParallelEdgeConnectorWorker(self, self.list_of_nodes[cnt:cnt + self._chunk_size], d, parallel)
             d = False
             self.workers.append(worker)

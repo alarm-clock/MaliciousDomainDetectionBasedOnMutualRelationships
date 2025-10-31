@@ -46,17 +46,18 @@ class ParallelDatasetWorker(threading.Thread):
 
         for item in self.dataset:
 
+            node_id = item['node_id'] if self._has_node_id else self.curr_id
             ips: list[int] = []
             ip_strs: list[str] = get_ips_from_record(item)
 
             if ip_strs is not None:
                 for ip_str in ip_strs:
                     ip_int = int(ipaddress.ip_address(ip_str))
-                    self._add_ip_to_htable(ip_int, self.curr_id)
+                    self._add_ip_to_htable(ip_int, node_id)
                     ips.append(ip_int)
 
             domain = item['domain_name']
-            node_id = item['node_id'] if self._has_node_id else self.curr_id
+
             self.domains.append((node_id, domain))
             nd = Node(node_id , domain, ips, self.b, [])
             self.nodes_result.append(nd)
