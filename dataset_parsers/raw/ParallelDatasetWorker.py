@@ -8,12 +8,13 @@ import ipaddress
 
 class ParallelDatasetWorker(threading.Thread):
 
-    def __init__(self, dispatcher, start_id: int, json_data, b):
+    def __init__(self, dispatcher, start_id: int, json_data: list, b: bool, has_node_id: bool = False):
         super().__init__()
         self._dispatcher = dispatcher
         self._s = start_id
         self.curr_id = start_id
         self.dataset = json_data
+        self._has_node_id = has_node_id
         self.b = b
 
         self.nodes_result: list[Node] = []
@@ -55,8 +56,9 @@ class ParallelDatasetWorker(threading.Thread):
                     ips.append(ip_int)
 
             domain = item['domain_name']
-            self.domains.append((self.curr_id, domain))
-            nd = Node(self.curr_id , domain, ips, self.b, [])
+            node_id = item['node_id'] if self._has_node_id else self.curr_id
+            self.domains.append((node_id, domain))
+            nd = Node(node_id , domain, ips, self.b, [])
             self.nodes_result.append(nd)
 
             self.curr_id += 1

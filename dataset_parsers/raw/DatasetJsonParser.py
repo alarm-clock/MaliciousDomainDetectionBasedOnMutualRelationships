@@ -244,6 +244,13 @@ class DatasetJsonParser:
 
         return g, self.domains
 
+    def _send_db_batch(self, batch: list) -> None:
+
+        new_worker = ParallelDatasetWorker(self, int(batch[0]['node_id']), copy.deepcopy(batch), True, True)
+        new_worker.start()
+        self.workers.append(new_worker)
+
+
     def _parse_db(self, collection, ranges: list):
 
         add_project_into_pipeline({'_id': 0, 'domain_name': 1, 'dns.A': 1, 'ip_data': 1, 'node_id': 1 }, ranges)
@@ -256,12 +263,12 @@ class DatasetJsonParser:
             batch.append(record)
 
             if cnt >= self._chunk_size:
-                self._send_batch(batch, True)
+                self._send_db_batch(batch, True)
                 batch.clear()
                 cnt = 0
 
         if len(batch) > 0:
-            self._send_batch(batch, True)
+            self._send_db_batch(batch)
 
         cursor.close()
         self._wait_on_workers()
