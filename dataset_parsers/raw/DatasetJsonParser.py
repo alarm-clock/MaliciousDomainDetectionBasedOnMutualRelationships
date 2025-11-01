@@ -262,6 +262,8 @@ class DatasetJsonParser:
                 batch.clear()
                 cnt = 0
 
+            cnt += 1
+
         if len(batch) > 0:
             self._send_db_batch(batch)
 
