@@ -31,14 +31,23 @@ class MyLogger:
         now = datetime.now()
         return now.strftime("%Y-%m-%d %H:%M:%S.%f") + ': ' + msg + '\n'
 
-    def _concurent_log(self, msg: str) -> None:
+    def _concurent_log(self, msg: str, with_time: bool = True) -> None:
         self._lock.acquire()
         with open(self._logfile, 'a') as f:
-            f.write(self._create_log_msg(msg))
+            f.write(self._create_log_msg(msg) if with_time else msg + '\n')
         self._lock.release()
 
-    def log(self, msg):
+    def log(self, msg: str):
         if self._logfile is None:
             return
 
         threading.Thread(target=self._concurent_log, args=(msg,)).start()
+
+    def debug_log(self, msg: str, concurrent_log: bool = True, with_time: bool = True) -> None:
+        if self._logfile is None:
+            return
+
+        if concurrent_log:
+            threading.Thread(target=self._concurent_log, args=(msg,with_time)).start()
+        else:
+            self._concurent_log(msg, with_time)
