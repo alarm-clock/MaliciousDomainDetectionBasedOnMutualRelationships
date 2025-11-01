@@ -79,15 +79,16 @@ class CNAMEEdge(threading.Thread):
 
         return batches
 
-    def _find_domains_in_db(self, domians: list[str]) -> None:
+    def _find_domains_in_db(self, domains: list[str]) -> None:
 
-        found = self._collection.find({"domain_name": {"$in": domians}}, {"domain_name": 1, "_id": 0, "node_id": 1})
+        match = {"$and": [{"domain_name": {"$in" : domains}}, self._match[0]["$match"]]} if len(self._match) != 0 else {"domain_name": {"$in": domains}}
+        found = self._collection.find(match, {"domain_name": 1, "_id": 0, "node_id": 1})
 
         for doc in found:
             self._domains[doc["domain_name"]].append(doc["node_id"])
             # I don't need to check if domain is in the domains dictionary because I got it from it
             # also I don't need to check if there is a list because there already must be one
-            # there also isn't need for the lock because in dictionary there is only one key
+            # there also isn't need for the lock because in dictionary this domain is a key
 
         found.close()
 
