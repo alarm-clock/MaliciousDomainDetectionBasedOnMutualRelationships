@@ -22,6 +22,8 @@ def test_result(g: dgl.DGLGraph, model: DeepWalk) -> None:
 
 def train_hetero(g: dgl.DGLGraph):
     num_of_epochs = 10
+    num_of_epoch_walks = 5
+    num_of_total_walks_in_epoch = len(g.etypes) * num_of_epoch_walks
     w_len = 12
     model = DeepWalk(g, walk_length=w_len)
     optimizer = th.optim.SparseAdam(model.parameters(), lr=0.05)
@@ -46,7 +48,7 @@ def train_hetero(g: dgl.DGLGraph):
     for epoch in range(num_of_epochs):
         print(f'Epoch {epoch}...')
         total_loss = 0.0
-        for cnt in range(5):
+        for cnt in range(num_of_epoch_walks):
             for e_type, type_subgraph in e_type_subgraphs.items():
                 walks, _ = dgl.sampling.random_walk(type_subgraph, type_subgraph.nodes(), length=w_len)
 
@@ -60,8 +62,8 @@ def train_hetero(g: dgl.DGLGraph):
 
                 print(f"Epoch {epoch + 1}/{6}, Step {cnt + 1}/{5}, walk for e_type {e_type}, Loss: {loss.item():.4f}")
 
-        avg_loss = total_loss / (5 * len(g.etypes))
-        avg_losses.append(avg_loss)
+        avg_loss = total_loss / num_of_total_walks_in_epoch
+        avg_losses.extend([avg_loss] * num_of_total_walks_in_epoch)
         print(f"Epoch {epoch + 1} finished, Avg Loss = {avg_loss:.4f}")
 
     plot_loss(losses,avg_losses)

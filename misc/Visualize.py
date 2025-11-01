@@ -80,13 +80,9 @@ def export_graph_gpu(g: dgl.DGLGraph, filename: str = "graph.png" ):
 
 def plot_loss(losses: list[float], avg_losses: list[float]):
 
-    longer_avg_loses = []
-    for loss in avg_losses:
-        longer_avg_loses.extend([loss] * 15)
-
     plt.figure(figsize=(15, 7))
     plt.plot(losses, label='Batch loss', alpha=0.5)
-    plt.plot( range(len(losses)), longer_avg_loses, label='Average loss', linestyle='--', color='red')
+    plt.plot( range(len(losses)), avg_losses, label='Average loss', linestyle='--', color='red')
     plt.xlabel('Iterations/epoch')
     plt.ylabel('Loss')
     plt.legend()

@@ -37,10 +37,16 @@ class CNAMEEdge(threading.Thread):
         u, v = [], []
 
         for u_id in node_ids:
-            u.extend([u_id] * (len(node_ids) - 1))
+            #u.extend([u_id] * (len(node_ids) - 1)) #can't do this like this because there might be domains that with
+            #cname point to themselves, and using cnt should use less computing power then looping through every list when
+            #adding domain to the list
+            num_of_diff_domains = 0
             for v_id in node_ids:
                 if u_id != v_id:
                     v.append(v_id)
+                    num_of_diff_domains += 1
+
+            u.append([u_id] * num_of_diff_domains)
 
         return u, v
 
