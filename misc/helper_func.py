@@ -1,5 +1,7 @@
+import copy
 import sys
 from misc.Logger import MyLogger
+import array
 
 def get_ips_from_record(doc) -> list[str]:
     ips = doc['dns']['A']
@@ -58,3 +60,13 @@ def parse_ranges(ranges: str | None) -> list[tuple[int, int]] | None:
         ranges.append((start_n, end_n))
 
     return ranges
+
+def create_reverse_edges(u: array.array, v: array.array, weight: array.array | None = None) -> None:
+
+    tmp_v = copy.deepcopy(v)
+    v.extend(u)
+    u.extend(tmp_v)
+    if weight is not None:
+        weight.extend(weight)
+
+    del tmp_v

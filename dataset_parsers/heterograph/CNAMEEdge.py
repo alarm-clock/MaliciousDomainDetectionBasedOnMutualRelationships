@@ -21,18 +21,17 @@ class CNAMEEdge(threading.Thread):
 
     def _submit_result(self):
         self._dispatcher.submit_edges(self._u, self._v, 'cname')
-        self._u.clear()
-        self._v.clear()
-        self._domains.clear()
 
-    def _find_in_db(self, domain: str) -> tuple[int, str] | None:
+        del self._u, self._v, self._domains
 
-        match = {"$and": [{"domain_name": domain}, self._match[0]["$match"]]} if len(self._match) != 0 else {"domain_name": domain}
-        doc = self._collection.find_one(match)
-        if doc is None:
-            return None
-        else:
-            return doc["node_id"], domain
+#    def _find_in_db(self, domain: str) -> tuple[int, str] | None:
+
+#        match = {"$and": [{"domain_name": domain}, self._match[0]["$match"]]} if len(self._match) != 0 else {"domain_name": domain}
+#        doc = self._collection.find_one(match)
+#        if doc is None:
+#            return None
+#        else:
+#            return doc["node_id"], domain
 
     def _connect_nodes_w_same_cname(self, node_ids: list[int]) -> tuple[list[int], list[int]]:
         u, v = [], []
@@ -56,19 +55,52 @@ class CNAMEEdge(threading.Thread):
                     self._u.extend(result[0])
                     self._v.extend(result[1])
 
+#    def _find_cnames_in_db(self):
+#        with ThreadPoolExecutor(max_workers=32) as executor:
+#            futures = [executor.submit(self._find_in_db, d) for d in self._domains.keys()]
+
+#            for future in futures:
+#                result = future.result()
+#                if result is not None:
+#                    node_id, dom_name = result
+#                    if self._domains.get(dom_name) is not None:
+#                        self._domains[dom_name].append(node_id)
+#                    else:
+#                        self._domains[dom_name] = [node_id]
+
+    def _create_domain_batches(self) -> list[list[str]]:
+
+        batch_size = 5000
+        domain_names = list(self._domains.keys())
+        batches = []
+
+        for start in range(0, len(domain_names), batch_size):
+            batches.append(domain_names[start:start+batch_size])
+
+        return batches
+
+    def _find_domains_in_db(self, domians: list[str]) -> None:
+
+        found = self._collection.find({"domain_name": {"$in": domians}}, {"domain_name": 1, "_id": 0, "node_id": 1})
+
+        for doc in found:
+            self._domains[doc["domain_name"]].append(doc["node_id"])
+            # I don't need to check if domain is in the domains dictionary because I got it from it
+            # also I don't need to check if there is a list because there already must be one
+            # there also isn't need for the lock because in dictionary there is only one key
+
+        found.close()
+
     def _find_cnames_in_db(self):
-        with ThreadPoolExecutor(max_workers=32) as executor:
-            futures = [executor.submit(self._find_in_db, d) for d in self._domains.keys()]
+
+        self._collection.create_index({"domain_name": 1})
+        domain_name_batches = self._create_domain_batches()
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [executor.submit(self._find_domains_in_db, batch) for batch in domain_name_batches]
 
             for future in futures:
-                result = future.result()
-                if result is not None:
-                    node_id, dom_name = result
-                    if self._domains.get(dom_name) is not None:
-                        self._domains[dom_name].append(node_id)
-                    else:
-                        self._domains[dom_name] = [node_id]
-
+                future.result()
 
     def _match_entries_with_same_cname(self):
         #cursor = self._collection.find({}, {'_id': 0, "dns.CNAME.value": 1, "node_id": 1}, batch_size=10000)

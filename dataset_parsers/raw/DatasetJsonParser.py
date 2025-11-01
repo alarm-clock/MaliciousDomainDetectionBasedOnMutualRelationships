@@ -12,7 +12,7 @@ from misc.Logger import MyLogger
 import torch as th
 import dgl
 import pymongo
-from misc.helper_func import add_project_into_pipeline, add_sort_into_pipeline
+from misc.helper_func import add_project_into_pipeline, add_sort_into_pipeline, create_reverse_edges
 
 
 class DatasetJsonParser:
@@ -277,19 +277,11 @@ class DatasetJsonParser:
         self.domains.clear()
         self.list_of_ips.clear()
 
-        g = dgl.graph((th.tensor(self._u).to(th.int), th.tensor(self._v).to(th.int)))
-        g.edata['weight'] = th.tensor(self._jacc).to(th.float)
-
         MyLogger.get_instance().log("Creating reverse ipv4 edges")
-        g = dgl.add_reverse_edges(g, copy_ndata=True, copy_edata=True)
+        create_reverse_edges(self._u, self._v, self._jacc)
         MyLogger.get_instance().log("Finished creating reverse ipv4 edges")
 
-        u_th, v_th = g.edges()
-
-        jacc_th = g.edata['weight']
-        u, v, jacc = list(u_th), list(v_th), list(jacc_th)
-
-        dispatcher.submit_edges(u, v, 'ipv4', jacc)
+        dispatcher.submit_edges(list(self._u), list(self._v), 'ipv4', list(self._jacc))
         MyLogger.get_instance().log("Submitted all ipv4 edges")
 
 
