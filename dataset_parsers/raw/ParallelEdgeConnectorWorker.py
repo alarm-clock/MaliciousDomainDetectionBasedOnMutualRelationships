@@ -50,7 +50,7 @@ class ParallelEdgeConnectorWorker(threading.Thread):
         in_new_neighbors = set()
         for ip in ips:
             # node with lower id will always create edge, this halfs the number of edges, dgl graph can create the second edge on its own
-            for neighbor_id in self._dispatcher.list_of_ips[ip].get_domains():
+            for neighbor_id in self._dispatcher.list_of_ips[ip].get_domains(): #to my future self, it isn't list of ips but dictionary of ips
                 if neighbor_id > node_id and neighbor_id not in in_new_neighbors:
                     new_neighbors.append(neighbor_id)
                     in_new_neighbors.add(neighbor_id)

@@ -25,7 +25,7 @@ class DatasetJsonParser:
 
         self.conf = config
         self.list_of_ips: dict[int,IPEdge] = {}
-        self.list_of_nodes: list[Node] = []
+        self.list_of_nodes: dict[int, Node] = {}
         self.domains: list[tuple[int,str]] = []
         self._u = array.array('I')#th.tensor([])
         self._v = array.array('I')#th.tensor([])
@@ -42,12 +42,6 @@ class DatasetJsonParser:
         self.max_w_semaphore = threading.Semaphore(value=self.worker_limit)
         self.___debug_lock = threading.Lock()
 
-    #def debug_fun____(self, t, start_id) -> None:
-    #    end = time.perf_counter()
-    #    self.___debug_lock.acquire()
-    #    print(f'[{start_id}] finished with time {end-t}')
-    #    self.___debug_lock.release()
-
     def add_ips_conc(self, new_ips: dict[int,IPEdge]) -> None:
         self._ip_lock.acquire()
 
@@ -61,8 +55,8 @@ class DatasetJsonParser:
 
     def add_nodes_conc(self, new_nodes: list[Node]) -> None:
         self._nodes_lock.acquire()
-        self.list_of_nodes.extend(new_nodes)
-        #self.max_w_semaphore.release()
+        for nd in new_nodes:
+            self.list_of_nodes[nd.id] = nd
         self._nodes_lock.release()
 
     def add_domains_conc(self, new_domains: list[tuple[int,str]]) -> None:
@@ -82,8 +76,8 @@ class DatasetJsonParser:
         print("Adding edges to graph")
         d = True
         for cnt in range(0, len(self.list_of_nodes), self._chunk_size):
-            #print(self.list_of_nodes[cnt:cnt + self._chunk_size])
-            worker = ParallelEdgeConnectorWorker(self, self.list_of_nodes[cnt:cnt + self._chunk_size], d, parallel)
+
+            worker = ParallelEdgeConnectorWorker(self, list(self.list_of_nodes.values())[cnt:cnt + self._chunk_size], d, parallel)
             d = False
             self.workers.append(worker)
             worker.start()
@@ -264,7 +258,7 @@ class DatasetJsonParser:
             batch.append(record)
 
             if cnt >= self._chunk_size:
-                self._send_db_batch(batch, True)
+                self._send_db_batch(batch)
                 batch.clear()
                 cnt = 0
 
@@ -273,7 +267,7 @@ class DatasetJsonParser:
 
         cursor.close()
         self._wait_on_workers()
-        self.list_of_nodes = sorted(self.list_of_nodes, key=lambda node: node.id)
+        #self.list_of_nodes = sorted(self.list_of_nodes, key=lambda node: node.id)
 
     def _add_db_edges(self, dispatcher):
 

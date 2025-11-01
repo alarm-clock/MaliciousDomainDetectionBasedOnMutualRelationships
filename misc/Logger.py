@@ -16,6 +16,9 @@ class MyLogger:
             self._lock = threading.Lock()
             self._logfile = log_file
 
+            with open(self._logfile, 'a') as f:
+                f.write(("=" * 35) + " Log start " + ("=" * 35) + '\n')
+
     @staticmethod
     def get_instance(log_file: str | None = None):
         if MyLogger._instance_ is None:
