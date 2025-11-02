@@ -195,7 +195,7 @@ class HeterographCreator:
         labels= self._get_labels()
         weights = self._weights if self._weights.keys().__len__() != 0 else None
 
-        self._debug_edges_by_type()
+        #self._debug_edges_by_type()
 
         try:
 

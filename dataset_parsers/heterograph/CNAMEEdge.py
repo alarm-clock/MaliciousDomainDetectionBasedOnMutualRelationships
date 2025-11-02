@@ -132,3 +132,4 @@ class CNAMEEdge(threading.Thread):
         self._create_edges()
         MyLogger.get_instance().log("All CNAME edges created")
         self._submit_result()
+        MyLogger.get_instance().log("Submitted all CNAME edges")

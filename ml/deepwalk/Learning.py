@@ -6,7 +6,7 @@ import sklearn.linear_model as sk
 from sklearn.metrics import f1_score
 
 from misc.Visualize import plot_loss
-
+from misc.Logger import MyLogger
 
 def test_result(g: dgl.DGLGraph, model: DeepWalk) -> None:
     train_mask = g.ndata['train_mask']
@@ -20,6 +20,9 @@ def test_result(g: dgl.DGLGraph, model: DeepWalk) -> None:
     print(f1)
     print(score)
 
+    MyLogger.get_instance().log(str(f1))
+    MyLogger.get_instance().log(str(score))
+
 def train_hetero(g: dgl.DGLGraph):
     num_of_epochs = 10
     num_of_epoch_walks = 5
@@ -29,13 +32,13 @@ def train_hetero(g: dgl.DGLGraph):
     optimizer = th.optim.SparseAdam(model.parameters(), lr=0.05)
     homo_g = dgl.to_homogeneous(g)
 
-    print("Getting edge type ids...")
+    MyLogger.get_instance().log("Getting edge type ids...")
     etype_eids = {}
     for e_type in g.etypes:
         eids_homo = homo_g.edata[dgl.ETYPE] == g.get_etype_id(e_type)
         etype_eids[e_type] = torch.nonzero(eids_homo, as_tuple=False).squeeze().to(th.int32)
 
-    print("Generating homogenous subgraphs for given edge type...")
+    MyLogger.get_instance().log("Generating homogenous subgraphs for given edge type...")
     e_type_subgraphs = {
         e_type: dgl.edge_subgraph(homo_g, etype_eids[e_type])
         for e_type in g.etypes
@@ -44,9 +47,9 @@ def train_hetero(g: dgl.DGLGraph):
 
     losses = []
     avg_losses = []
-    print("Starting training...")
+    MyLogger.get_instance().log("Generated all subgraphs, starting training...")
     for epoch in range(num_of_epochs):
-        print(f'Epoch {epoch}...')
+        MyLogger.get_instance().log(f'Epoch {epoch}...')
         total_loss = 0.0
         for cnt in range(num_of_epoch_walks):
             for e_type, type_subgraph in e_type_subgraphs.items():
@@ -60,11 +63,11 @@ def train_hetero(g: dgl.DGLGraph):
                 total_loss += loss.item()
                 losses.append(loss.item())
 
-                print(f"Epoch {epoch + 1}/{6}, Step {cnt + 1}/{5}, walk for e_type {e_type}, Loss: {loss.item():.4f}")
+                MyLogger.get_instance().log(f"Epoch {epoch + 1}/{6}, Step {cnt + 1}/{5}, walk for e_type {e_type}, Loss: {loss.item():.4f}")
 
         avg_loss = total_loss / num_of_total_walks_in_epoch
         avg_losses.extend([avg_loss] * num_of_total_walks_in_epoch)
-        print(f"Epoch {epoch + 1} finished, Avg Loss = {avg_loss:.4f}")
+        MyLogger.get_instance().log(f"Epoch {epoch + 1} finished, Avg Loss = {avg_loss:.4f}")
 
     plot_loss(losses,avg_losses)
     test_result(g, model)
