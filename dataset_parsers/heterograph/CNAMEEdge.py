@@ -46,7 +46,7 @@ class CNAMEEdge(threading.Thread):
                     v.append(v_id)
                     num_of_diff_domains += 1
 
-            u.append([u_id] * num_of_diff_domains)
+            u.extend([u_id] * num_of_diff_domains)
 
         return u, v
 

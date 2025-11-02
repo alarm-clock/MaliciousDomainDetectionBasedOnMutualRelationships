@@ -38,6 +38,8 @@ class HeterographCreator:
         self._known_edges = ['subdomain','subdomain_of','cname','ipv4']
         self._edge_types: list[str] = []
 
+        self._err = False
+
         if edge_types is not None:
             self._parse_edge_types(edge_types)
 
@@ -80,10 +82,14 @@ class HeterographCreator:
     def submit_edges(self, u: list[int], v: list[int], edge_type: str, weights: list | None = None) -> None:
 
         self._submit_lock.acquire()
-        self._edges[("d",edge_type,"d")] = (th.Tensor(u).to(th.int), th.Tensor(v).to(th.int))
-        if weights is not None:
-            self._weights[("d",edge_type,"d")] = th.Tensor(weights).to(th.float)
-        print(f"All edges of type {edge_type} were created")
+        try:
+            self._edges[("d",edge_type,"d")] = (th.Tensor(u).to(th.int), th.Tensor(v).to(th.int))
+            if weights is not None:
+                self._weights[("d",edge_type,"d")] = th.Tensor(weights).to(th.float)
+            print(f"All edges of type {edge_type} were created")
+        except Exception as e:
+            MyLogger.get_instance().log(repr(e))
+            self._err = True
         self._submit_lock.release()
 
     def _check_edge_strs(self, edge_strs: list[str]) -> bool:
@@ -109,7 +115,7 @@ class HeterographCreator:
     def _get_cname_edges(self):
         cname_edge = CNAMEEdge(self, self._collection, copy.deepcopy(self._ranges))
         cname_edge.start()
-        self._edge_type_workers.append(cname_edge)
+        self._edge_type_workers.append(cname_edge) #
 
     def _get_ipv4_edges(self):
 
@@ -181,6 +187,9 @@ class HeterographCreator:
 
         for w in self._edge_type_workers:
             w.join()
+
+        if self._err:
+            return None
 
         MyLogger.get_instance().log("Created all edges...")
         labels= self._get_labels()
