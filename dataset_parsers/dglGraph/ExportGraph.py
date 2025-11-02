@@ -21,6 +21,12 @@ def load_graph(filename: str) -> dgl.DGLGraph | None:
         MyLogger.get_instance().log(f"File {filename} not found!")
         return None
 
-    g = load_graphs(filename)[0][0]  #it says it returns list of graphs but in reality it returns tuple with list
+    try:
+        g = load_graphs(filename)[0][0]  #it says it returns list of graphs but in reality it returns tuple with list
+    except Exception as e:
+        MyLogger.get_instance().log(f"Failed to load graph from file {filename}")
+        MyLogger.get_instance().log(repr(e))
+        return None
+
     MyLogger.get_instance().log(f"Loaded graph from file")
     return g

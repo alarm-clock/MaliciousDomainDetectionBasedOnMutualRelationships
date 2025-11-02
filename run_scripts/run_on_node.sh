@@ -1,12 +1,12 @@
 #!/bin/bash
-#PBS -N deepwalk_training
-#PBS -q gpu
-#PBS -l select=1:ncpus=8:mem=500gb:ngpus=1:scratch_local=10gb
-#PBS -l walltime=02:00:00
+#PBS -N graph_import
+#PBS -q default
+#PBS -l select=1:ncpus=2:mem=250gb:ngpus=0:scratch_local=10gb
+#PBS -l walltime=01:00:00
 
 source /storage/brno2/home/xbukas00/.node_bashrc
 
-CONTAINER=$BRNO_HOME/images/test_image.sif
+CONTAINER=$BRNO_HOME/images/dgl_mongo.sif
 PROJECT_DIR=$BRNO_HOME/diplomka/DeepWalkTesting
 RUN_SCRIPT=$PROJECT_DIR/testmain.py
 
