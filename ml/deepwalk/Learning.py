@@ -53,7 +53,10 @@ def train_hetero(g: dgl.DGLGraph):
         total_loss = 0.0
         for cnt in range(num_of_epoch_walks):
             for e_type, type_subgraph in e_type_subgraphs.items():
-                walks, _ = dgl.sampling.random_walk(type_subgraph, type_subgraph.nodes(), length=w_len)
+                if e_type == "ipv4":
+                    walks, _ = dgl.sampling.random_walk(type_subgraph,type_subgraph.nodes(),length=w_len,prob='weight')
+                else:
+                    walks, _ = dgl.sampling.random_walk(type_subgraph, type_subgraph.nodes(), length=w_len)
 
                 loss = model(walks)
                 optimizer.zero_grad()

@@ -40,8 +40,8 @@ def create_hetero_graph(edges: dict[tuple[str,str,str], tuple[th.Tensor, th.Tens
     else:
         g = dgl.heterograph(edges, num_nodes_dict={'d':num_nodes})
     g.ndata['label'] = th.tensor(labels).to(th.int)
-    #if weights is not None:
-    #    g.edata['weight'] = weights
+    if weights is not None:
+        g.edata['weight'] = weights
 
     regenerate_train_test_mask(g)
 
@@ -52,7 +52,15 @@ def get_in_out_degrees(g: dgl.DGLGraph) -> tuple[th.Tensor, th.Tensor]:
     if g.is_homogeneous:
         return g.in_degrees(), g.out_degrees()
     else:
-        return g.in_degrees(), g.out_degrees() #dns, datasets
+        indexes = th.tensor(range(g.number_of_nodes()), dtype=th.int32)
+        in_d = th.zeros(g.number_of_nodes(), dtype=th.int32)
+        out_d = th.zeros(g.number_of_nodes(), dtype=th.int32)
+
+        for e_type in g.etypes:
+            in_d.index_add_(0, indexes, g.in_degrees(etype=e_type))
+            out_d.index_add_(0, indexes, g.out_degrees(etype=e_type))
+
+        return in_d, out_d #dns, datasets
 
 def remove_given_nodes(g: dgl.DGLGraph, isolated_nodes: th.Tensor) -> dgl.DGLGraph:
 
@@ -65,7 +73,7 @@ def remove_isolated_nodes(g: dgl.DGLGraph) -> dgl.DGLGraph:
 
     ins, out = get_in_out_degrees(g)
 
-    isolated_nodes = th.nonzero((ins == 0) & (out == 0), as_tuple=True)[0]
+    isolated_nodes = th.nonzero((ins == 0) & (out == 0), as_tuple=True)[0].to(th.int32)
 
     return remove_given_nodes(g, isolated_nodes)
 
