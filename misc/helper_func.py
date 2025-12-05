@@ -1,6 +1,7 @@
 import copy
 import sys
 from misc.Logger import MyLogger
+from pymongo import MongoClient
 import array
 
 def get_ips_from_record(doc) -> list[str]:
@@ -70,3 +71,15 @@ def create_reverse_edges(u: array.array, v: array.array, weight: array.array | N
         weight.extend(weight)
 
     del tmp_v
+
+
+def connect_to_db(client: str = 'localhost', port: int = 27017, db: str = "datasets", collection: str = "domains",
+                   pwd: str = None, user: str = None):
+    if pwd is not None and user is not None:
+        client = MongoClient(f"mongodb://{user}:{pwd}@{client}:{port}/{db}")
+    else:
+        client = MongoClient(client, port)
+    db = client[db]
+    collection = db[collection]
+
+    return collection

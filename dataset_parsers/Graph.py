@@ -67,7 +67,7 @@ def remove_given_nodes(g: dgl.DGLGraph, isolated_nodes: th.Tensor) -> dgl.DGLGra
     if g.is_homogeneous:
         return dgl.remove_nodes(g, isolated_nodes)
     else:
-        return dgl.remove_nodes(g, isolated_nodes, ntype='d')
+        return dgl.remove_nodes(g, isolated_nodes, ntype='d', store_ids=True)
 
 def remove_isolated_nodes(g: dgl.DGLGraph) -> dgl.DGLGraph:
 
@@ -88,6 +88,12 @@ def get_connected_components(g: dgl.DGLGraph, without_isolated_nodes: bool = Tru
     res = [ dgl.node_subgraph(g,list(c)) for c in components]
 
     return res
+
+def get_nodes_connected_component(g: dgl.DGLGraph, nd: int) -> dgl.DGLGraph:
+
+    nx_g = dgl.to_networkx(g)
+    scc = next(comp for comp in nx.strongly_connected_components(nx_g) if nd in comp)
+    return  dgl.node_subgraph(g, list(scc))
 
 def get_and_export_connected_components(g: dgl.DGLGraph, export_prefix: str, without_isolated_nodes: bool = True) -> None:
     
