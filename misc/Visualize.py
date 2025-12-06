@@ -87,6 +87,6 @@ def plot_loss(losses: list[float], avg_losses: list[float]):
     plt.ylabel('Loss')
     plt.legend()
     plt.grid(True)
-    plt.savefig('loss.png', bbox_inches='tight', dpi=300, format='png')
+    plt.savefig('/storage/brno2/home/xbukas00/loss.png', bbox_inches='tight', dpi=300, format='png')
     return
 

@@ -6,6 +6,7 @@ import sklearn.linear_model as sk
 from sklearn.metrics import f1_score
 from misc.Visualize import plot_loss
 from misc.Logger import MyLogger
+import numpy as np
 
 
 def get_etype_subgraphs(g: dgl.DGLGraph) -> dict[str, dgl.DGLGraph]:
@@ -81,12 +82,20 @@ def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: i
 
 def classify_node(g: dgl.DGLGraph, nd: int) -> bool:
 
-    model, _, _ = train_hetero(g,4,3,6,0.01)
-    train_mask = [1] * len(g.nodes())
-    train_mask[nd] = 0
-    classify_mask = [ x ^ 1 for x in train_mask ]
-    x = model.node_embed.weight.detach()
+    train_mask = torch.ones(len(g.nodes()), dtype=torch.bool) #[1] * len(g.nodes())
+    train_mask[nd] = False
+    classify_mask = ~train_mask
     y = g.ndata['label']
+    unique_values = np.unique(y[train_mask].numpy())
+    print(unique_values)
+
+    if len(unique_values) == 1:
+        print(f"All neighboring nodes in scc are of class: {'benign' if unique_values[0] == 1 else 'malignant'}")
+
+    model, l, al = train_hetero(g,4,3,6,0.05)
+    plot_loss(l,al)
+
+    x = model.node_embed.weight.detach()
     clf = sk.LogisticRegression().fit(x[train_mask].numpy(), y[train_mask].numpy())
 
     result = clf.predict(x[classify_mask].numpy())
