@@ -5,7 +5,7 @@ import dgl
 
 from dataset_parsers.raw.DatasetJsonParser import DatasetJsonParser
 from dataset_parsers.db.DatasetDBParser import DatasetDBParser
-from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components, get_and_export_connected_components, regenerate_train_test_mask
+from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components, get_and_export_connected_components, regenerate_train_test_mask, dfs, get_nodes_connected_component
 from dataset_parsers.heterograph.HeterographCreator import HeterographCreator
 from misc.Visualize import plot_graph#, export_graph_gpu
 from dataset_parsers.dglGraph.ExportGraph import export_graph, load_graph
@@ -54,7 +54,7 @@ def main():
     parser.add_argument("--gen_strong_comp", action='store_true', help="NOTE: do not call when you are low on ram")
     parser.add_argument("--rm_iso_nds", action='store_true', help="Remove isolated nodes from created/imported graph")
     parser.add_argument("--gen_exp_strong_comp", metavar='FILE4', type=str, help='Export strongly connected components into own graph')
-    parser.add_argument("-t1", "--test1", metavar="TEST1" ,type=argparse.FileType('r'), help="Test function 1")
+    parser.add_argument("-t1", "--test1",action='store_true', help="Test function 1")
     parser.add_argument("--regenerate_test_mask", action='store_true', help="Regenerate test mask for given graph")
     parser.add_argument('--log_file', metavar='LOGFILE', type=argparse.FileType('a'), help="Log file")
     parser.add_argument('--demo', action='store_true', help='Demo app')
@@ -113,6 +113,20 @@ def main():
     if args.rm_iso_nds:
         g = remove_isolated_nodes(g) #original IDs can be retrieved g.ndata['dgl.NID'][node]
 
+    if args.test1:
+        #83156
+        node_id = 83156
+        kokot_id = 0
+        for node in list(g.nodes()):
+            orig = int(g.ndata[dgl.NID][node])
+            if orig == node_id:
+                kokot_id = int(node)
+
+        print("amana hy")
+        res = dfs(g, kokot_id)
+        print(len(res))
+        print(res)
+
     if args.gen_exp_strong_comp is not None:
         prefix = args.gen_exp_strong_comp
         get_and_export_connected_components(g,prefix)
@@ -132,7 +146,7 @@ def main():
         Learning.train_and_test_model(g)
 
     if args.demo:
-        app_loop(g)
+        app_loop(g, args.db_config.name)
 
     MyLogger.get_instance().log("Finished!")
     return

@@ -3,6 +3,7 @@ from misc.Logger import MyLogger
 from dataset_parsers.Graph import get_nodes_connected_component
 import pymongo
 from misc.helper_func import connect_to_db_from_conf
+from ml.deepwalk.Learning import classify_node
 
 
 def classify_domain(g: dgl.DGLGraph, domain: str, collection: pymongo.collection.Collection):
@@ -19,19 +20,17 @@ def classify_domain(g: dgl.DGLGraph, domain: str, collection: pymongo.collection
     for node in list(g.nodes()):
         orig = int(g.ndata[dgl.NID][node])
         if orig == node_id:
-            kokot_id = node
+            kokot_id = int(node)
 
-    print("kokot_id: " + str(kokot_id))
-    print(f"n nodes: {g.num_nodes()}")
     scc = get_nodes_connected_component(g, kokot_id)
-    with open("scc_nodes.txt", "w") as f:
-        for node in list(scc.nodes()):
-            f.write(str(int(node)) + "\n")
 
-    print(f"n nodes: {scc.num_nodes()}")
-    print(scc.edges())
-    print(scc.nodes())
-    print(scc.ndata['label'])
+    final_id = 0
+    for node in list(scc.nodes()):
+        orig = int(scc.ndata[dgl.NID][node])
+        if orig == kokot_id:
+            final_id = int(node)
+
+    classify_node(g, final_id)
 
     return
 

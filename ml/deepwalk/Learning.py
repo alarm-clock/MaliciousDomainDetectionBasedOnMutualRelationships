@@ -50,8 +50,10 @@ def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: i
     losses = []
     avg_losses = []
     MyLogger.get_instance().log("Generated all subgraphs, starting training...")
+    print("Generated all subgraphs, starting training...")
     for epoch in range(num_of_epochs):
         MyLogger.get_instance().log(f'Epoch {epoch}...')
+        print(f'Epoch {epoch}...')
         total_loss = 0.0
         for cnt in range(num_of_epoch_walks):
             for e_type, type_subgraph in e_type_subgraphs.items():
@@ -69,6 +71,7 @@ def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: i
                 losses.append(loss.item())
 
                 MyLogger.get_instance().log(f"Epoch {epoch + 1}/{num_of_epochs}, Step {cnt + 1}/{num_of_epoch_walks}, walk for e_type {e_type}, Loss: {loss.item():.4f}")
+                print(f"Epoch {epoch + 1}/{num_of_epochs}, Step {cnt + 1}/{num_of_epoch_walks}, walk for e_type {e_type}, Loss: {loss.item():.4f}")
 
         avg_loss = total_loss / num_of_total_walks_in_epoch
         avg_losses.extend([avg_loss] * num_of_total_walks_in_epoch)
@@ -78,7 +81,16 @@ def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: i
 
 def classify_node(g: dgl.DGLGraph, nd: int) -> bool:
 
-    model, _, _ = train_hetero(g,5,3,5,0.01)
+    model, _, _ = train_hetero(g,4,3,6,0.01)
+    train_mask = [1] * len(g.nodes())
+    train_mask[nd] = 0
+    classify_mask = [ x ^ 1 for x in train_mask ]
+    x = model.node_embed.weight.detach()
+    y = g.ndata['label']
+    clf = sk.LogisticRegression().fit(x[train_mask].numpy(), y[train_mask].numpy())
+
+    result = clf.predict(x[classify_mask].numpy())
+    print(result)
 
     return False
 
