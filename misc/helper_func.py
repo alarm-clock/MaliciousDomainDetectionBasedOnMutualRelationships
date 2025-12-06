@@ -3,6 +3,7 @@ import sys
 from misc.Logger import MyLogger
 from pymongo import MongoClient
 import array
+import json
 
 def get_ips_from_record(doc) -> list[str]:
     ips = doc['dns']['A']
@@ -83,3 +84,13 @@ def connect_to_db(client: str = 'localhost', port: int = 27017, db: str = "datas
     collection = db[collection]
 
     return collection
+
+def connect_to_db_from_conf(config: str):
+    with open(config) as f:
+        conf = json.load(f)
+
+        if conf.get('pwd'):
+            return connect_to_db(conf["client"], conf["port"], conf["db"], conf["collection"], conf["pwd"],
+                           conf["user"])
+        else:
+            return connect_to_db(conf["client"], conf["port"], conf["db"], conf["collection"])

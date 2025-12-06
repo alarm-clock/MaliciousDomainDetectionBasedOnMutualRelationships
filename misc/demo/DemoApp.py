@@ -2,7 +2,7 @@ import dgl
 from misc.Logger import MyLogger
 from dataset_parsers.Graph import get_nodes_connected_component
 import pymongo
-from misc.helper_func import connect_to_db
+from misc.helper_func import connect_to_db_from_conf
 
 
 def classify_domain(g: dgl.DGLGraph, domain: str, collection: pymongo.collection.Collection):
@@ -22,11 +22,13 @@ def classify_domain(g: dgl.DGLGraph, domain: str, collection: pymongo.collection
             kokot_id = node
 
     print("kokot_id: " + str(kokot_id))
+    print(f"n nodes: {g.num_nodes()}")
     scc = get_nodes_connected_component(g, kokot_id)
     with open("scc_nodes.txt", "w") as f:
         for node in list(scc.nodes()):
             f.write(str(int(node)) + "\n")
 
+    print(f"n nodes: {scc.num_nodes()}")
     print(scc.edges())
     print(scc.nodes())
     print(scc.ndata['label'])
@@ -35,11 +37,11 @@ def classify_domain(g: dgl.DGLGraph, domain: str, collection: pymongo.collection
 
 #m.gr-cdn-9.com
 
-def app_loop(G: dgl.DGLGraph, domain: str|None = None) -> None:
+def app_loop(g: dgl.DGLGraph, db_config: str, domain: str|None = None) -> None:
 
-    collection = connect_to_db()
+    collection = connect_to_db_from_conf(db_config)
     if domain is not None:
-        classify_domain(G, domain, collection)
+        classify_domain(g, domain, collection)
         return
 
     while True:
@@ -48,7 +50,7 @@ def app_loop(G: dgl.DGLGraph, domain: str|None = None) -> None:
         if query == 'quit':
             break
 
-        classify_domain(G, query, collection)
+        classify_domain(g, query, collection)
 
 
     return
