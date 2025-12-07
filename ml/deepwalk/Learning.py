@@ -92,7 +92,7 @@ def classify_node(g: dgl.DGLGraph, nd: int) -> bool:
     if len(unique_values) == 1:
         print(f"All neighboring nodes in scc are of class: {'benign' if unique_values[0] == 1 else 'malignant'}")
 
-    model, l, al = train_hetero(g,4,3,6,0.05)
+    model, l, al = train_hetero(g,4,3,6,0.02)
     plot_loss(l,al)
 
     x = model.node_embed.weight.detach()
