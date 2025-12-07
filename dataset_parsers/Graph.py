@@ -89,9 +89,9 @@ def get_connected_components(g: dgl.DGLGraph, without_isolated_nodes: bool = Tru
 
     return res
 
-def get_nodes_connected_component(g: dgl.DGLGraph, nd: int) -> dgl.DGLGraph:
+def get_nodes_connected_component(g: dgl.DGLGraph, nd: int, etypes: list[str] | None) -> dgl.DGLGraph:
 
-    scc = dfs(g, nd)
+    scc = dfs(g, nd, etypes)
     return  dgl.node_subgraph(g, scc, store_ids=True)
 
 def get_and_export_connected_components(g: dgl.DGLGraph, export_prefix: str, without_isolated_nodes: bool = True) -> None:
@@ -109,11 +109,13 @@ def get_and_export_connected_components(g: dgl.DGLGraph, export_prefix: str, wit
 
     return
 
-def dfs(g: dgl.DGLGraph, start: int) -> list[int]:
+def dfs(g: dgl.DGLGraph, start: int, etypes: list[str] | None = None) -> list[int]:
     visited = set()
     in_stack = set()
     in_stack.add(start)
     stack = [(start, 0)]
+    if etypes is None:
+        etypes = g.etypes
 
     while stack:
         node, depth = stack.pop()
@@ -125,7 +127,7 @@ def dfs(g: dgl.DGLGraph, start: int) -> list[int]:
         if depth >= 4:
             continue
 
-        for etype in g.etypes:
+        for etype in etypes:
             for v_t in g.successors(node, etype=etype):
                 v = int(v_t)
                 if v not in in_stack:

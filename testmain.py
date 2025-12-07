@@ -46,6 +46,7 @@ def main():
     parser.add_argument("--dglformat", metavar='FILE3', type=argparse.FileType('r'), help="Specifies that graph should be created from dgl format file, path to which is specified by FILE")
     parser.add_argument("-db", "--db_config", metavar='DB_CONFIG', type=argparse.FileType('r'), help="Database config file, used when program has to interact with database, program currently only supports mongodb")
     parser.add_argument("--heterograph", metavar="[EDGE_TYPES]", type=str, help="Specifies that created graph will be heterograph with specified edge types, must be used with -db parameter")
+    parser.add_argument("--etypes",metavar="TYPES",type=str)
     parser.add_argument('-l','--learn', action='store_true', help="Specifies that graph should be learned or not, defaults to False")
     parser.add_argument('-e','--export',metavar='EXPORT', type=str, help="Specifies that graph should be exported, defaults to False")
     parser.add_argument('-r','--ranges',metavar='RANGES', type=str, help="Specifies ranges of nodes from which nodes should be created, NOTE works only with database, NOTE2 that real number of nodes will be much larger because neighbors that are not specified in the ranges are still created")
@@ -153,7 +154,7 @@ def main():
         Learning.train_and_test_model(g)
 
     if args.demo:
-        app_loop(g, args.db_config.name)
+        app_loop(g, args.db_config.name, args.etypes)
 
     MyLogger.get_instance().log("Finished!")
     return
