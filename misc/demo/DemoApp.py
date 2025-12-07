@@ -15,19 +15,23 @@ def classify_domain(g: dgl.DGLGraph, domain: str, collection: pymongo.collection
         return
 
     node_id = int(db_entry['node_id'])
-    kokot_id = 0
+    #kokot_id = 0
 
-    for node in list(g.nodes()):
-        orig = int(g.ndata[dgl.NID][node])
-        if orig == node_id:
-            kokot_id = int(node)
+    #for node in list(g.nodes()):
+    #    orig = int(g.ndata[dgl.NID][node])
+    #    if orig == node_id:
+    #        kokot_id = int(node)
 
-    scc = get_nodes_connected_component(g, kokot_id)
+    scc = get_nodes_connected_component(g, node_id) #kokot_id
+
+    if len(scc.nodes()) == 0:
+        print("This domain does not have any connection to another domain")
+        return
 
     final_id = 0
     for node in list(scc.nodes()):
         orig = int(scc.ndata[dgl.NID][node])
-        if orig == kokot_id:
+        if orig == node_id:
             final_id = int(node)
 
     classify_node(g, final_id)
@@ -35,6 +39,8 @@ def classify_domain(g: dgl.DGLGraph, domain: str, collection: pymongo.collection
     return
 
 #m.gr-cdn-9.com
+#dns.forcorpor.com
+#nymo.ee
 
 def app_loop(g: dgl.DGLGraph, db_config: str, domain: str|None = None) -> None:
 

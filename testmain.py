@@ -115,17 +115,24 @@ def main():
 
     if args.test1:
         #83156
-        node_id = 83156
-        kokot_id = 0
+        #380011 all bad
+
+        node_id = 390922
+        kokot_id = -1
         for node in list(g.nodes()):
             orig = int(g.ndata[dgl.NID][node])
             if orig == node_id:
                 kokot_id = int(node)
 
+        if kokot_id == -1:
+            print("pice tu")
+            return
         print("amana hy")
-        res = dfs(g, kokot_id)
-        print(len(res))
-        print(res)
+        res = get_nodes_connected_component(g, kokot_id)
+        #print(res.ndata['label'])
+        print(len(res.nodes()))
+        #for nd in res.nodes():
+        #    print(f"{int(nd)}  ->  {int(g.ndata[dgl.NID][res.ndata[dgl.NID][nd]])}")
 
     if args.gen_exp_strong_comp is not None:
         prefix = args.gen_exp_strong_comp
