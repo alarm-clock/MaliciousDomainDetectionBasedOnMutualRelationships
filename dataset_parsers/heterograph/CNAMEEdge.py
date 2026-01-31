@@ -24,15 +24,6 @@ class CNAMEEdge(threading.Thread):
 
         del self._u, self._v, self._domains
 
-#    def _find_in_db(self, domain: str) -> tuple[int, str] | None:
-
-#        match = {"$and": [{"domain_name": domain}, self._match[0]["$match"]]} if len(self._match) != 0 else {"domain_name": domain}
-#        doc = self._collection.find_one(match)
-#        if doc is None:
-#            return None
-#        else:
-#            return doc["node_id"], domain
-
     def _connect_nodes_w_same_cname(self, node_ids: list[int]) -> tuple[list[int], list[int]]:
         u, v = [], []
 

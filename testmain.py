@@ -45,8 +45,8 @@ def main():
     parser.add_argument("--dataset", metavar='FILE1', type=argparse.FileType('r'),help="Specifies that graph should be created from json dataset(s), paths to which are specified by FILE")
     parser.add_argument("--dglformat", metavar='FILE3', type=argparse.FileType('r'), help="Specifies that graph should be created from dgl format file, path to which is specified by FILE")
     parser.add_argument("-db", "--db_config", metavar='DB_CONFIG', type=argparse.FileType('r'), help="Database config file, used when program has to interact with database, program currently only supports mongodb")
-    parser.add_argument("--heterograph", metavar="[EDGE_TYPES]", type=str, help="Specifies that created graph will be heterograph with specified edge types, must be used with -db parameter")
-    parser.add_argument("--etypes",metavar="TYPES",type=str)
+    parser.add_argument("--heterograph", metavar="[EDGE_TYPES]", type=str, help="Specifies that created graph will be heterograph with specified edge types, must be used with -db parameter. Allowed values are: ipv4, subdomain, subdomain_of, CNAME")
+    parser.add_argument("--etypes",metavar="TYPES",type=str, help="Specifies what edge types will be created. Allowed values are: ipv4, subdomain, subdomain_of, CNAME")
     parser.add_argument('-l','--learn', action='store_true', help="Specifies that graph should be learned or not, defaults to False")
     parser.add_argument('-e','--export',metavar='EXPORT', type=str, help="Specifies that graph should be exported, defaults to False")
     parser.add_argument('-r','--ranges',metavar='RANGES', type=str, help="Specifies ranges of nodes from which nodes should be created, NOTE works only with database, NOTE2 that real number of nodes will be much larger because neighbors that are not specified in the ranges are still created")
@@ -115,25 +115,8 @@ def main():
         g = remove_isolated_nodes(g) #original IDs can be retrieved g.ndata['dgl.NID'][node]
 
     if args.test1:
-        #83156
-        #380011 all bad
-
-        node_id = 390922
-        kokot_id = -1
-        for node in list(g.nodes()):
-            orig = int(g.ndata[dgl.NID][node])
-            if orig == node_id:
-                kokot_id = int(node)
-
-        if kokot_id == -1:
-            print("pice tu")
-            return
-        print("amana hy")
-        res = get_nodes_connected_component(g, kokot_id)
-        #print(res.ndata['label'])
-        print(len(res.nodes()))
-        #for nd in res.nodes():
-        #    print(f"{int(nd)}  ->  {int(g.ndata[dgl.NID][res.ndata[dgl.NID][nd]])}")
+        print(g.nodes())
+        print(g.edges())
 
     if args.gen_exp_strong_comp is not None:
         prefix = args.gen_exp_strong_comp

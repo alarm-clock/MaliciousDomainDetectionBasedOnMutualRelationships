@@ -5,11 +5,15 @@ from pymongo import MongoClient
 import array
 import json
 
+
 def get_ips_from_record(doc) -> list[str]:
     ips = doc['dns']['A']
-    ip_data_ip = doc['ip_data']
-    if ip_data_ip is not None:
-        ip_data_ip = ip_data_ip[0]['ip']
+    ip_data_ip = None
+
+    if doc.get('ip_data'):
+        ip_data_ip = doc['ip_data']
+        if ip_data_ip is not None:
+            ip_data_ip = ip_data_ip[0]['ip']
 
     if ips is None and ip_data_ip is not None:
         ips = [ip_data_ip]
@@ -18,14 +22,16 @@ def get_ips_from_record(doc) -> list[str]:
 
     return ips
 
-def add_project_into_pipeline( project_body: dict, pipeline: list):
+
+def add_project_into_pipeline(project_body: dict, pipeline: list):
     pipeline.append({"$project": project_body})
 
-def add_sort_into_pipeline( sort_body: dict, pipeline: list):
+
+def add_sort_into_pipeline(sort_body: dict, pipeline: list):
     pipeline.append({"$sort": sort_body})
 
-def parse_ranges(ranges: str | None) -> list[tuple[int, int]] | None:
 
+def parse_ranges(ranges: str | None) -> list[tuple[int, int]] | None:
     if ranges is None:
         return None
 
@@ -40,22 +46,26 @@ def parse_ranges(ranges: str | None) -> list[tuple[int, int]] | None:
     ranges: list[tuple[int, int]] = []
     for cnt in range(0, len(split_ranges), 2):
         start, end = split_ranges[cnt], split_ranges[cnt + 1]
-        start_n, end_n = int(start), int(end)
+
+        if end == "inf":
+            start_n, end_n = int(start), 2 ** 32  # there never will be so many domains
+        else:
+            start_n, end_n = int(start), int(end)
 
         if start_n > end_n:
             errstr = f"Start index in ranges is greater the end index: {start_n} > {end_n}"
             MyLogger.get_instance().log(errstr)
-            print(errstr,file=sys.stderr)
+            print(errstr, file=sys.stderr)
             raise ValueError
         if start_n < 0 or end_n < 0:
             errstr = f"Either starting index or ending index in ranges is negative: {start_n} or {end_n}"
             MyLogger.get_instance().log(errstr)
-            print(errstr,file=sys.stderr)
+            print(errstr, file=sys.stderr)
             raise ValueError
         if start_n < max or end_n < max:
             errstr = f"Ranges must be in ascending order. Tuple ({start_n},{end_n}) is smaller then current max value: {max}"
             MyLogger.get_instance().log(errstr)
-            print(errstr,file=sys.stderr)
+            print(errstr, file=sys.stderr)
             raise ValueError
 
         max = end_n
@@ -63,8 +73,8 @@ def parse_ranges(ranges: str | None) -> list[tuple[int, int]] | None:
 
     return ranges
 
-def create_reverse_edges(u: array.array, v: array.array, weight: array.array | None = None) -> None:
 
+def create_reverse_edges(u: array.array, v: array.array, weight: array.array | None = None) -> None:
     tmp_v = copy.deepcopy(v)
     v.extend(u)
     u.extend(tmp_v)
@@ -75,7 +85,7 @@ def create_reverse_edges(u: array.array, v: array.array, weight: array.array | N
 
 
 def connect_to_db(client: str = 'localhost', port: int = 27017, db: str = "datasets", collection: str = "domains",
-                   pwd: str = None, user: str = None):
+                  pwd: str = None, user: str = None):
     if pwd is not None and user is not None:
         client = MongoClient(f"mongodb://{user}:{pwd}@{client}:{port}/{db}")
     else:
@@ -85,12 +95,13 @@ def connect_to_db(client: str = 'localhost', port: int = 27017, db: str = "datas
 
     return collection
 
+
 def connect_to_db_from_conf(config: str):
     with open(config) as f:
         conf = json.load(f)
 
         if conf.get('pwd'):
             return connect_to_db(conf["client"], conf["port"], conf["db"], conf["collection"], conf["pwd"],
-                           conf["user"])
+                                 conf["user"])
         else:
             return connect_to_db(conf["client"], conf["port"], conf["db"], conf["collection"])

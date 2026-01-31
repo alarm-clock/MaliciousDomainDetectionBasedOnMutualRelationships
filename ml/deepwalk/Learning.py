@@ -43,7 +43,7 @@ def test_result(g: dgl.DGLGraph, model: DeepWalk) -> None:
 
 def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: int = 5, w_len: int = 12, lr: float = 0.001) -> tuple[DeepWalk, list[float], list[float]]:
     num_of_total_walks_in_epoch = len(g.etypes) * num_of_epoch_walks
-    model = DeepWalk(g, walk_length=w_len)
+    model = DeepWalk(g, window_size=w_len ,walk_length=w_len)
     optimizer = th.optim.SparseAdam(model.parameters(), lr=lr)
 
     e_type_subgraphs = get_etype_subgraphs(g)

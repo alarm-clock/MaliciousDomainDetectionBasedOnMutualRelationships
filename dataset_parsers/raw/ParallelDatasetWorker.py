@@ -52,6 +52,8 @@ class ParallelDatasetWorker(threading.Thread):
 
             if ip_strs is not None:
                 for ip_str in ip_strs:
+                    if ip_str == '':
+                        continue
                     ip_int = int(ipaddress.ip_address(ip_str))
                     self._add_ip_to_htable(ip_int, node_id)
                     ips.append(ip_int)

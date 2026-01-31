@@ -30,6 +30,10 @@ class HeterographCreator:
         self._edge_type_workers = []
 
         self._ranges, max_id = self._create_or_conditions(ranges)
+        if max_id == 2**32:
+            max_nd_id_doc = self._collection.find_one(sort=[("node_id", -1)])
+            max_id = int(max_nd_id_doc["node_id"])
+
         self._n_nodes = self._collection.count_documents({}) if ranges is None else max_id
 
         self._edges: dict[tuple[str,str,str], tuple[th.Tensor, th.Tensor]] = {}
@@ -143,8 +147,8 @@ class HeterographCreator:
                     labels_w_ids.append(result)
 
         labels_w_ids = sorted(labels_w_ids, key=lambda x: x[0])  #sort by node id
-
         _ , labels = zip(*labels_w_ids)
+
         MyLogger.get_instance().log("Got and sorted all labes")
         cursor.close()
         return list(labels)
@@ -200,10 +204,13 @@ class HeterographCreator:
         try:
 
             MyLogger.get_instance().log("Creating dgl heterograph...")
-            if not self._ranges:
-                g = create_hetero_graph(self._edges, weights , labels, self._n_nodes)
-            else:
-                g = create_hetero_graph(self._edges, weights, labels)
+            if self._ranges:
+                # this correction must be done because when ranges are used then n_nodes is set to max_id
+                # to be used as upper limit for labels but in reality there is also node_id 0 that is not counted
+                # ,so now I'm counting it
+                self._n_nodes += 1
+
+            g = create_hetero_graph(self._edges, weights , labels, self._n_nodes)
             MyLogger.get_instance().log("Created dgl heterograph")
         except Exception as e:
             traceback.print_exc()

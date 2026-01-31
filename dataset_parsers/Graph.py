@@ -39,6 +39,7 @@ def create_hetero_graph(edges: dict[tuple[str,str,str], tuple[th.Tensor, th.Tens
         g = dgl.heterograph(edges)
     else:
         g = dgl.heterograph(edges, num_nodes_dict={'d':num_nodes})
+
     g.ndata['label'] = th.tensor(labels).to(th.int)
     if weights is not None:
         g.edata['weight'] = weights
