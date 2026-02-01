@@ -1,8 +1,8 @@
 #!/bin/bash
-#PBS -N graph_creation
+#PBS -N graph_creation_full_new_domains
 #PBS -q default
-#PBS -l select=1:ncpus=4:mem=200gb:ngpus=0:scratch_local=2gb
-#PBS -l walltime=03:00:00
+#PBS -l select=1:ncpus=4:mem=300gb:ngpus=0:scratch_local=2gb
+#PBS -l walltime=04:00:00
 
 source /storage/brno2/home/xbukas00/.node_bashrc
 

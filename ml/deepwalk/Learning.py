@@ -43,7 +43,8 @@ def test_result(g: dgl.DGLGraph, model: DeepWalk) -> None:
 
 def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: int = 5, w_len: int = 12, lr: float = 0.001) -> tuple[DeepWalk, list[float], list[float]]:
     num_of_total_walks_in_epoch = len(g.etypes) * num_of_epoch_walks
-    model = DeepWalk(g, window_size=w_len ,walk_length=w_len)
+    model = DeepWalk(g, window_size=5, walk_length=w_len) #w_len - 1
+
     optimizer = th.optim.SparseAdam(model.parameters(), lr=lr)
 
     e_type_subgraphs = get_etype_subgraphs(g)
@@ -54,7 +55,7 @@ def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: i
     print("Generated all subgraphs, starting training...")
     for epoch in range(num_of_epochs):
         MyLogger.get_instance().log(f'Epoch {epoch}...')
-        print(f'Epoch {epoch}...')
+        print(f'Epoch {epoch + 1}...')
         total_loss = 0.0
         for cnt in range(num_of_epoch_walks):
             for e_type, type_subgraph in e_type_subgraphs.items():
@@ -92,7 +93,7 @@ def classify_node(g: dgl.DGLGraph, nd: int) -> bool:
     if len(unique_values) == 1:
         print(f"All neighboring nodes in scc are of class: {'benign' if unique_values[0] == 1 else 'malignant'}")
 
-    model, l, al = train_hetero(g,4,3,6,0.02)
+    model, l, al = train_hetero(g,4,3,9,0.02)
     plot_loss(l,al)
 
     x = model.node_embed.weight.detach()

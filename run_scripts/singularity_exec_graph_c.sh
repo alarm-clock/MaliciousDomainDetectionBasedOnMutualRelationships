@@ -11,6 +11,6 @@ LOG_DIR=$PROJECT_DIR/../logs
 
 mongod --dbpath $MONGO_DBPATH --bind_ip 127.0.0.1 --port 27017 > /dev/null 2>&1 &
 
-python3 $RUN_SCRIPT -db $PROJECT_DIR/db_config.json --heterograph cname,subdomain_of,ipv4 --export $GRAPH_EXPORT_PATH/hetero_full_cname_subdomain2_ipv4.dglg  --log_file $LOG_DIR/hetero_full_cname_subdomain2_ipv4.log
+python3 $RUN_SCRIPT -db $PROJECT_DIR/db_config.json --heterograph cname,subdomain_of,ipv4,subdomain --export $GRAPH_EXPORT_PATH/hetero_full_all_new_domains.dglg  --log_file $LOG_DIR/hetero_full_all_new_nodes.log
 
 mongod --dbpath $MONGO_DBPATH --port 27017 --shutdown

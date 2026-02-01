@@ -28,13 +28,21 @@ def classify_domain(g: dgl.DGLGraph, domain: str, collection: pymongo.collection
         print("This domain does not have any connection to another domain")
         return
 
+    good = 0
+    all_cnt = len(scc.nodes())
+    for val in scc.ndata['label']:
+        good += int(val)
+
+    bad = all_cnt - good
+    print(f'good: {good}   , bad: {bad}')
+
     final_id = 0
     for node in list(scc.nodes()):
         orig = int(scc.ndata[dgl.NID][node])
         if orig == node_id:
             final_id = int(node)
 
-    classify_node(g, final_id)
+    classify_node(scc, final_id)
 
     return
 
