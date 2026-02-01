@@ -57,7 +57,7 @@ def classify_domain_from_db(g: dgl.DGLGraph, domain: str, collection: pymongo.co
 
 def domain_checker(g: dgl.DGLGraph, domain_file: str, etypes: str|None) -> None:
 
-    output_file = domain_file.rsplit('.', 1)[0] + '.out'
+    output_file = domain_file.rsplit('.', 1)[0] + '_out.csv'
 
     with open(output_file, 'w') as of:
 
