@@ -78,7 +78,9 @@ def export_graph_gpu(g: dgl.DGLGraph, filename: str = "graph.png" ):
     tf.set_background(final_img, color='white').to_pil().save(filename)
 """
 
-def plot_loss(losses: list[float], avg_losses: list[float]):
+def plot_loss(losses: list[float], avg_losses: list[float], name: str = 'loss', node_id: int | None = None):
+
+    out_name = name + f"_{node_id}" if node_id is not None else "" + ".png"
 
     plt.figure(figsize=(15, 7))
     plt.plot(losses, label='Batch loss', alpha=0.5)
@@ -87,6 +89,6 @@ def plot_loss(losses: list[float], avg_losses: list[float]):
     plt.ylabel('Loss')
     plt.legend()
     plt.grid(True)
-    plt.savefig('/storage/brno2/home/xbukas00/loss.png', bbox_inches='tight', dpi=300, format='png')
+    plt.savefig(f'/storage/brno2/home/xbukas00/diplomka/plots/{out_name}', bbox_inches='tight', dpi=300, format='png') #
     return
 

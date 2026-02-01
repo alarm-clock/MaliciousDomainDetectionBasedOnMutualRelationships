@@ -1,8 +1,5 @@
 import sys
 from argparse import Namespace
-
-import dgl
-
 from dataset_parsers.raw.DatasetJsonParser import DatasetJsonParser
 from dataset_parsers.db.DatasetDBParser import DatasetDBParser
 from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components, get_and_export_connected_components, regenerate_train_test_mask, dfs, get_nodes_connected_component
@@ -11,7 +8,7 @@ from misc.Visualize import plot_graph#, export_graph_gpu
 from dataset_parsers.dglGraph.ExportGraph import export_graph, load_graph
 from misc.helper_func import parse_ranges
 from misc.Logger import MyLogger
-from misc.demo.DemoApp import app_loop
+from misc.demo.DemoApp import app_loop, domain_checker
 from ml.deepwalk import Learning
 import argparse
 
@@ -59,6 +56,7 @@ def main():
     parser.add_argument("--regenerate_test_mask", action='store_true', help="Regenerate test mask for given graph")
     parser.add_argument('--log_file', metavar='LOGFILE', type=argparse.FileType('a'), help="Log file")
     parser.add_argument('--demo', action='store_true', help='Demo app')
+    parser.add_argument("--demo_from_list", type=str, help="Demo that classifies from the list")
 
     args = parser.parse_args()
 
@@ -115,8 +113,7 @@ def main():
         g = remove_isolated_nodes(g) #original IDs can be retrieved g.ndata['dgl.NID'][node]
 
     if args.test1:
-        print(g.nodes())
-        print(g.edges())
+        pass
 
     if args.gen_exp_strong_comp is not None:
         prefix = args.gen_exp_strong_comp
@@ -138,6 +135,9 @@ def main():
 
     if args.demo:
         app_loop(g, args.db_config.name, args.etypes)
+
+    if args.demo_from_list:
+        domain_checker(g, args.demo_from_list, args.etypes)
 
     MyLogger.get_instance().log("Finished!")
     return

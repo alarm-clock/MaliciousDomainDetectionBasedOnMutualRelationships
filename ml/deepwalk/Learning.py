@@ -52,10 +52,10 @@ def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: i
     losses = []
     avg_losses = []
     MyLogger.get_instance().log("Generated all subgraphs, starting training...")
-    print("Generated all subgraphs, starting training...")
+    #print("Generated all subgraphs, starting training...")
     for epoch in range(num_of_epochs):
         MyLogger.get_instance().log(f'Epoch {epoch}...')
-        print(f'Epoch {epoch + 1}...')
+        #print(f'Epoch {epoch + 1}...')
         total_loss = 0.0
         for cnt in range(num_of_epoch_walks):
             for e_type, type_subgraph in e_type_subgraphs.items():
@@ -73,7 +73,7 @@ def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: i
                 losses.append(loss.item())
 
                 MyLogger.get_instance().log(f"Epoch {epoch + 1}/{num_of_epochs}, Step {cnt + 1}/{num_of_epoch_walks}, walk for e_type {e_type}, Loss: {loss.item():.4f}")
-                print(f"Epoch {epoch + 1}/{num_of_epochs}, Step {cnt + 1}/{num_of_epoch_walks}, walk for e_type {e_type}, Loss: {loss.item():.4f}")
+                #print(f"Epoch {epoch + 1}/{num_of_epochs}, Step {cnt + 1}/{num_of_epoch_walks}, walk for e_type {e_type}, Loss: {loss.item():.4f}")
 
         avg_loss = total_loss / num_of_total_walks_in_epoch
         avg_losses.extend([avg_loss] * num_of_total_walks_in_epoch)
@@ -81,28 +81,32 @@ def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: i
 
     return model, losses, avg_losses
 
-def classify_node(g: dgl.DGLGraph, nd: int) -> bool:
+def classify_node(g: dgl.DGLGraph, nd: int) -> tuple[float, float] | None:
+
+    if len(g.nodes()) < 2:
+        #print("Need at least 2 nodes")
+        MyLogger.get_instance().log("Need at least 2 nodes")
+        return None
 
     train_mask = torch.ones(len(g.nodes()), dtype=torch.bool) #[1] * len(g.nodes())
     train_mask[nd] = False
     classify_mask = ~train_mask
     y = g.ndata['label']
     unique_values = np.unique(y[train_mask].numpy())
-    print(unique_values)
 
-    if len(unique_values) == 1:
-        print(f"All neighboring nodes in scc are of class: {'benign' if unique_values[0] == 1 else 'malignant'}")
+    if len(unique_values) <= 1:
+        MyLogger.get_instance().log(f"All neighboring nodes in scc are of class: {'benign' if unique_values[0] == 1 else 'malicious'}")
+        #print(f"All neighboring nodes in scc are of class: {'benign' if unique_values[0] == 1 else 'malicious'}")
+        return float(unique_values[0] == 0), float(unique_values[0] == 1)
 
     model, l, al = train_hetero(g,4,3,9,0.02)
-    plot_loss(l,al)
+    plot_loss(l,al, "classification_loss", nd)
 
     x = model.node_embed.weight.detach()
     clf = sk.LogisticRegression().fit(x[train_mask].numpy(), y[train_mask].numpy())
 
-    result = clf.predict(x[classify_mask].numpy())
-    print(result)
-
-    return False
+    result = clf.predict_proba(x[classify_mask].numpy())
+    return result[0][0], result[0][1]
 
 
 def train_and_test_model(g: dgl.DGLGraph) -> None:
