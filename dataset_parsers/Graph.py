@@ -1,3 +1,4 @@
+import numpy as np
 import torch as th
 import dgl
 import networkx as nx
@@ -5,6 +6,7 @@ from dataset_parsers.dglGraph.ExportGraph import export_graph
 import queue
 import random
 from misc.Logger import MyLogger
+import dataset_parsers.cpp.k_hop_neighbours as cpp
 
 def gen_train_test_masks(n_nodes: int) -> tuple[th.Tensor, th.Tensor]:
     train_mask = th.rand(n_nodes) < 0.9
@@ -94,8 +96,10 @@ def get_connected_components(g: dgl.DGLGraph, without_isolated_nodes: bool = Tru
 
 def get_nodes_connected_component(g: dgl.DGLGraph, nd: int, etypes: list[str] | None) -> dgl.DGLGraph:
 
-    scc = bfs(g, nd, etypes)
-    return  dgl.node_subgraph(g, scc, store_ids=True)
+    MyLogger.get_instance().log(f"Finding neighbouring nodes of node {nd}...")
+    neigh = bfs(g, nd, etypes)
+    MyLogger.get_instance().log(f"Found neighboring nodes of node {nd}")
+    return  dgl.node_subgraph(g, neigh, store_ids=True)
 
 def get_and_export_connected_components(g: dgl.DGLGraph, export_prefix: str, without_isolated_nodes: bool = True) -> None:
     
@@ -153,3 +157,16 @@ def bfs(g: dgl.DGLGraph, start: int, etypes: list[str] | None = None, d_limit: i
                     #stack.append((v, depth + 1))
 
     return list(visited)
+
+
+TOO_MUCH_LIMIT = 15000
+SAMPLE=0.2
+def cpp_k_hop_neighborhood(g: dgl.DGLGraph, start: int, max_depth: int = 4):
+    g = dgl.to_homogeneous(g)
+    indptr, indices, _ = g.adj_tensors("csr")
+
+    np_indptr = indptr.numpy().astype(np.int64)
+    np_indices = indices.numpy().astype(np.int64)
+
+    nodes = cpp.k_hop_neighbours(np_indptr, np_indices, start, max_depth, TOO_MUCH_LIMIT, SAMPLE)
+    print(nodes)
