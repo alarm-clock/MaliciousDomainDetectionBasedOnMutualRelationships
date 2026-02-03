@@ -2,7 +2,7 @@ import sys
 from argparse import Namespace
 from dataset_parsers.raw.DatasetJsonParser import DatasetJsonParser
 from dataset_parsers.db.DatasetDBParser import DatasetDBParser
-from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components, get_and_export_connected_components, regenerate_train_test_mask, dfs, get_nodes_connected_component
+from dataset_parsers.Graph import remove_isolated_nodes, get_connected_components, get_and_export_connected_components, regenerate_train_test_mask
 from dataset_parsers.heterograph.HeterographCreator import HeterographCreator
 from misc.Visualize import plot_graph#, export_graph_gpu
 from dataset_parsers.dglGraph.ExportGraph import export_graph, load_graph

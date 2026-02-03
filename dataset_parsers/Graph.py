@@ -2,6 +2,8 @@ import torch as th
 import dgl
 import networkx as nx
 from dataset_parsers.dglGraph.ExportGraph import export_graph
+import queue
+import random
 from misc.Logger import MyLogger
 
 def gen_train_test_masks(n_nodes: int) -> tuple[th.Tensor, th.Tensor]:
@@ -92,7 +94,7 @@ def get_connected_components(g: dgl.DGLGraph, without_isolated_nodes: bool = Tru
 
 def get_nodes_connected_component(g: dgl.DGLGraph, nd: int, etypes: list[str] | None) -> dgl.DGLGraph:
 
-    scc = dfs(g, nd, etypes)
+    scc = bfs(g, nd, etypes)
     return  dgl.node_subgraph(g, scc, store_ids=True)
 
 def get_and_export_connected_components(g: dgl.DGLGraph, export_prefix: str, without_isolated_nodes: bool = True) -> None:
@@ -110,30 +112,44 @@ def get_and_export_connected_components(g: dgl.DGLGraph, export_prefix: str, wit
 
     return
 
-def dfs(g: dgl.DGLGraph, start: int, etypes: list[str] | None = None) -> list[int]:
+def bfs(g: dgl.DGLGraph, start: int, etypes: list[str] | None = None, d_limit: int = 4) -> list[int]:
     visited = set()
-    in_stack = set()
-    in_stack.add(start)
-    stack = [(start, 0)]
+    in_q = set()
+    in_q.add(start)
+    #stack = [(start, 0)]
+    q: queue.SimpleQueue[tuple[int, int]] = queue.SimpleQueue()
+    q.put((start, 0))
+
     if etypes is None:
         etypes = g.etypes
 
-    while stack:
-        node, depth = stack.pop()
+    while not q.empty(): #stack:
+        #node, depth = stack.pop(0)
         #print(f"{len(stack)}")
+        node, depth = q.get_nowait()
         if node in visited:
             continue
 
         visited.add(node)
-        if depth >= 4:
+        if depth >= d_limit:
             continue
+        print(f"Working on node {node} in depth {depth}")
 
         for etype in etypes:
-            for v_t in g.successors(node, etype=etype):
-                v = int(v_t)
-                if v not in in_stack:
-                    in_stack.add(v)
-                    stack.append((v, depth + 1))
 
+            n_neighbours = g.out_degrees(node,etype=etype)
+
+            for v_t in g.successors(node, etype=etype):
+
+                v = int(v_t)
+                if n_neighbours >= 30000:
+                    if random.random() > 0.2:
+                        visited.add(v)
+                        continue
+
+                if v not in in_q:
+                    in_q.add(v)
+                    q.put_nowait((v, depth + 1))
+                    #stack.append((v, depth + 1))
 
     return list(visited)
