@@ -32,6 +32,8 @@ def classify_domain_from_id(g: dgl.DGLGraph, node_id: int, etypes: str|None) -> 
 
     res = classify_node(scc, final_id)
 
+    del scc
+
     if res is None:
         return None
 
