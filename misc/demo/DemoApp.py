@@ -95,6 +95,7 @@ def domain_checker(g: dgl.DGLGraph, domain_file: str, etypes: str|None) -> None:
 
                 csv_writer.writerow([node_id,name,n_good,n_bad,total,malicious,benign,prediction,label,correct])
 
+
     return
 
 def app_loop(g: dgl.DGLGraph, db_config: str, etypes: str|None = None, domain: str|None = None) -> None:

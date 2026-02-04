@@ -79,6 +79,9 @@ def train_hetero(g: dgl.DGLGraph, num_of_epochs: int = 10, num_of_epoch_walks: i
         avg_losses.extend([avg_loss] * num_of_total_walks_in_epoch)
         MyLogger.get_instance().log(f"Epoch {epoch + 1} finished, Avg Loss = {avg_loss:.4f}")
 
+    for _, sub_g in e_type_subgraphs.items():
+        del sub_g
+
     return model, losses, avg_losses
 
 def classify_node(g: dgl.DGLGraph, nd: int) -> tuple[float, float] | None:
@@ -106,6 +109,8 @@ def classify_node(g: dgl.DGLGraph, nd: int) -> tuple[float, float] | None:
     clf = sk.LogisticRegression().fit(x[train_mask].numpy(), y[train_mask].numpy())
 
     result = clf.predict_proba(x[classify_mask].numpy())
+
+    del model, l, al, clf
     return result[0][0], result[0][1]
 
 

@@ -6,7 +6,12 @@ from dataset_parsers.dglGraph.ExportGraph import export_graph
 import queue
 import random
 from misc.Logger import MyLogger
-import dataset_parsers.cpp.k_hop_neighbours as cpp
+from system_config import WHERE
+
+if WHERE:
+    import dataset_parsers.cpp.k_hop_neighbours as cpp
+else:
+    import k_hop_neighbours as cpp
 
 def gen_train_test_masks(n_nodes: int) -> tuple[th.Tensor, th.Tensor]:
     train_mask = th.rand(n_nodes) < 0.9
