@@ -103,7 +103,7 @@ def classify_node(g: dgl.DGLGraph, nd: int) -> tuple[float, float] | None:
         return float(unique_values[0] == 0), float(unique_values[0] == 1)
 
     model, l, al = train_hetero(g,4,3,9,0.02)
-    plot_loss(l,al, "classification_loss", nd)
+    #plot_loss(l,al, "classification_loss", nd)
 
     x = model.node_embed.weight.detach()
     clf = sk.LogisticRegression().fit(x[train_mask].numpy(), y[train_mask].numpy())

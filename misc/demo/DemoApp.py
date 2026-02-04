@@ -69,6 +69,7 @@ def domain_checker(g: dgl.DGLGraph, domain_file: str, etypes: str|None) -> None:
         )
 
         with open(domain_file, 'r') as f:
+            lines = 0
             for line in f:
                 data = line.split(' ')
                 name = data[0]
@@ -94,7 +95,9 @@ def domain_checker(g: dgl.DGLGraph, domain_file: str, etypes: str|None) -> None:
                 correct = int(prediction == label)
 
                 csv_writer.writerow([node_id,name,n_good,n_bad,total,malicious,benign,prediction,label,correct])
-
+                lines += 1
+                if lines % 30 == 0:
+                    f.flush()
 
     return
 

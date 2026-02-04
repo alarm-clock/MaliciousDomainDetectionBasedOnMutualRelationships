@@ -103,7 +103,7 @@ def get_connected_components(g: dgl.DGLGraph, without_isolated_nodes: bool = Tru
 def get_nodes_connected_component(g: dgl.DGLGraph, nd: int, etypes: list[str] | None) -> dgl.DGLGraph:
 
     MyLogger.get_instance().log(f"Finding neighbouring nodes of node {nd}...")
-    neigh = bfs(g, nd, etypes)
+    neigh = cpp_k_hop_neighborhood(g,nd)
     MyLogger.get_instance().log(f"Found neighboring nodes of node {nd}")
     return  dgl.node_subgraph(g, neigh, store_ids=True)
 
@@ -167,7 +167,7 @@ def bfs(g: dgl.DGLGraph, start: int, etypes: list[str] | None = None, d_limit: i
 
 TOO_MUCH_LIMIT = 15000
 SAMPLE=0.2
-def cpp_k_hop_neighborhood(g: dgl.DGLGraph, start: int, max_depth: int = 4):
+def cpp_k_hop_neighborhood(g: dgl.DGLGraph, start: int, max_depth: int = 4) -> list[int]:
     g = dgl.to_homogeneous(g)
     indptr, indices, _ = g.adj_tensors("csr")
 
@@ -175,4 +175,4 @@ def cpp_k_hop_neighborhood(g: dgl.DGLGraph, start: int, max_depth: int = 4):
     np_indices = indices.numpy().astype(np.int64)
 
     nodes = cpp.k_hop_neighbours(np_indptr, np_indices, start, max_depth, TOO_MUCH_LIMIT, SAMPLE)
-    print(nodes)
+    return nodes

@@ -58,7 +58,7 @@ std::vector<int64_t> khop_neighbours( py::array_t<int64_t> indptr, py::array_t<i
                 }
             }
         }
-        print_vector(next,depth);
+        //print_vector(next,depth);
         frontier.swap(next);
         if (frontier.empty()) break;
     }
