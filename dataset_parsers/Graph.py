@@ -6,8 +6,9 @@ from dataset_parsers.dglGraph.ExportGraph import export_graph
 import queue
 import random
 from misc.Logger import MyLogger
-from system_config import WHERE
+import os
 
+WHERE = os.environ.get("WHERE") == "Local"
 if WHERE:
     import dataset_parsers.cpp.k_hop_neighbours as cpp
 else:

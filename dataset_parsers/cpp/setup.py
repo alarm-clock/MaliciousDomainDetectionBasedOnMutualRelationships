@@ -1,7 +1,8 @@
+import os
 from setuptools import setup
 from pybind11.setup_helpers import Pybind11Extension
-from system_config import WHERE
 
+WHERE = os.environ.get("WHERE") == "Local"
 if WHERE:
     path_to_source = "code/k_hop_neighbours.cpp"
 else:
