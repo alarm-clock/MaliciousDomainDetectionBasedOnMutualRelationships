@@ -52,10 +52,33 @@ def classify_domain_from_db(g: dgl.DGLGraph, domain: str, collection: pymongo.co
     classify_domain_from_id(g, node_id, etypes)
     return
 
+
+
 #m.gr-cdn-9.com  12272
 #dns.forcorpor.com  2
 #nymo.ee asi kurva vela
 #pub-c2e1b1db2dee4661b1d7f11393de5fb8.r2.dev
+
+def test_checker(g: dgl.DGLGraph, domain_file: str) -> None:
+    with open(domain_file, 'r') as f:
+        for line in f:
+            data = line.split(' ')
+            node_id = int(data[1])
+            scc = get_nodes_connected_component(g, node_id, None)
+
+            if len(scc.nodes()) < 2:
+                print(f"{node_id} has no neighbours in the graph")
+                # print("This domain does not have any connection to another domain")
+                continue
+
+            good = 0
+            all_cnt = len(scc.nodes())
+            for val in scc.ndata['label']:
+                good += int(val)
+
+            bad = all_cnt - good
+            print(f"{node_id} has {good} good neighbours and {bad} bad neighbours")
+
 
 def domain_checker(g: dgl.DGLGraph, domain_file: str, etypes: str|None) -> None:
 

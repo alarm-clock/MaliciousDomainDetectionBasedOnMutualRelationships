@@ -8,7 +8,7 @@ from misc.Visualize import plot_graph#, export_graph_gpu
 from dataset_parsers.dglGraph.ExportGraph import export_graph, load_graph
 from misc.helper_func import parse_ranges
 from misc.Logger import MyLogger
-from misc.demo.DemoApp import app_loop, domain_checker
+from misc.demo.DemoApp import app_loop, domain_checker, test_checker
 from ml.deepwalk import Learning
 import argparse
 
@@ -52,7 +52,8 @@ def main():
     parser.add_argument("--gen_strong_comp", action='store_true', help="NOTE: do not call when you are low on ram")
     parser.add_argument("--rm_iso_nds", action='store_true', help="Remove isolated nodes from created/imported graph")
     parser.add_argument("--gen_exp_strong_comp", metavar='FILE4', type=str, help='Export strongly connected components into own graph')
-    parser.add_argument("-t1", "--test1",action='store_true', help="Test function 1")
+    #parser.add_argument("-t1", "--test1",action='store_true', help="Test function 1")
+    parser.add_argument("-t1", "--test1", type=str, help="Test function 1")
     parser.add_argument("--regenerate_test_mask", action='store_true', help="Regenerate test mask for given graph")
     parser.add_argument('--log_file', metavar='LOGFILE', type=argparse.FileType('a'), help="Log file")
     parser.add_argument('--demo', action='store_true', help='Demo app')
@@ -112,8 +113,9 @@ def main():
     if args.rm_iso_nds:
         g = remove_isolated_nodes(g) #original IDs can be retrieved g.ndata['dgl.NID'][node]
 
-    if args.test1:
-        cpp_k_hop_neighborhood(g,1,3)
+    if args.test1 is not None:
+        #cpp_k_hop_neighborhood(g,1,3)
+        test_checker(g,args.test1)
 
     if args.gen_exp_strong_comp is not None:
         prefix = args.gen_exp_strong_comp
