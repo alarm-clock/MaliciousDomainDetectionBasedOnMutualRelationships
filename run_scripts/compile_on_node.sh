@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source /storage/brno2/home/xbuka00/.node_bashrc
+source /storage/brno2/home/xbukas00/.node_bashrc
 set -euo pipefail
 
 CPP_SOURCE=$BRNO_HOME/diplomka/DeepWalkTesting/dataset_parsers/cpp
@@ -14,4 +14,9 @@ BUILD_DIR="${SCRATCH}/${RUN_NAME}_${RUN_ID}${ARCH}"
 mkdir -p "${BUILD_DIR}"
 
 python3 $SETUP_SCRIPT_PATH build_ext --build-lib "${BUILD_DIR}" --build-temp "${BUILD_DIR}/temp"
-export PYTHONPATH="${BUILD_DIR}:${PYTHONPATH}"
+
+if [[ -n "${PYTHONPATH:-}" ]]; then
+    export PYTHONPATH="${BUILD_DIR}:${PYTHONPATH}"
+else
+    export PYTHONPATH="${BUILD_DIR}"
+fi
