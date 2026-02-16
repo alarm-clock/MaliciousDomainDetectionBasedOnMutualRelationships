@@ -2,7 +2,7 @@ import copy
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from misc.Logger import MyLogger
-from misc.helper_func import add_project_into_pipeline
+from old.misc.helper_func import add_project_into_pipeline
 import pymongo
 
 class CNAMEEdge(threading.Thread):

@@ -2,8 +2,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import pygtrie
 import pymongo
-from misc.Logger import MyLogger
-from misc.helper_func import add_project_into_pipeline
+from old.misc.Logger import MyLogger
+from old.misc.helper_func import add_project_into_pipeline
 
 
 class SubdomainEdge(threading.Thread):
@@ -46,10 +46,6 @@ class SubdomainEdge(threading.Thread):
         u = []
         v = []
 
-        #print(values)
-        #todo I must rework this to calculate some probability value for every edge that will reflect that all
-        #todo domains that share same top level domains like kokot.a.d.cz and pica.a.d.cz will have higher probability
-        #todo of being chosen in walk from one to another then domain like jebaci.d.cz
         for cnt in range(len(values)):
             u.extend([values[cnt]] * (len(values) - 1))
             for cnt2 in range(len(values)):
@@ -121,23 +117,6 @@ class SubdomainEdge(threading.Thread):
                 else:
                     self._subs[parent_id].append(domain[0])
 
-    def _get_domains(self) -> list[tuple[int, str]]:
-        #cursor = self._collection.find({}, {'_id': 0, 'domain_name': 1, 'node_id': 1}, batch_size=10000)
-        cursor = self._collection.aggregate(self._pipeline, batchSize=10000)
-        domains = []
-
-        with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [executor.submit(self._reverse, d) for d in
-                       cursor]  # reverse domains so tree can be built from top level domain
-
-            for future in futures:
-                result = future.result()
-                if result:
-                    domains.append(result)
-
-        cursor.close()
-        return domains
-
     def _create_domain_tree(self, domains: list[tuple[int,str]], domain_id_dict: dict[str, int]) -> None:
         trie = pygtrie.StringTrie(separator='.')
 
@@ -164,6 +143,23 @@ class SubdomainEdge(threading.Thread):
                 trie[domain] = True
 
         del trie
+
+    def _get_domains(self) -> list[tuple[int, str]]:
+        #cursor = self._collection.find({}, {'_id': 0, 'domain_name': 1, 'node_id': 1}, batch_size=10000)
+        cursor = self._collection.aggregate(self._pipeline, batchSize=10000)
+        domains = []
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [executor.submit(self._reverse, d) for d in cursor]
+            # reverse domains so tree can be built from top level domain
+
+            for future in futures:
+                result = future.result()
+                if result:
+                    domains.append(result)
+
+        cursor.close()
+        return domains
 
     def run(self):
         MyLogger.get_instance().log("Getting domains for domain tree...")

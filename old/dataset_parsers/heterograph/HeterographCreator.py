@@ -6,13 +6,13 @@ from concurrent.futures import ThreadPoolExecutor
 from dgl import DGLGraph
 from pymongo import MongoClient
 import torch as th
-from dataset_parsers.Graph import create_hetero_graph
-from dataset_parsers.heterograph.SubdomainEdge import SubdomainEdge
-from dataset_parsers.heterograph.CNAMEEdge import CNAMEEdge
-from dataset_parsers.db.ParallelDBParser import ParallelDBParser
-from dataset_parsers.heterograph.ipv4_parallel_api import IPV4ParallelAPI
-from misc.Logger import MyLogger
-from misc.helper_func import parse_ranges, add_project_into_pipeline
+from old.dataset_parsers.Graph import create_hetero_graph
+from old.dataset_parsers.heterograph.SubdomainEdge import SubdomainEdge
+from old.dataset_parsers.heterograph.CNAMEEdge import CNAMEEdge
+from old.dataset_parsers.db.ParallelDBParser import ParallelDBParser
+from old.dataset_parsers.heterograph.ipv4_parallel_api import IPV4ParallelAPI
+from old.misc.Logger import MyLogger
+from old.misc.helper_func import parse_ranges, add_project_into_pipeline
 import traceback
 
 class HeterographCreator:
@@ -175,7 +175,7 @@ class HeterographCreator:
             return None
 
         MyLogger.get_instance().log("Creating Heterograph...")
-
+#TODO this part of algorithm will go into c++
         if "subdomain" in edge_types:
             MyLogger.get_instance().log("Creating subdomain edges" + " and subdomain_of edges" if 'subdomain_of' in edge_types else "")
             self._get_subdomain_edges(True, 'subdomain_of' in edge_types)
@@ -198,7 +198,7 @@ class HeterographCreator:
         MyLogger.get_instance().log("Created all edges...")
         labels= self._get_labels()
         weights = self._weights if self._weights.keys().__len__() != 0 else None
-
+#TODO this is the of the part of the algorithm that will be implemented in c++, language of the REAL men
         #self._debug_edges_by_type()
 
         try:

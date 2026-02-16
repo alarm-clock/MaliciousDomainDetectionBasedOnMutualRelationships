@@ -1,9 +1,9 @@
 import dgl
 from misc.Logger import MyLogger
-from dataset_parsers.Graph import get_nodes_connected_component
+from old.dataset_parsers.Graph import get_nodes_connected_component
 import pymongo
-from misc.helper_func import connect_to_db_from_conf
-from ml.deepwalk.Learning import classify_node
+from old.misc.helper_func import connect_to_db_from_conf
+from old.ml.deepwalk.Learning import classify_node
 import csv
 
 def classify_domain_from_id(g: dgl.DGLGraph, node_id: int, etypes: str|None) -> tuple[int, int, float, float] | None:

@@ -3,16 +3,16 @@ import copy
 import threading
 import ijson
 import json as jslib
-from dataset_parsers.Graph import create_graph
-from dataset_parsers.raw.Node import Node
-from dataset_parsers.raw.IPEdge import IPEdge
-from dataset_parsers.raw.ParallelDatasetWorker import ParallelDatasetWorker
-from dataset_parsers.raw.ParallelEdgeConnectorWorker import ParallelEdgeConnectorWorker
+from old.dataset_parsers.Graph import create_graph
+from old.dataset_parsers.raw.Node import Node
+from old.dataset_parsers.raw.IPEdge import IPEdge
+from old.dataset_parsers.raw.ParallelDatasetWorker import ParallelDatasetWorker
+from old.dataset_parsers.raw.ParallelEdgeConnectorWorker import ParallelEdgeConnectorWorker
 from misc.Logger import MyLogger
 import torch as th
 import dgl
 import pymongo
-from misc.helper_func import add_project_into_pipeline, add_sort_into_pipeline, create_reverse_edges
+from old.misc.helper_func import add_project_into_pipeline, add_sort_into_pipeline, create_reverse_edges
 
 
 class DatasetJsonParser:

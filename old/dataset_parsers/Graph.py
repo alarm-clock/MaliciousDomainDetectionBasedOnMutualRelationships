@@ -2,7 +2,7 @@ import numpy as np
 import torch as th
 import dgl
 import networkx as nx
-from dataset_parsers.dglGraph.ExportGraph import export_graph
+from old.dataset_parsers.dglGraph.ExportGraph import export_graph
 import queue
 import random
 from misc.Logger import MyLogger

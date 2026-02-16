@@ -62,7 +62,7 @@ def main():
     args = parser.parse_args()
 
     if args.log_file is not None:
-        MyLogger(args.log_file.name)
+        MyLogger(args.log_file.worker_name)
 
     if not check_args_logic(args):
         return
@@ -71,18 +71,18 @@ def main():
         if not check_if_db_was_given(args):
             return
 
-        parser = DatasetDBParser.from_config(False, args.db_config.name)
+        parser = DatasetDBParser.from_config(False, args.db_config.worker_name)
         g = parser.parse() if not args.ranges else parser.parse_from_ranges(parse_ranges(args.ranges))
 
     elif args.dglformat is not None:
 
-        g = load_graph(args.dglformat.name)
+        g = load_graph(args.dglformat.worker_name)
         if g is None:
             return
 
     elif args.dataset is not None:
 
-        parser = DatasetJsonParser(args.dataset.name)
+        parser = DatasetJsonParser(args.dataset.worker_name)
 
         try:
             g, _ = parser.parse()
@@ -93,7 +93,7 @@ def main():
         if not check_if_db_was_given(args):
             return
 
-        hg_creator = HeterographCreator.from_config(args.db_config.name, args.heterograph, args.ranges)
+        hg_creator = HeterographCreator.from_config(args.db_config.worker_name, args.heterograph, args.ranges)
         g = hg_creator.createHeterograph()
     else:
         return
@@ -136,7 +136,7 @@ def main():
         Learning.train_and_test_model(g)
 
     if args.demo:
-        app_loop(g, args.db_config.name, args.etypes)
+        app_loop(g, args.db_config.worker_name, args.etypes)
 
     if args.demo_from_list:
         domain_checker(g, args.demo_from_list, args.etypes)

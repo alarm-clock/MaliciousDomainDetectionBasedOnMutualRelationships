@@ -1,5 +1,5 @@
 import threading
-from dataset_parsers.raw.DatasetJsonParser import DatasetJsonParser
+from old.dataset_parsers.raw.DatasetJsonParser import DatasetJsonParser
 
 class IPV4ParallelAPI(threading.Thread):
 

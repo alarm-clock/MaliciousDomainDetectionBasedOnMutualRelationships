@@ -12,7 +12,7 @@ build/
 develop-eggs/
 dist/
 downloads/
-eggs/
+eggs//usr/include/python3.10
 .eggs/
 lib/
 lib64/

@@ -4,8 +4,8 @@ from dgl.nn.pytorch import DeepWalk
 import torch as th
 import sklearn.linear_model as sk
 from sklearn.metrics import f1_score
-from misc.Visualize import plot_loss
-from misc.Logger import MyLogger
+from old.misc.Visualize import plot_loss
+from old.misc.Logger import MyLogger
 import numpy as np
 
 
