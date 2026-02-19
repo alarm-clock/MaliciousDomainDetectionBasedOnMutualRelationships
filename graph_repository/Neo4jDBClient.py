@@ -1,5 +1,6 @@
 from neo4j import GraphDatabase
 from misc.Logger import MyLogger
+from graph_repository.workers.common.GraphTypes import NodeTypes
 from neo4j.exceptions import ServiceUnavailable, AuthError
 import json
 import sys
@@ -19,7 +20,7 @@ class Neo4jDBClient:
         try:
             driver = GraphDatabase.driver(f'bolt://{url}:{port}', auth=(username, password))
         except ServiceUnavailable as err:
-            MyLogger.get_instance().log(f"Could not connect to Neo4j with error: {err}")
+            MyLogger.get_instance().log_error(f"Could not connect to Neo4j with error: {err}")
             print(err, file=sys.stderr)
             self._err = True
             raise CouldNotConnect(url, port, username)
@@ -27,7 +28,7 @@ class Neo4jDBClient:
         try:
             driver.verify_connectivity()
         except AuthError as err:
-            MyLogger.get_instance().log(f"Authentication failed when connecting to Neo4j: {err}")
+            MyLogger.get_instance().log_error(f"Authentication failed when connecting to Neo4j: {err}")
             print(err, file=sys.stderr)
             self._err = True
             raise CouldNotConnect(url, port, username)
@@ -73,4 +74,20 @@ class Neo4jDBClient:
         with self.driver.session( database= self.database) as s:
             return s.execute_read(lambda tx: tx.run(query, **params).data())
 
+    def get_max_id_of_node_type(self, node_type: NodeTypes) -> int:
+        return self.execute_read(f"MATCH (n:{node_type.value}) RETURN max(n.node_id) AS {node_type.value}_max_id")
 
+
+    def create_nodes(self, node_type: NodeTypes | str, rows: list[dict]) -> None:
+
+        if len(rows) <= 0:
+            return
+
+        items_str = ",".join([str(key) + ": row." + str(key) for key in list(rows[0].keys())])
+
+        create_query = f"""
+        UNWIND $rows AS row
+        CREATE(:{node_type if type(node_type) == str else node_type.value} {{ {items_str} }})
+        """
+
+        self.execute_write(create_query, rows=rows)

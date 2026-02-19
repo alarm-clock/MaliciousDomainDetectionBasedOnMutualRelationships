@@ -1,5 +1,5 @@
 """
-File: graph_repository/dataset_creator/edge_workers/CNAMEWorker.py
+File: graph_repository/dataset_creator/dataset_edge_workers/CNAMEWorker.py
 System module: graph_repository
 Author: Jozef Michal Bukas
 Email: xbukas00@stud.fit.vutbr.cz
@@ -7,14 +7,14 @@ Date: 10.2.2026
 Description: Class used for parallel creation of CNAME edges from dataset
 """
 
-from graph_repository.dataset_creator.common.Worker import Worker
-from graph_repository.dataset_creator.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.DatasetWorker import DatasetWorker
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from concurrent.futures import ThreadPoolExecutor
 from misc.Logger import MyLogger
 import pymongo
 
 
-class CNAMEWorker(Worker):
+class CNAMEWorker(DatasetWorker):
     """
     Worker class for creating CNAME edges on separate thread.
 

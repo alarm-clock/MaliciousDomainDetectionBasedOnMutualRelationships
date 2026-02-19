@@ -1,6 +1,6 @@
 from enum import Enum
-from graph_repository.dataset_creator.common.Worker import Worker
-from graph_repository.dataset_creator.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.DatasetWorker import DatasetWorker
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.graph_repo_misc import calc_jaccard
 import pymongo
 from concurrent.futures import ThreadPoolExecutor
@@ -11,7 +11,7 @@ from misc.Logger import MyLogger
 # it has no informational value and causes creation of large clusters of domains that have no real connection
 
 # noinspection DuplicatedCode
-class SubdomainWorker(Worker):
+class SubdomainWorker(DatasetWorker):
 
     class Modes(Enum):
         BOTH = 0

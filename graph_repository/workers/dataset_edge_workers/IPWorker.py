@@ -1,14 +1,13 @@
 from ipaddress import ip_address
 from enum import Enum
-from graph_repository.dataset_creator.common.Worker import Worker
-from graph_repository.graph_repo_misc import add_sort_into_pipeline
+from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from misc.Logger import MyLogger
-from graph_repository.dataset_creator.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from pymongo.collection import Collection
 from pymongo import ASCENDING
 
 
-class IPWorker(Worker):
+class IPWorker(DatasetWorker):
 
     class Modes(Enum):
         BOTH = 0

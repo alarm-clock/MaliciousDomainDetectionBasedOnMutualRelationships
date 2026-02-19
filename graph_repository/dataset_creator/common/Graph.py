@@ -1,4 +1,4 @@
-from graph_repository.dataset_creator.common.GraphTypes import NodeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes
 import torch as th
 import dgl
 

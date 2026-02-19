@@ -4,14 +4,14 @@ from dgl import DGLHeteroGraph
 from pymongo import MongoClient
 import importlib
 import pkgutil
-from graph_repository.dataset_creator.common.Worker import WORKER_REGISTRY
+from graph_repository.workers.common.DatasetWorker import DATASET_WORKER_REGISTRY
 from graph_repository.dataset_creator.common.LabelExtractor import LabelExtractor
-from graph_repository.dataset_creator.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.dataset_creator.common.Graph import create_dgl_graph
 from graph_repository.dataset_creator.DGLImporter import export_dgl_graph
 from misc.Logger import MyLogger
 from graph_repository.graph_repo_misc import parse_ranges
-from graph_repository.Neo4jDBClient import Neo4jDBClient, CouldNotConnect
+from graph_repository.Neo4jDBClient import Neo4jDBClient
 import torch as th
 from threading import Lock
 import sys
@@ -21,7 +21,7 @@ import traceback
 class DatasetImporter:
     """
     Class for creating graph from the dataset stored in MongoDB and either returning it in DGL format or storing it into
-    Neo4j DB. It serves as dispatcher for workers in `edge_workers` module.
+    Neo4j DB. It serves as dispatcher for workers in `dataset_edge_workers` module.
     """
 
     _for_dgl = True
@@ -124,17 +124,17 @@ class DatasetImporter:
         :return: None
         """
 
-        import graph_repository.dataset_creator.edge_workers
+        import graph_repository.workers.dataset_edge_workers
 
         for _, module_name, _ in pkgutil.iter_modules(graph_repository.dataset_creator.edge_workers.__path__):
-            importlib.import_module(f"graph_repository.dataset_creator.edge_workers.{module_name}")
+            importlib.import_module(f"graph_repository.dataset_creator.dataset_edge_workers.{module_name}")
 
         classes = ""
-        for cls in WORKER_REGISTRY.values():
+        for cls in DATASET_WORKER_REGISTRY.values():
             self._known_edges.extend(cls.available_options)
             classes += f"{cls.worker_name},"
 
-        MyLogger.get_instance().debug_log(f"Loaded workers: {classes[:-1]} from module edge_workers")
+        MyLogger.get_instance().debug_log(f"Loaded workers: {classes[:-1]} from module dataset_edge_workers")
 
     def _parse_edge_types(self, edge_types: str | None) -> list[str] | None:
         """
@@ -150,7 +150,7 @@ class DatasetImporter:
         splited_types = edge_types.split(',')
 
         if len(splited_types) == 1 and splited_types[0] == 'all':
-            return [ f'{worker_name}_all' for worker_name in WORKER_REGISTRY.keys()]
+            return [ f'{worker_name}_all' for worker_name in DATASET_WORKER_REGISTRY.keys()]
 
         for edge_type_str in splited_types:
             edge_type_str = edge_type_str.strip()
@@ -376,7 +376,7 @@ class DatasetImporter:
         """
 
         for cls, kwargs in self._edges_for_creation:
-            worker_cls = WORKER_REGISTRY.get(cls)
+            worker_cls = DATASET_WORKER_REGISTRY.get(cls)
 
             if not worker_cls:
                 MyLogger.get_instance().log_error(f"Could not find worker class for worker type: {cls} which is very strange")
@@ -450,6 +450,14 @@ class DatasetImporter:
         for n_t, rows in self._n_data_neo4j.items():
             MyLogger.get_instance().log(f"Creating {len(rows)} {n_t} nodes in neo4j")
             items_str = ",".join([str(key) + ": row." + str(key) for key in list(rows[0].keys())])
+
+            constraint_query = f"""
+            CREATE CONSTRAINT {n_t}_unique_node_id
+            FOR (t:{n_t})
+            REQUIRE t.node_id IS UNIQUE
+            """
+            client.execute_write(constraint_query)
+
             query = f"""
             UNWIND $rows AS row
             CREATE(:{n_t} {{ {items_str} }})
