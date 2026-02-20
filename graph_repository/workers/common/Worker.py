@@ -32,7 +32,9 @@ class Worker(threading.Thread, ABC):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls._register()
+
+        if not getattr(cls,"__abstractmethods__", None):
+            cls._register()
 
     def __init__(self):
         """

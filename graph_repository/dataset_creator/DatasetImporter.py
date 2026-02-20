@@ -126,8 +126,8 @@ class DatasetImporter:
 
         import graph_repository.workers.dataset_edge_workers
 
-        for _, module_name, _ in pkgutil.iter_modules(graph_repository.dataset_creator.edge_workers.__path__):
-            importlib.import_module(f"graph_repository.dataset_creator.dataset_edge_workers.{module_name}")
+        for _, module_name, _ in pkgutil.iter_modules(graph_repository.workers.dataset_edge_workers.__path__):
+            importlib.import_module(f"graph_repository.workers.dataset_edge_workers.{module_name}")
 
         classes = ""
         for cls in DATASET_WORKER_REGISTRY.values():
@@ -453,6 +453,7 @@ class DatasetImporter:
 
             constraint_query = f"""
             CREATE CONSTRAINT {n_t}_unique_node_id
+            IF NOT EXISTS
             FOR (t:{n_t})
             REQUIRE t.node_id IS UNIQUE
             """

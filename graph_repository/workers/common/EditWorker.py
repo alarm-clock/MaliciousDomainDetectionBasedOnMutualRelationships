@@ -13,7 +13,7 @@ class EditWorker(Worker):
 
     @classmethod
     def _register(cls):
-        if hasattr(cls, 'name'):
+        if cls.__name__ != "EditWorker":
             EDIT_WORKER_REGISTRY[cls.worker_name] = cls
 
 

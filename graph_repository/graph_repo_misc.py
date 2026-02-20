@@ -146,3 +146,13 @@ def intersection(set1: list, set2: list) -> list:
 def calc_jaccard(set1: list, set2: list) -> float:
     int_len = len(intersection(set1, set2))
     return int_len / (len(set1) + len(set2) - int_len)
+
+
+def get_domains_parent_domains(domain: str) -> list[str]:
+    domain_name = str(domain)
+    parts = domain_name.split(".")[1:]  # no domain itself
+    suffixes = []
+    for cnt in range(len(parts) - 1):  # no tld
+        suffixes.append('.'.join(parts[cnt:]))
+
+    return suffixes

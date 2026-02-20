@@ -27,6 +27,7 @@ class DatasetWorker(Worker):
             `available_options (list[tuple[str, str, dict | None]])`: list of available options for given worker class in
             format (name, option name, kwargs for that option or none)
     """
+    worker_name: str
 
     def __init__(self, submit_callback_method, collection: pymongo.collection.Collection, ranges: list, project: dict):
         """
@@ -48,5 +49,5 @@ class DatasetWorker(Worker):
 
     @classmethod
     def _register(cls):
-        if hasattr(cls, 'name'):
+        if cls.__name__ != "DatasetWorker":
             DATASET_WORKER_REGISTRY[cls.worker_name] = cls
