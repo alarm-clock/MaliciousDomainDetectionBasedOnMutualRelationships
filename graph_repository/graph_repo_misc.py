@@ -156,3 +156,6 @@ def get_domains_parent_domains(domain: str) -> list[str]:
         suffixes.append('.'.join(parts[cnt:]))
 
     return suffixes
+
+def reverse_domain(domain: str) -> str:
+    return '.'.join(reversed(domain.strip().rstrip('.').split('.')))

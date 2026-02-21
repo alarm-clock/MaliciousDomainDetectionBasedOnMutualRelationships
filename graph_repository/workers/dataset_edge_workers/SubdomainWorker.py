@@ -1,7 +1,7 @@
 from enum import Enum
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
-from graph_repository.graph_repo_misc import calc_jaccard
+from graph_repository.graph_repo_misc import calc_jaccard, reverse_domain
 import pymongo
 from concurrent.futures import ThreadPoolExecutor
 import pygtrie
@@ -76,8 +76,7 @@ class SubdomainWorker(DatasetWorker):
         del self._u, self._v, self._of_u, self._of_v, self._of_jacc, self._subs, self._classes
 
     def _reverse(self,d) -> tuple[int, str]:
-        parts = d['domain_name'].strip().rstrip('.').split('.')
-        return int(d['node_id']), '.'.join(reversed(parts))
+        return int(d['node_id']), reverse_domain(str(d['domain_name']))
 
 
     def _create_subdomain_edges(self) -> None:

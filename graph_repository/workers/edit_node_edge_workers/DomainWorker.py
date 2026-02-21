@@ -3,6 +3,7 @@ from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.Neo4jDBClient import Neo4jDBClient
 from graph_repository.workers.common.GraphTypes import NodeTypes
 from graph_repository.workers.common.Enums import EditTypes
+from graph_repository.graph_repo_misc import get_domains_parent_domains
 from misc.Logger import MyLogger
 
 class DomainWorker(EditWorker):
@@ -45,6 +46,7 @@ class DomainWorker(EditWorker):
             except KeyError:
                 other_data = None
 
-            self._domains_for_creation.append({'domain_name': domain_name, 'label': label, 'node_id': node_id, 'other_data': other_data})
+            parent_domains = get_domains_parent_domains(domain_name)
+            self._domains_for_creation.append({'domain_name': domain_name, 'label': label, 'node_id': node_id, 'other_data': other_data, 'parent_domains': parent_domains})
 
         self._node_submission_callback(self._domains_for_creation, NodeTypes.DOMAIN, self.worker_name , EditTypes.UPDATE)
