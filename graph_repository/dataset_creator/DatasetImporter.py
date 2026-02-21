@@ -448,6 +448,10 @@ class DatasetImporter:
         client.execute_write(graph_version_query)
 
         for n_t, rows in self._n_data_neo4j.items():
+
+            if len(rows) < 1:
+                continue
+
             MyLogger.get_instance().log(f"Creating {len(rows)} {n_t} nodes in neo4j")
             items_str = ",".join([str(key) + ": row." + str(key) for key in list(rows[0].keys())])
 

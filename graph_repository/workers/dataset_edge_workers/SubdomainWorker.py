@@ -65,12 +65,11 @@ class SubdomainWorker(DatasetWorker):
         if self._mode == self.Modes.SUBDOMAIN or self._mode == self.Modes.BOTH:
             self._submit_callback_method(self._u, self._v, self._nd_type, self._e_type1, self._nd_type)
             MyLogger.get_instance().log("Submitted all subdomain edges")
+
         if self._mode == self.Modes.SUBDOMAIN_OF or self._mode == self.Modes.BOTH:
 
             self._remove_duplicities_in_sub_of()
-
             e_data = ('sub_of_weight', self._of_jacc)
-
             self._submit_callback_method(self._of_u, self._of_v, self._nd_type, self._e_type2, self._nd_type, e_data=e_data)
             MyLogger.get_instance().log("Submitted all subdomain_of edges")
 
@@ -134,7 +133,7 @@ class SubdomainWorker(DatasetWorker):
             self._create_subdomain_of_edges()
             MyLogger.get_instance().log("Created subdomain_of edges")
 
-    def _check_domain_and_put_it_in_trie(self, trie: pygtrie.StringTrie, domain: tuple[int, str], domain_id_dict: dict):
+    def _check_domain_and_put_it_in_dict(self, trie: pygtrie.StringTrie, domain: tuple[int, str], domain_id_dict: dict):
 
         if trie.has_subtrie(domain[1]):
             #print(f"{domain[1]} is superdomain")
@@ -144,12 +143,13 @@ class SubdomainWorker(DatasetWorker):
                 children.remove(domain[1])
             children_ids = [domain_id_dict[child] for child in children]
             children_ids = [ch_id for ch_id in children_ids if ch_id >= 0]
-            #print(children_ids)
+
             self._subs[domain[0]] = children_ids
 
             for child in children_ids:
-                if self._classes.get(child) is not None and domain[0] not in self._classes[child]:
-                    self._classes[child].append(domain[0])
+                if self._classes.get(child) is not None:
+                    if domain[0] not in self._classes[child]:
+                        self._classes[child].append(domain[0])
                 else:
                     self._classes[child] = [domain[0]]
 
@@ -178,7 +178,7 @@ class SubdomainWorker(DatasetWorker):
         non_dset_id = -1
         for domain in domains:
 
-            self._check_domain_and_put_it_in_trie(trie, domain, domain_id_dict)
+            self._check_domain_and_put_it_in_dict(trie, domain, domain_id_dict)
 
             trie[domain[1]] = True
 
@@ -193,7 +193,7 @@ class SubdomainWorker(DatasetWorker):
                     domain_id_dict[domain] = domain_id
                     non_dset_id -= 1            # "nedavaju sa ziadne zaporne body, oni si ich len zarobili zaporne" cca Hlineny
 
-                self._check_domain_and_put_it_in_trie(trie, (domain_id, domain),
+                self._check_domain_and_put_it_in_dict(trie, (domain_id, domain),
                                                       domain_id_dict)  # even if it isn't in dataset I still need it for subdomain_of
                 trie[domain] = True
 
