@@ -1,6 +1,7 @@
 from neo4j import GraphDatabase
+from enum import Enum
 from misc.Logger import MyLogger
-from graph_repository.workers.common.GraphTypes import NodeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from neo4j.exceptions import ServiceUnavailable, AuthError
 import json
 import sys
@@ -91,3 +92,56 @@ class Neo4jDBClient:
         """
 
         self.execute_write(create_query, rows=rows)
+
+    class EdgeCreationQueryOptions(Enum):
+
+        NO_WEIGHT_NO_REVERSE = 0
+        NO_WEIGHT_REVERSE = 1
+        WEIGHT_NO_REVERSE = 2
+        WEIGHT_REVERSE = 3
+
+
+    E_OPTION = "option"
+    E_MATCH1 = "m1"
+    E_MATCH2 = "m2"
+    E_EDGE_T = "e_t"
+    E_NODE_T1 = "n_t1"
+    E_NODE_T2 = "n_t2"
+    E_EDGE_VALUE_NAME = "e_v"
+
+    def _create_edge_creation_query(self,option: EdgeCreationQueryOptions, m1: str, m2: str, e_t: EdgeTypes, n_t1: NodeTypes, n_t2: NodeTypes, e_v: str | None) -> dict[str, str]:
+
+        query = f"""
+        UNWIND $edges AS edge
+        MATCH (u: {n_t1.value} {{{m1}: edge.u }}), (v: {n_t2.value} {{{m2}: edge.v }}) 
+        """
+
+        if option == self.EdgeCreationQueryOptions.NO_WEIGHT_NO_REVERSE or option == self.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE:
+            query += f" MERGE (u)-[:{e_t.value}]->(v)"
+
+            if option == self.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE:
+                query += f" MERGE (v)-[:{e_t.value}]->(u)"
+
+        elif option == self.EdgeCreationQueryOptions.WEIGHT_NO_REVERSE or option == self.EdgeCreationQueryOptions.WEIGHT_REVERSE:
+
+            if e_v is None:
+                MyLogger.get_instance().log_warning(f"Edge value was not given a name to edge type {e_t.value}. Default value \"weight\" will be used")
+                e_v = "weight"
+
+            query += f" MERGE (u)-[:{e_t.value} {{{e_v}: edge.weight}}]->(v)"
+
+            if option == self.EdgeCreationQueryOptions.WEIGHT_REVERSE:
+                query += f" MERGE (v)-[:{e_t.value} {{{e_v}: edge.weight}}]->(u)"
+
+        return  {"edges": query}
+
+
+    def create_edges(self, rows: list[dict], query: tuple[str, str]| dict) -> None:
+
+        if type(query) == dict:
+            self.execute_write(query[0], **{query[1]: rows})
+        else:
+            query_str = self._create_edge_creation_query(**query)
+            self.execute_write(query_str, edges=rows)
+
+        return

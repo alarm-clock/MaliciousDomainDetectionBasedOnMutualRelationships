@@ -1,6 +1,9 @@
+from typing import Any
+
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.workers.common.GraphTypes import NodeTypes
+from graph_repository.Neo4jDBClient import Neo4jDBClient
 from graph_repository.workers.common.Enums import EditTypes, CallbackWhen
 from misc.Pair import replace
 from threading import Lock
@@ -25,8 +28,8 @@ class AddRequest(GraphRequest):
         #               group       node_type   edit_type     rows
         self._nodes: dict[str, tuple[NodeTypes, EditTypes, list[dict]]] = {}
 
-        #               group      query    rows
-        self._edges: dict[str, tuple[str, list[dict]]] = {}
+        #               group     query[q_str, unwind name] |  params for e creation, edges
+        self._edges: dict[str, tuple[tuple[str, str] | dict[str, Any], list[dict]]] = {}
 
         #              group (str)  tuple[callback | None, callback | None, callback | None]
         self._callbacks: dict = {}
@@ -80,7 +83,7 @@ class AddRequest(GraphRequest):
 
         self._nodes_lock.release()
 
-    def submit_edges(self, edges: list[dict] | None, edge_creation_query: str | None, group: str):
+    def submit_edges(self, edges: list[dict], edge_creation_query: tuple[str, str] | dict[str, Any], group: str):
 
         self._edges_lock.acquire()
 

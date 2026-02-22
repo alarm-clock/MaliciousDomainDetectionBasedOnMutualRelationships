@@ -1,3 +1,5 @@
+import copy
+
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.graph_main.GraphRepository import GraphRepository
@@ -67,24 +69,27 @@ class CNAMEWorker(EditWorker):
         driver.close()
         return
 
-    @staticmethod
-    def _get_query(n_t: NodeTypes) -> str:
-
-        return f"""
-        UNWIND $rows as row
-        MATCH (u: {n_t.value} {{domain_name: row.u}}), (v: {NodeTypes.DOMAIN.value} {{domain_name: row.v}})
-        MERGE (u)-[{EdgeTypes.CNAME.value}]->(v)
-        MERGE (v)-[{EdgeTypes.CNAME.value}]->(u)
-        """
-
-
     def _submit(self):
 
         replace_dummies_callback = partial(self._replace_dummies, self._domains_for_replacing)
         self._callbacks_submit_callback(replace_dummies_callback, CallbackWhen.BETWEEN_NODES_EDGES, self.worker_name)
         self._nodes_submit_callback(self._dummy_nodes, NodeTypes.DUMMY_DOMAIN, self.worker_name, EditTypes.IGNORE_NEW)
-        self._edges_submit_callback(self._d_d_edges, CNAMEWorker._get_query(NodeTypes.DOMAIN), self.worker_name)
-        self._edges_submit_callback(self._du_d_edges, CNAMEWorker._get_query(NodeTypes.DUMMY_DOMAIN), self.worker_name)
+
+        query_option = {
+            Neo4jDBClient.E_NODE_T1: NodeTypes.DOMAIN,
+            Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
+            Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
+            Neo4jDBClient.E_EDGE_T: EdgeTypes.CNAME,
+            Neo4jDBClient.E_MATCH1: "domain_name",
+            Neo4jDBClient.E_MATCH2: "domain_name"
+        }
+
+        self._edges_submit_callback(self._d_d_edges, query_option, self.worker_name)
+
+        query_option2 = copy.deepcopy(query_option)
+        query_option2[Neo4jDBClient.E_NODE_T1] = NodeTypes.DUMMY_DOMAIN
+
+        self._edges_submit_callback(self._du_d_edges, query_option2, self.worker_name)
 
     def _create_dummy_domains(self) -> None:
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()

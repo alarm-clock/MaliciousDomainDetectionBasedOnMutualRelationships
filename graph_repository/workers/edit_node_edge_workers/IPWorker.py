@@ -40,7 +40,16 @@ class IPWorker(EditWorker):
 
     def _submit_results(self):
         self._submit_nodes_callback(self._ips, NodeTypes.IP, self.worker_name, EditTypes.IGNORE_NEW)
-        self._submit_edges_callback(self._edges, self._edge_creation_query, self.worker_name)
+
+        query_params = {
+            Neo4jDBClient.E_EDGE_T: EdgeTypes.TRANSLATES,
+            Neo4jDBClient.E_NODE_T1: NodeTypes.DOMAIN,
+            Neo4jDBClient.E_NODE_T2: NodeTypes.IP,
+            Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
+            Neo4jDBClient.E_MATCH1: "domain_name",
+            Neo4jDBClient.E_MATCH2: "ip_str"
+        }
+        self._submit_edges_callback(self._edges, query_params, self.worker_name)
 
     def _create_pairs(self, domain_name: str, ips: list) -> None:
         for ip in ips:
