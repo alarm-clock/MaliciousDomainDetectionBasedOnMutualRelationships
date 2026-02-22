@@ -9,11 +9,12 @@ from misc.Logger import MyLogger
 class DomainWorker(EditWorker):
 
     worker_name = 'DomainWorker'
+    req_callbacks = (worker_name, [EditWorker.ReqCallbacks.NODE])
     _limit = 5000
 
-    def __init__(self, domains: list[dict], node_submission_callback):
-        super().__init__(domains,DomainWorker._limit)
-        self._node_submission_callback = node_submission_callback
+    def __init__(self, domains: list[dict], version: int, nodes_submit_callback):
+        super().__init__(domains, version, DomainWorker._limit)
+        self._node_submission_callback = nodes_submit_callback
         self._domains_for_creation: list[dict] = []
 
     def _compute(self):

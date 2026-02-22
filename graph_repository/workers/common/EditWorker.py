@@ -1,21 +1,37 @@
 from graph_repository.workers.common.Worker import Worker
+from graph_repository.workers.common.GraphTypes import NodeTypes
+from enum import Enum
 
 EDIT_WORKER_REGISTRY = {}
 
 class EditWorker(Worker):
 
-    def __init__(self, domains: list[dict] , edge_limit: int):
+    class ReqCallbacks(Enum):
+        NODE = "nodes_submit_callback"
+        EDGE = "edges_submit_callback"
+        CALLBACK = "callbacks_submit_callback"
+        ALL = "all"
+
+
+    worker_name: str
+    req_callbacks: tuple[str, list[ReqCallbacks]]
+
+    def __init__(self, domains: list[dict], version: int , edge_limit: int):
         super().__init__()
         self._domains = domains
         self._edge_limit = edge_limit
         self._nodes: list[dict] = []
         self._edges: list[dict] = []
+        self._version: int = version
 
     @classmethod
     def _register(cls):
         if cls.__name__ != "EditWorker":
             EDIT_WORKER_REGISTRY[cls.worker_name] = cls
 
+
+    def _get_version_query(self, alone: bool) -> str:
+        return ('' if alone else ', ') + f" graph_version: {self._version}"
 
     def compute(self) -> bool:
 

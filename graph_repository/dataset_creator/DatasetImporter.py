@@ -134,7 +134,7 @@ class DatasetImporter:
             self._known_edges.extend(cls.available_options)
             classes += f"{cls.worker_name},"
 
-        MyLogger.get_instance().debug_log(f"Loaded workers: {classes[:-1]} from module dataset_edge_workers")
+        MyLogger.get_instance().log_debug(f"Loaded workers: {classes[:-1]} from module dataset_edge_workers")
 
     def _parse_edge_types(self, edge_types: str | None) -> list[str] | None:
         """
@@ -397,23 +397,23 @@ class DatasetImporter:
         self._label_worker.start()
 
     def _debug_edges_by_type(self):
-        MyLogger.get_instance().debug_log("Printing debug info ->", False)
-        MyLogger.get_instance().debug_log(
+        MyLogger.get_instance().log_debug("Printing debug info ->", False)
+        MyLogger.get_instance().log_debug(
             f"Used ranges are: {self._ranges}" if len(self._ranges) != 0 else "No ranges were used", False, False)
-        MyLogger.get_instance().debug_log("Edges by edge types:", False, False)
+        MyLogger.get_instance().log_debug("Edges by edge types:", False, False)
 
         for edge_type, edges in self._edges.items():
-            MyLogger.get_instance().debug_log(f"Edge type {edge_type[0]} -> {edge_type[1]} -> {edge_type[2]} :", False, False)
-            MyLogger.get_instance().debug_log(f"Length of U = {len(edges[0])} and length of V = {len(edges[1])}", False,
+            MyLogger.get_instance().log_debug(f"Edge type {edge_type[0]} -> {edge_type[1]} -> {edge_type[2]} :", False, False)
+            MyLogger.get_instance().log_debug(f"Length of U = {len(edges[0])} and length of V = {len(edges[1])}", False,
                                               False)
-            MyLogger.get_instance().debug_log(f"{edges[0]}", False, False)
-            MyLogger.get_instance().debug_log(f"{edges[1]}", False, False)
+            MyLogger.get_instance().log_debug(f"{edges[0]}", False, False)
+            MyLogger.get_instance().log_debug(f"{edges[1]}", False, False)
 
         for key, val in self._n_data.items():
-            MyLogger.get_instance().debug_log(f"{key}: {val}", False, False)
+            MyLogger.get_instance().log_debug(f"{key}: {val}", False, False)
 
         for key, val in self._e_data.items():
-            MyLogger.get_instance().debug_log(f"{key}: {val}", False, False)
+            MyLogger.get_instance().log_debug(f"{key}: {val}", False, False)
 
     def _create_graph_from_dataset(self) -> None:
         """

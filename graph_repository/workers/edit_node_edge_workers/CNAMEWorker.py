@@ -12,14 +12,15 @@ from enum import Enum
 class CNAMEWorker(EditWorker):
 
     worker_name = 'CNAMEWorker'
+    req_callbacks = (worker_name, EditWorker.ReqCallbacks.ALL)
     _limit = 5000
 
     class NdTypes(Enum):
         DOMAIN  = 0
         DUMMY = 1
 
-    def __init__(self, domains: list[dict], nodes_submit_callback, edges_submit_callback, callbacks_submit_callback):
-        super().__init__(domains,CNAMEWorker._limit)
+    def __init__(self, domains: list[dict], version: int, nodes_submit_callback, edges_submit_callback, callbacks_submit_callback):
+        super().__init__(domains, version, CNAMEWorker._limit)
         self._edges_submit_callback = edges_submit_callback
         self._nodes_submit_callback = nodes_submit_callback
         self._callbacks_submit_callback = callbacks_submit_callback
@@ -40,7 +41,7 @@ class CNAMEWorker(EditWorker):
     #create new dummies
 
     @staticmethod
-    def _replace_dummies(domains_for_replacing: list[str]) -> None:
+    def _replace_dummies(domains_for_replacing: list[str], version_query: str) -> None:
         #this will run after normal nodes equivalents of dummies exists
         #they will have same domain name but node_id in parameter is for the du_domains
 
@@ -48,8 +49,8 @@ class CNAMEWorker(EditWorker):
         
         UNWIND $domains as d
         
-        MATCH (old: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: d}})
-        MATCH (new: {NodeTypes.DOMAIN.value} {{domain_name: d}})
+        MATCH (old: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: d {version_query}}})
+        MATCH (new: {NodeTypes.DOMAIN.value} {{domain_name: d {version_query}}})
         WITH old, new
         MATCH (old)-[r:{EdgeTypes.CNAME.value}->(other)
         WITH old, new, r, other
@@ -71,7 +72,7 @@ class CNAMEWorker(EditWorker):
 
     def _submit(self):
 
-        replace_dummies_callback = partial(self._replace_dummies, self._domains_for_replacing)
+        replace_dummies_callback = partial(self._replace_dummies, self._domains_for_replacing, self._get_version_query(False))
         self._callbacks_submit_callback(replace_dummies_callback, CallbackWhen.BETWEEN_NODES_EDGES, self.worker_name)
         self._nodes_submit_callback(self._dummy_nodes, NodeTypes.DUMMY_DOMAIN, self.worker_name, EditTypes.IGNORE_NEW)
 
@@ -101,9 +102,6 @@ class CNAMEWorker(EditWorker):
             self._dummy_nodes.append({'node_id':curr_id, 'domain_name':domain_name})
             curr_id += 1
 
-        #driver.create_nodes(NodeTypes.DUMMY_DOMAIN, dummy_nodes)
-
-
     def _create_edges(self):
 
         self._create_dummy_domains()
@@ -122,8 +120,8 @@ class CNAMEWorker(EditWorker):
 
         find_cnames_in_domains = f"""
         UNWIND $rows AS cname
-        OPTIONAL MATCH (n: {NodeTypes.DOMAIN.value} {{domain_name: cname}})
-        OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: cname}})  
+        OPTIONAL MATCH (n: {NodeTypes.DOMAIN.value} {{domain_name: cname {self._get_version_query(False)}}})
+        OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: cname {self._get_version_query(False)}}})  
         RETURN cname, n AS domain, m AS dummy      
         """
 
@@ -145,7 +143,7 @@ class CNAMEWorker(EditWorker):
 
         find_if_domain_is_dummy_in_graph = f"""
         UNWIND $rows AS domain
-        OPTIONAL MATCH(n: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: domain}})
+        OPTIONAL MATCH(n: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: domain {self._get_version_query(False)}}})
         WITH n, domain
         WHERE n IS NOT NULL
         RETURN domain AS domain_name

@@ -8,6 +8,7 @@ from graph_repository.graph_repo_misc import get_domains_parent_domains, reverse
 class SubdomainWorker(EditWorker):
 
     worker_name = 'subdomain'
+    req_callbacks = (worker_name, [EditWorker.ReqCallbacks.EDGE])
     _limit = 5000
     _PARENT_DOMAINS = 0
     _MATCHES = 1
@@ -21,18 +22,11 @@ class SubdomainWorker(EditWorker):
         ON EACH [d.parent_domains];
         """
 
-    def __init__(self, domains: list[dict], edge_submit_callback):
-        super().__init__(domains, SubdomainWorker._limit)
-        self._edge_submit_callback = edge_submit_callback
+    def __init__(self, domains: list[dict], version: int, edges_submit_callback):
+        super().__init__(domains, version, SubdomainWorker._limit)
+        self._edge_submit_callback = edges_submit_callback
         self._domain_data: dict[str, tuple[list[str], list[dict], list[str], list[str]]] = {}
         self._subs: dict[str, list[str]] = {}
-
-
-    # 1. prejst vsetky domeny a naskenovat graf na ich rodicovske domeny/ domeny zo stejnymi rodicmi
-    #    ideal vyhladavanie podla podretazca + musim mysliet na to co ak domena je rodicovska domena inej domeny v grafe
-    # 2. skontrolovat nove hrany medzi sebou ci niesu jedna druhej rodicovske domeny
-    # 2. vytvorit prislusne hrany
-    # 3. algoritmus ktory pre vsetky dane domeny prerata vahu (zrejme to uz budem musiet robit popri vyhladavani domen, z grafu moc velka extra narocnost)
 
     def _create_edges_between_domains(self, domains: list[str], seen: set[tuple[str, str]], sub_of_edges: list[dict[str, str]]) -> None:
 
@@ -192,7 +186,7 @@ class SubdomainWorker(EditWorker):
         CALL (domain){{
             UNWIND domain.parent_domains AS parent_domain
             MATCH (d: {NodeTypes.DOMAIN.value})
-            WHERE parent_domain IN d.parent_domains AND d.domain_name <> domain.domain_name
+            WHERE parent_domain IN d.parent_domains AND d.domain_name <> domain.domain_name and d.graph_version == {self._version}
             WITH DISTINCT d
             RETURN collect({{
                 match_domain_name: d.domain_name,
@@ -201,12 +195,12 @@ class SubdomainWorker(EditWorker):
         }}
         CALL (domain){{
             UNWIND domain.parent_domains AS parent_domain
-            OPTIONAL MATCH (d: {NodeTypes.DOMAIN.value} {{domain_name: parent_domain}})
+            OPTIONAL MATCH (d: {NodeTypes.DOMAIN.value} {{domain_name: parent_domain {self._get_version_query(False)}}})
             RETURN collect(d.domain_name) AS parent_domains_in_graph
         }}
         CALL (domain){{ 
             MATCH (d: {NodeTypes.DOMAIN.value})
-            WHERE domain.domain_name IN d.parent_domains
+            WHERE domain.domain_name IN d.parent_domains AND d.graph_version == {self._version}
             RETURN collect(d.domain_name) AS subdomains
         }}
         

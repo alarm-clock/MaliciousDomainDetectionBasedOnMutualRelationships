@@ -8,28 +8,19 @@ from graph_repository.workers.dataset_edge_workers.IPWorker import get_ips_from_
 from graph_repository.workers.common.Enums import EditTypes
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 
-
-#TODO node creation will be basically same for all node/edge types, but each types edge
-#creation so it will be passed from the worker to the dispatcher who will run it with the data
 #TODO add modes and run options
 #TODO LONG TERM add dynamic node_id checking e.g. not just check max id but also check if there are free ids between
 
 class IPWorker(EditWorker):
 
     worker_name = 'IPWorker'
+    req_callbacks = (worker_name, [EditWorker.ReqCallbacks.NODE, EditWorker.ReqCallbacks.EDGE])
     _limit = 2000
 
-    _edge_creation_query = f"""
-    UNWIND $rows AS value
-    MATCH (u: {NodeTypes.IP.value} {{ip_str: value.ip_str}}), (v: {NodeTypes.DOMAIN.value} {{domain_name: value.domain_name}})
-    MERGE (u)-[:{EdgeTypes.TRANSLATES.value}]->(v)
-    MERGE (v)-[:{EdgeTypes.TRANSLATES.value}]->(u)
-    """
-
-    def __init__(self, domains: list[dict], submit_nodes_callback, submit_edges_callback):
-        super().__init__(domains, IPWorker._limit)
-        self._submit_nodes_callback = submit_nodes_callback
-        self._submit_edges_callback = submit_edges_callback
+    def __init__(self, domains: list[dict], version: int, nodes_submit_callback, edges_submit_callback):
+        super().__init__(domains, version, IPWorker._limit)
+        self._submit_nodes_callback = nodes_submit_callback
+        self._submit_edges_callback = edges_submit_callback
 
 
         self._edges: list[dict] = []
@@ -61,7 +52,7 @@ class IPWorker(EditWorker):
 
         query=f"""
         UNWIND $rows AS value
-        OPTIONAL MATCH (n:{NodeTypes.IP.value} {{ip_str: value}}
+        OPTIONAL MATCH (n:{NodeTypes.IP.value} {{ip_str: value {self._get_version_query(False)}}}
         WITH value, n
         WHERE n IS NULL
         RETURN value AS missing

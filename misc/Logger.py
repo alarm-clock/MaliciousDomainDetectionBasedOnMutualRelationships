@@ -63,7 +63,7 @@ class MyLogger:
 
         threading.Thread(target=self._concurent_log, args=(msg,MyLogger.LogLevel.WARNING)).start()
 
-    def debug_log(self, msg: str, concurrent_log: bool = True, with_time: bool = True) -> None:
+    def log_debug(self, msg: str, concurrent_log: bool = True, with_time: bool = True) -> None:
         if self._logfile is None:
             return
 

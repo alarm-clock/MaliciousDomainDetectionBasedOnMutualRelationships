@@ -154,15 +154,15 @@ class HeterographCreator:
         return list(labels)
 
     def _debug_edges_by_type(self):
-        MyLogger.get_instance().debug_log("Printing debug info ->", False)
-        MyLogger.get_instance().debug_log(f"Used ranges are: {self._ranges}" if len(self._ranges) != 0 else "No ranges were used", False, False)
-        MyLogger.get_instance().debug_log("Edges by edge types:", False, False)
+        MyLogger.get_instance().log_debug("Printing debug info ->", False)
+        MyLogger.get_instance().log_debug(f"Used ranges are: {self._ranges}" if len(self._ranges) != 0 else "No ranges were used", False, False)
+        MyLogger.get_instance().log_debug("Edges by edge types:", False, False)
 
         for edge_type, edges in self._edges.items():
-            MyLogger.get_instance().debug_log(f"Edge type {edge_type[1]}:",False, False)
-            MyLogger.get_instance().debug_log(f"Length of U = {len(edges[0])} and length of V = {len(edges[1])}",False, False)
-            MyLogger.get_instance().debug_log(f"{edges[0]}",False, False)
-            MyLogger.get_instance().debug_log(f"{edges[1]}",False, False)
+            MyLogger.get_instance().log_debug(f"Edge type {edge_type[1]}:", False, False)
+            MyLogger.get_instance().log_debug(f"Length of U = {len(edges[0])} and length of V = {len(edges[1])}", False, False)
+            MyLogger.get_instance().log_debug(f"{edges[0]}", False, False)
+            MyLogger.get_instance().log_debug(f"{edges[1]}", False, False)
 
 
     def createHeterograph(self, edge_types: list[str] | None = None) -> DGLGraph | None:

@@ -28,6 +28,7 @@ class DatasetWorker(Worker):
             format (name, option name, kwargs for that option or none)
     """
     worker_name: str
+    available_options: list[tuple[str, str, dict | None]]  # list of option and kwargs for that option
 
     def __init__(self, submit_callback_method, collection: pymongo.collection.Collection, ranges: list, project: dict):
         """

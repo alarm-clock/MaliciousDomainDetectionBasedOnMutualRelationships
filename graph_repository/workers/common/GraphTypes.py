@@ -5,6 +5,8 @@ class NodeTypes(Enum):
     DOMAIN = 'Domain'
     DUMMY_DOMAIN = 'Du_domain'
     IP = 'IP'
+    CURRENT_VERSION = 'CurrentGraphVersion'
+    VERSION = 'GraphVersion'
 
 
 class EdgeTypes(Enum):

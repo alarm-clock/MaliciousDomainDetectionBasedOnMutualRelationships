@@ -39,5 +39,5 @@ class GraphRequest(ABC):
         Thread(target=self._wait, daemon=True).start()
 
     @abstractmethod
-    def edit(self):
+    def edit(self, version: int):
         pass

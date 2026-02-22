@@ -26,7 +26,6 @@ class Worker(threading.Thread, ABC):
     """
 
     worker_name: str
-    available_options: list[tuple[str, str, dict | None]]  #list of option and kwargs for that option
 
     #(name, option name, kwargs for that option or none)
 

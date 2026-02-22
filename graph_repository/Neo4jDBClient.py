@@ -2,9 +2,11 @@ from neo4j import GraphDatabase
 from enum import Enum
 from misc.Logger import MyLogger
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.Enums import EditTypes
 from neo4j.exceptions import ServiceUnavailable, AuthError
 import json
 import sys
+
 
 class CouldNotConnect(Exception):
     def __init__(self, url: str, port: int, username: str):
@@ -12,6 +14,7 @@ class CouldNotConnect(Exception):
         self.port = port
         self.username = username
         super().__init__(f'Could not connect to Neo4j with url: {url}, port: {port}, username: {username}')
+
 
 class Neo4jDBClient:
     def __init__(self, url: str, port: int, username: str, password: str, database: str):
@@ -63,33 +66,36 @@ class Neo4jDBClient:
 
         return Neo4jDBClient(host, port, user, pwd, db)
 
-
     def close(self):
         self.driver.close()
 
     def execute_write(self, query, **params):
-        with self.driver.session( database= self.database) as s:
+        with self.driver.session(database=self.database) as s:
             return s.execute_write(lambda tx: tx.run(query, **params).data())
 
     def execute_read(self, query, **params):
-        with self.driver.session( database= self.database) as s:
+        with self.driver.session(database=self.database) as s:
             return s.execute_read(lambda tx: tx.run(query, **params).data())
 
     def get_max_id_of_node_type(self, node_type: NodeTypes) -> int:
-        return self.execute_read(f"MATCH (n:{node_type.value}) RETURN max(n.node_id) AS {node_type.value}_max_id")
+        return self.execute_read(f"MATCH (n:{node_type.value}) RETURN max(n.node_id) AS {node_type.value}_max_id")[f'{node_type.value}_max_id']
 
+    def get_current_active_graph_version(self) -> int:
+        return self.execute_read(f"MATCH (v: {NodeTypes.CURRENT_VERSION.value}) RETURN v.version AS vers")['vers']
 
-    def create_nodes(self, node_type: NodeTypes | str, rows: list[dict]) -> None:
+    def get_existing_versions(self) -> list[int]:
+        return self.execute_read(f"MATCH (v: {NodeTypes.VERSION.value}) RETURN collect(v.version) AS vers")['vers']
+
+    def create_nodes(self, node_type: NodeTypes | str, rows: list[dict], edit_type: EditTypes = EditTypes.IGNORE_EXISTING) -> None:
 
         if len(rows) <= 0:
             return
 
         items_str = ",".join([str(key) + ": row." + str(key) for key in list(rows[0].keys())])
 
-        create_query = f"""
-        UNWIND $rows AS row
-        CREATE(:{node_type if type(node_type) == str else node_type.value} {{ {items_str} }})
-        """
+        create_query = "UNWIND $rows AS row "
+        query = "CREATE" if edit_type == EditTypes.IGNORE_EXISTING else 'MERGE' + f"(:{node_type if type(node_type) == str else node_type.value} {{ {items_str} }})"
+        create_query += query
 
         self.execute_write(create_query, rows=rows)
 
@@ -100,7 +106,6 @@ class Neo4jDBClient:
         WEIGHT_NO_REVERSE = 2
         WEIGHT_REVERSE = 3
 
-
     E_OPTION = "option"
     E_MATCH1 = "m1"
     E_MATCH2 = "m2"
@@ -109,7 +114,8 @@ class Neo4jDBClient:
     E_NODE_T2 = "n_t2"
     E_EDGE_VALUE_NAME = "e_v"
 
-    def _create_edge_creation_query(self,option: EdgeCreationQueryOptions, m1: str, m2: str, e_t: EdgeTypes, n_t1: NodeTypes, n_t2: NodeTypes, e_v: str | None) -> dict[str, str]:
+    def _create_edge_creation_query(self, option: EdgeCreationQueryOptions, m1: str, m2: str, e_t: EdgeTypes,
+                                    n_t1: NodeTypes, n_t2: NodeTypes, e_v: str | None) -> dict[str, str]:
 
         query = f"""
         UNWIND $edges AS edge
@@ -125,7 +131,8 @@ class Neo4jDBClient:
         elif option == self.EdgeCreationQueryOptions.WEIGHT_NO_REVERSE or option == self.EdgeCreationQueryOptions.WEIGHT_REVERSE:
 
             if e_v is None:
-                MyLogger.get_instance().log_warning(f"Edge value was not given a name to edge type {e_t.value}. Default value \"weight\" will be used")
+                MyLogger.get_instance().log_warning(
+                    f"Edge value was not given a name to edge type {e_t.value}. Default value \"weight\" will be used")
                 e_v = "weight"
 
             query += f" MERGE (u)-[:{e_t.value} {{{e_v}: edge.weight}}]->(v)"
@@ -133,10 +140,9 @@ class Neo4jDBClient:
             if option == self.EdgeCreationQueryOptions.WEIGHT_REVERSE:
                 query += f" MERGE (v)-[:{e_t.value} {{{e_v}: edge.weight}}]->(u)"
 
-        return  {"edges": query}
+        return {"edges": query}
 
-
-    def create_edges(self, rows: list[dict], query: tuple[str, str]| dict) -> None:
+    def create_edges(self, rows: list[dict], query: tuple[str, str] | dict) -> None:
 
         if type(query) == dict:
             self.execute_write(query[0], **{query[1]: rows})
