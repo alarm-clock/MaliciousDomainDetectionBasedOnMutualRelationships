@@ -1,8 +1,8 @@
 from queue import PriorityQueue
 
 from graph_repository.Neo4jDBClient import Neo4jDBClient
-from graph_editing.common.GraphRequest import GraphRequest
-from graph_editing.common.RequestPriority import RequestPriority
+#from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest
+from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 
 class GraphRepository:
 
@@ -33,5 +33,5 @@ class GraphRepository:
     def get_neo4j_driver(self) -> Neo4jDBClient:
         return Neo4jDBClient.from_config(self._neo4j_conf)
 
-    def add_request_to_queue(self, request: GraphRequest):
+    def add_request_to_queue(self, request):
         self._request_q.put(request)

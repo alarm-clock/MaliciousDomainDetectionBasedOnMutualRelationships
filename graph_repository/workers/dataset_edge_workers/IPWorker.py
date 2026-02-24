@@ -82,6 +82,7 @@ class IPWorker(DatasetWorker):
         self._create_edges()
         MyLogger.get_instance().log("Created edges between Domains and IPs, submitting results...")
         self._submit_results()
+        MyLogger.get_instance().log("Submitted all IP edges and nodes")
 
         del self._ip_htab, self._ip_data, self._u, self._v
 

@@ -3,10 +3,13 @@ import sys
 import warnings
 
 from dgl.base import DGLWarning
-
 from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
+from graph_repository.graph_main.GraphRepository import GraphRepository
+from graph_repository.graph_main.graph_editing.AddRequest import AddRequest
+from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
+from graph_repository.Neo4jDBClient import Neo4jDBClient
 from misc.Logger import MyLogger
 import dgl
 
@@ -37,6 +40,13 @@ def main():
     dgl_import_parser.add_argument("-r",action='store_true',help="Regenerate train/test mask")
     dgl_import_parser.add_argument('--exp',type=str, help="Path where dgl graph will be stored")
 
+    # Add edit go here
+    add_edit_pareser = subparsers.add_parser('edit_add')
+    add_edit_pareser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
+    add_edit_pareser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
+
+
+
     args = parser.parse_args()
 
     if args.log is not None:
@@ -66,6 +76,33 @@ def main():
 
         if args.exp is not None:
             export_dgl_graph(g,args.exp)
+
+    elif args.mode == "edit_add":
+        repository = GraphRepository.get_instance(args.neo_db)
+
+        if repository is None:
+            print("Neo database connection config file not provided, exiting",file=sys.stderr)
+            return
+
+        if args.json_file is not None:
+            request = AddRequest.from_json_file(args.json_file,RequestPriority.LOW)
+        elif args.json is not None:
+            #request = AddRequest.from_json_str(args.json, RequestPriority.LOW)
+            e = 42
+        else:
+            print("No add input was provided, exiting", file=sys.stderr)
+            return
+
+        #todo add graph copying here
+
+        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        driver.create_new_version_mirror_of_graph()
+
+        current_graph_version = driver.get_current_active_graph_version()
+        driver.close()
+        #request.edit(current_graph_version)
+
+
 
 
 if __name__ == '__main__':

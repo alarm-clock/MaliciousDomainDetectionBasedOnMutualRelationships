@@ -81,10 +81,159 @@ class Neo4jDBClient:
         return self.execute_read(f"MATCH (n:{node_type.value}) RETURN max(n.node_id) AS {node_type.value}_max_id")[f'{node_type.value}_max_id']
 
     def get_current_active_graph_version(self) -> int:
-        return self.execute_read(f"MATCH (v: {NodeTypes.CURRENT_VERSION.value}) RETURN v.version AS vers")['vers']
+        return self.execute_read(f"MATCH (v: {NodeTypes.CURRENT_VERSION.value}) RETURN v.version AS vers")[0]['vers']
 
     def get_existing_versions(self) -> list[int]:
-        return self.execute_read(f"MATCH (v: {NodeTypes.VERSION.value}) RETURN collect(v.version) AS vers")['vers']
+        return self.execute_read(f"MATCH (v: {NodeTypes.VERSION.value}) RETURN collect(v.version) AS vers")[0]['vers']
+
+    def set_new_graph_version_node(self, new_version: int) -> None:
+        query = f"""
+        CREATE(: {NodeTypes.VERSION.value} {{version: {new_version}, n_users: 0}})
+        """
+        self.execute_write(query)
+
+    def set_new_current_graph_version_node(self, new_current_version: int) -> None:
+        query = f"""
+        OPTIONAL MATCH (old_version: {NodeTypes.CURRENT_VERSION.value})
+        DETACH DELETE old_version
+        CREATE (: {NodeTypes.CURRENT_VERSION.value} {{version: {new_current_version}}})
+        """
+        self.execute_write(query)
+
+    def _create_indexes_for_graph_copy(self):
+        labels = self.get_all_labels_in_graph()
+
+        for label in labels:
+            query = f"""
+            CREATE INDEX {label}_node_id_version_index
+            IF NOT EXISTS
+            FOR (n: {label})
+            ON (n.node_id, n.graph_version);
+            """
+
+            self.execute_write(query)
+
+
+    def get_all_labels_in_graph(self) -> list[str]:
+        return self.execute_read(f"""
+        CALL db.labels() 
+        YIELD label 
+        WHERE label <> "{NodeTypes.VERSION.value}" AND label <> "{NodeTypes.CURRENT_VERSION.value}" 
+        RETURN collect(label) AS lab
+        """)[0]['lab']
+
+    def get_all_relationships_in_graph(self) -> list[str]:
+        return self.execute_read(f"""
+        CALL db.relationshipTypes()
+        YIELD relationshipType
+        RETURN collect(relationshipType) AS rel
+        """)[0]['rel']
+
+    def _create_edge_copy_query(self, v_label: str, relation: str, current_version: int) -> str:
+
+        copy_query = f"""
+        WITH n, copy
+            OPTIONAL MATCH (n)-[rel:{relation}]->(v:{v_label})
+            WHERE v.graph_version = {current_version}
+            OPTIONAL MATCH (v_copy:{v_label} {{
+                node_id: v.node_id,
+                graph_version: {current_version + 1}
+            }})
+            WITH DISTINCT n, copy, rel, v_copy
+            FOREACH (_ IN CASE WHEN rel IS NOT NULL AND v_copy IS NOT NULL THEN [1] ELSE [] END |
+                CREATE (copy)-[rel_copy:{relation}]->(v_copy)
+                SET rel_copy = properties(rel)
+            )
+        """
+        #for future me: Optional match is used because most of those relation combinations doesn't exist in the graph
+        # and if I would use normal match, which doesn't return null, then it would not work, and it would end early
+        # foreach is used to create edge for each n->v where there is relation and copy of v
+
+        #domain only creates edge going out, other domain creates edge going back
+        if v_label != NodeTypes.DOMAIN.value:
+
+            copy_query += f"""
+            WITH n, copy
+                OPTIONAL MATCH (v:{v_label})-[rel:{relation}]->(n)
+                WHERE v.graph_version = {current_version}
+                OPTIONAL MATCH (v_copy:{v_label} {{
+                    node_id: v.node_id,
+                    graph_version: {current_version + 1}
+                }})
+                WITH DISTINCT n, copy, rel, v_copy
+                FOREACH (_ IN CASE WHEN rel IS NOT NULL AND v_copy IS NOT NULL THEN [1] ELSE [] END |
+                    CREATE (v_copy)-[rel_copy:{relation}]->(copy)
+                    SET rel_copy = properties(rel)
+                )
+            """
+        return copy_query
+
+    def create_new_version_mirror_of_graph(self) -> int:
+
+        all_used_versions = self.get_existing_versions()
+
+        if len(all_used_versions) > 3:
+            return -1
+
+        self._create_indexes_for_graph_copy()
+        current_version = self.get_current_active_graph_version()
+        labels = self.get_all_labels_in_graph()
+        relations = self.get_all_relationships_in_graph()
+
+        MyLogger.get_instance().log(f"Creating new version copy of graph v.{current_version}")
+        for label in labels:
+
+            copy_query = f"""
+            MATCH (n: {label})
+            WHERE n.graph_version = {current_version}
+            CREATE (copy: {label})
+            SET copy = n {{.*, graph_version: {current_version + 1}}}
+            """
+            MyLogger.get_instance().log_debug(f"Creating new version copy of nodes {label}...")
+            self.execute_write(copy_query)
+            MyLogger.get_instance().log_debug(f"Created new version copy of nodes {label}")
+
+        edge_copy_match = f"""
+            MATCH(n: {NodeTypes.DOMAIN.value})
+            WHERE n.graph_version = {current_version}
+        
+            MATCH(copy: {NodeTypes.DOMAIN.value})
+            WHERE copy.graph_version = {current_version + 1} AND copy.domain_name = n.domain_name
+            
+            """
+
+        for v_label in labels:
+            for relation in relations:
+                edge_copy_match += self._create_edge_copy_query(v_label, relation, current_version)
+
+        MyLogger.get_instance().log_debug(f"Coping edges into new version...")
+        self.execute_write(edge_copy_match)
+        self.set_new_graph_version_node(current_version + 1)
+        MyLogger.get_instance().log_debug(f"Copied all edges")
+        MyLogger.get_instance().log(f"Created new version of graph. New graph version is v.{current_version + 1}")
+        return current_version + 1
+
+
+# this is universal solution that will work, but for now, all other types of nodes are only connected with domain nodes therefore
+# only this will be coded for now but I leave this here if I decide to model something that doesn't follow this pattern
+ #       for label in labels:
+
+ #           edge_copy_match = f"""
+ #           MATCH (n: {label} {{version: {current_version}}}), (copy: {label} {{version:  {current_version + 1} }})
+ #           WHERE n.node_id = copy.node_id
+ #           """
+ #           if label == NodeTypes.DOMAIN.value:
+ #               for v_label in labels:
+ #                   edge_copy_match += self._create_edge_copy_query(v_label, current_version)
+ #
+ #           else:
+ #               #in the future I might code some storage to store pairings
+ #               v_label = NodeTypes.DOMAIN.value
+ #               edge_copy_match += self._create_edge_copy_query(v_label, current_version)
+#
+ #           self.execute_write(edge_copy_match)
+#
+ #       return current_version + 1
 
     def create_nodes(self, node_type: NodeTypes | str, rows: list[dict], edit_type: EditTypes = EditTypes.IGNORE_EXISTING) -> None:
 

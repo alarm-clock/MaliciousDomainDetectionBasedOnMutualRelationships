@@ -440,12 +440,8 @@ class DatasetImporter:
         if client is None:
             return
 
-        graph_version_query = """
-        CREATE(:GraphVersion {version: 1, n_users: 0})
-        CREATE(:CurrentGraphVersion {version: 1})
-        """
-
-        client.execute_write(graph_version_query)
+        client.set_new_current_graph_version_node(1)
+        client.set_new_graph_version_node(1)
 
         for n_t, rows in self._n_data_neo4j.items():
 
@@ -456,10 +452,10 @@ class DatasetImporter:
             items_str = ",".join([str(key) + ": row." + str(key) for key in list(rows[0].keys())])
 
             constraint_query = f"""
-            CREATE CONSTRAINT {n_t}_unique_node_id
+            CREATE CONSTRAINT {n_t}_unique_node_id_version_combo
             IF NOT EXISTS
             FOR (t:{n_t})
-            REQUIRE t.node_id IS UNIQUE
+            REQUIRE (t.node_id, t.graph_version) IS UNIQUE
             """
             client.execute_write(constraint_query)
 
