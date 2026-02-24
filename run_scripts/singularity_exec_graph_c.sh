@@ -9,8 +9,12 @@ LOG_DIR=$PROJECT_DIR/../logs
 #echo Copying datasets into cratch
 #$PROJECT_DIR/run_scripts/copy_datasets_to_scratch.sh  
 
-mongod --dbpath $MONGO_DBPATH --bind_ip 127.0.0.1 --port 27017 > /dev/null 2>&1 &
+cd $PROJECT_DIR
 
-python3 $RUN_SCRIPT -db $PROJECT_DIR/db_config.json --heterograph cname,subdomain_of,ipv4,subdomain --export $GRAPH_EXPORT_PATH/hetero_full_all_new_domains.dglg  --log_file $LOG_DIR/hetero_full_all_new_nodes.log
+mongod --dbpath $MONGO_DBPATH --bind_ip 127.0.0.1 --port 27017 > /dev/null 2>&1 &
+neo4j start
+
+python3 -m graph_repository.graph_repo_main --mongo_db  $PROJECT_DIR/mongo_config.json --neo_db $PROJETC_DIR/neo4j_config.json -l $LOG_DIR/graph_to_neo4j.log import_db --neo -e all
 
 mongod --dbpath $MONGO_DBPATH --port 27017 --shutdown
+neo4j stop
