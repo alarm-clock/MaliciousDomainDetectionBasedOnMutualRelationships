@@ -463,8 +463,15 @@ class DatasetImporter:
             UNWIND $rows AS row
             CREATE(:{n_t} {{ {items_str} }})
             """
+            index_query = f"""
+            CREATE INDEX {n_t}NodeIdIndex
+            IF NOT EXISTS
+            FOR (n:{n_t})
+            ON (n.node_id);
+            """
 
             client.execute_write(query,rows=rows)
+            client.execute_write(index_query)
 
         for edge_type, edges in self._edges_neo4j.items():
 
@@ -490,6 +497,7 @@ class DatasetImporter:
             query = query + query_create
             client.execute_write(query,rows=edges)
 
+        MyLogger.get_instance().log("Created whole graph")
         client.close()
         return
 
