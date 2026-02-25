@@ -473,6 +473,8 @@ class DatasetImporter:
             client.execute_write(query,rows=rows)
             client.execute_write(index_query)
 
+        client.wait_for_index_creation([n_t+"NodeIdIndex" for n_t in self._n_data_neo4j.keys()])
+
         for edge_type, edges in self._edges_neo4j.items():
 
             if len(edges) == 0:
@@ -484,8 +486,8 @@ class DatasetImporter:
 
             query = f"""
             UNWIND $rows AS row
-            MATCH (u: {u_t} {{node_id: row.u_id}})
-            MATCH (v: {v_t} {{node_id: row.v_id}})
+            MATCH (u: {u_t} {{node_id: row.u_id, graph_version: 1}})
+            MATCH (v: {v_t} {{node_id: row.v_id, graph_version: 1}})
             """
 
             param_name = ""
@@ -495,7 +497,12 @@ class DatasetImporter:
             query_create = f"CREATE (u)-[:{e_t}]->(v)" if param_name == "" else f"CREATE (u)-[:{e_t} {{ {param_name}: row.{param_name} }}]->(v)"
 
             query = query + query_create
-            client.execute_write(query,rows=edges)
+
+            chunk_size = 10000
+            for cnt in range(0, len(edges), chunk_size):
+                MyLogger.get_instance().log(f"Creating edge batch starting at {cnt}...")
+                edges_batch = edges[cnt:cnt+chunk_size]
+                client.execute_write(query,rows=edges_batch)
 
         MyLogger.get_instance().log("Created whole graph")
         client.close()

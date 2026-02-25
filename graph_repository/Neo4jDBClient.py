@@ -113,6 +113,33 @@ class Neo4jDBClient:
 
             self.execute_write(query)
 
+    def wait_for_index_creation(self, index_names: list[str]) -> bool:
+
+        query = f"""
+        SHOW INDEXES
+        YIELD name, state, populationPercent
+        WHERE state = 'POPULATING' OR state = 'ERROR' AND name IN $index_names 
+        RETURN name, state, populationPercent
+        """
+
+        all_created = False
+        while not all_created:
+            result = self.execute_read(query, index_names=index_names)
+
+            if len(result) == 0:
+                break
+
+            for index in result:
+                name = index['name']
+                percentage = index['populationPercent']
+                if index['state'] == 'ERROR':
+                    MyLogger.get_instance().log_error(f"Index {name} is in state ERROR with percentage {percentage}")
+                    return False
+                else:
+                    MyLogger.get_instance().log(f"Index {name} is in state POPULATING with percentage {percentage}")
+
+        MyLogger.get_instance().log(f"All indexes are in state ONLINE and populated")
+        return True
 
     def get_all_labels_in_graph(self) -> list[str]:
         return self.execute_read(f"""
