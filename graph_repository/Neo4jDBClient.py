@@ -1,9 +1,12 @@
+import time
+
 from neo4j import GraphDatabase
 from enum import Enum
 from misc.Logger import MyLogger
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.workers.common.Enums import EditTypes
 from neo4j.exceptions import ServiceUnavailable, AuthError
+from graph_repository.graph_main.graph_editing.common.Exceptions import TooManyVersions, Neo4jIndexError
 import json
 import sys
 
@@ -100,12 +103,17 @@ class Neo4jDBClient:
         """
         self.execute_write(query)
 
-    def _create_indexes_for_graph_copy(self):
+    def _create_indexes_for_graph_copy(self) -> None:
         labels = self.get_all_labels_in_graph()
+        index_names = []
 
         for label in labels:
+
+            index_name = label + "_node_id_version_index"
+            index_names.append(index_name)
+
             query = f"""
-            CREATE INDEX {label}_node_id_version_index
+            CREATE INDEX {index_name}
             IF NOT EXISTS
             FOR (n: {label})
             ON (n.node_id, n.graph_version);
@@ -113,7 +121,9 @@ class Neo4jDBClient:
 
             self.execute_write(query)
 
-    def wait_for_index_creation(self, index_names: list[str]) -> bool:
+        self.wait_for_index_creation(index_names)
+
+    def wait_for_index_creation(self, index_names: list[str], time_between_queries: float = 2.0) -> None:
 
         query = f"""
         SHOW INDEXES
@@ -134,12 +144,14 @@ class Neo4jDBClient:
                 percentage = index['populationPercent']
                 if index['state'] == 'ERROR':
                     MyLogger.get_instance().log_error(f"Index {name} is in state ERROR with percentage {percentage}")
-                    return False
+                    raise Neo4jIndexError(name)
                 else:
                     MyLogger.get_instance().log(f"Index {name} is in state POPULATING with percentage {percentage}")
 
+            time.sleep(time_between_queries) #do not bombard database with queries
+
         MyLogger.get_instance().log(f"All indexes are in state ONLINE and populated")
-        return True
+        return
 
     def get_all_labels_in_graph(self) -> list[str]:
         return self.execute_read(f"""
@@ -155,6 +167,10 @@ class Neo4jDBClient:
         YIELD relationshipType
         RETURN collect(relationshipType) AS rel
         """)[0]['rel']
+
+
+    def delete_graph_version(self, version: int) -> None:
+        pass
 
     def _create_edge_copy_query(self, v_label: str, relation: str, current_version: int) -> str:
 
@@ -200,7 +216,7 @@ class Neo4jDBClient:
         all_used_versions = self.get_existing_versions()
 
         if len(all_used_versions) > 3:
-            return -1
+            raise TooManyVersions
 
         self._create_indexes_for_graph_copy()
         current_version = self.get_current_active_graph_version()

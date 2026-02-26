@@ -215,6 +215,10 @@ class AddRequest(GraphRequest):
 
     def edit(self, version: int) -> bool:
 
+        if self._canceled:
+            MyLogger.get_instance().log_debug(f"Request {self.id} is canceled before it could edit but after graph copy was created")
+            return False
+
         self._register_workers()
         if self._dispatch_workers(version):
             return False

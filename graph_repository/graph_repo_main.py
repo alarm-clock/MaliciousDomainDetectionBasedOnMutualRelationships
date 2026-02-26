@@ -1,4 +1,5 @@
 import argparse
+import signal
 import sys
 import warnings
 
@@ -9,11 +10,25 @@ from graph_repository.dataset_creator.common.Graph import regenerate_train_test_
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_main.graph_editing.AddRequest import AddRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBClient import Neo4jDBClient, CouldNotConnect
 from misc.Logger import MyLogger
 import dgl
 
 warnings.filterwarnings("ignore",category=DGLWarning) #it actually comes from package itself
+
+def signal_handlers_for_graph_repo():
+
+    def _graceful_exit(signum, frame):
+        MyLogger.get_instance().log(f"Received signal {signum}, gracefully exiting...")
+        repo_instance = GraphRepository.get_instance()
+        if repo_instance is not None:
+            repo_instance.stop()
+
+        exit(0)
+
+    signal.signal(signal.SIGINT, _graceful_exit)
+    signal.signal(signal.SIGTERM, _graceful_exit)
+
 
 def main():
 
@@ -23,6 +38,7 @@ def main():
     parser.add_argument("--mongo_db",metavar='MONGO_CONF_FILE',type=str,help="Path to MongoDB database connection config file")
     parser.add_argument("--neo_db",metavar='NEO_DB_CONF_FILE',type=str,help="Path to Neo database connection config file")
     parser.add_argument("-l","--log",metavar='LOG_FILE',type=str,help="Path where log file will be stored")
+    parser.add_argument('-ll','--log_level',metavar='LEVEL', type=str, help="Logging level", default='INFO')
 
     subparsers = parser.add_subparsers(dest='mode', required=True)
 
@@ -33,6 +49,7 @@ def main():
     import_parser.add_argument('--dgl_exp',type=str,help="Path where created dgl graph will be stored")
     import_parser.add_argument('-e','--etypes',type=str,help="Edge types that will be created, specified in format \"etype1,etype2,...\"")
     import_parser.add_argument("-r","--ranges",type=str,help="Ranges specified in format \"start1,end1,start2,end2,...\"")
+    import_parser.add_argument('-t','--test_connection', type=str,help="Test connection to Neo4j server")
 
     # Dgl import go here
     dgl_import_parser = subparsers.add_parser('import_dgl')
@@ -50,9 +67,33 @@ def main():
     args = parser.parse_args()
 
     if args.log is not None:
-        MyLogger(args.log)
+
+        log_level = MyLogger.LogLevel.INFO
+        if args.log_level is not None:
+            log_level_str = args.log_level.upper()
+
+            no_match = True
+            for level in MyLogger.LogLevel:
+                if level.value[0] == log_level_str:
+                    no_match = False
+                    log_level = level
+
+            if no_match:
+                print(f"Unknown log level {log_level_str}, exiting!", file=sys.stderr)
+                return
+
+        MyLogger(args.log, log_level)
 
     if args.mode == "import_db":
+
+        if args.test_connection is not None:
+
+            try:
+                Neo4jDBClient.from_config(args.test_connection)
+            except CouldNotConnect:
+                print("Could not connect to Neo4j server", file=sys.stderr)
+                return
+            return
 
         if args.mongo_db is None:
             print("MongoDB connection config file not provided, exiting",file=sys.stderr)
