@@ -20,17 +20,30 @@ class CouldNotConnect(Exception):
 
 
 class Neo4jDBClient:
-    def __init__(self, url: str, port: int, username: str, password: str, database: str):
+    def __init__(self, host: str, port: int, username: str, password: str, database: str, alt_host: str | None = None):
 
         self._err = False
-        MyLogger.get_instance().log(f"Trying to connect to Neo4j db at {url}:{port} with user {username}...")
+        MyLogger.get_instance().log(f"Trying to connect to Neo4j db at {host}:{port} with user {username}...")
         try:
-            driver = GraphDatabase.driver(f'bolt://{url}:{port}', auth=(username, password))
+            driver = GraphDatabase.driver(f'bolt://{host}:{port}', auth=(username, password))
         except ServiceUnavailable as err:
-            MyLogger.get_instance().log_error(f"Could not connect to Neo4j with error: {err}")
-            print(err, file=sys.stderr)
-            self._err = True
-            raise CouldNotConnect(url, port, username)
+
+            if alt_host is not None:
+                try:
+                    driver = GraphDatabase.driver(f'bolt://{alt_host}:{port}', auth=(username, password))
+                except ServiceUnavailable as err_2:
+                    MyLogger.get_instance().log_error(f"Could not connect to Neo4j with with error on host: {err} and error on alt_host: {err_2}")
+                    print(err, err_2, file=sys.stderr)
+                    self._err = True
+                    raise CouldNotConnect(host, port, username)
+
+                MyLogger.get_instance().log_warning(f"Could not connect to Neo4j using host {host} with error: {err} but connected to server using alternate host: {alt_host}")
+
+            else:
+                MyLogger.get_instance().log_error(f"Could not connect to Neo4j with error: {err}")
+                print(err, file=sys.stderr)
+                self._err = True
+                raise CouldNotConnect(host, port, username)
 
         try:
             driver.verify_connectivity()
@@ -38,7 +51,7 @@ class Neo4jDBClient:
             MyLogger.get_instance().log_error(f"Authentication failed when connecting to Neo4j: {err}")
             print(err, file=sys.stderr)
             self._err = True
-            raise CouldNotConnect(url, port, username)
+            raise CouldNotConnect(host, port, username)
 
         self.driver = driver
         self.database = database
@@ -47,6 +60,7 @@ class Neo4jDBClient:
     def from_config(cls, config: str):
 
         host = ''
+        alt_host = None
         user = ''
         port = 0
         pwd = ''
@@ -67,7 +81,12 @@ class Neo4jDBClient:
                 MyLogger.get_instance().log(f"Missing keys in config file, it must contain: host, user, pwd, db")
                 return None
 
-        return Neo4jDBClient(host, port, user, pwd, db)
+            try:
+                alt_host = conf['alternate_host']
+            except KeyError:
+                alt_host = None
+
+        return Neo4jDBClient(host, port, user, pwd, db, alt_host)
 
     def close(self):
         self.driver.close()

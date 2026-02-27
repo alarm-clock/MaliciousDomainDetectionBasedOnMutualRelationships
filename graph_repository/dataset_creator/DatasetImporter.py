@@ -434,6 +434,16 @@ class DatasetImporter:
         self._wait_on_workers()
         return
 
+    def _send_query_in_batches(self, query: str, rows: list[dict], driver: Neo4jDBClient, batch_size: int = 1000) -> None:
+        if batch_size < 1:
+            return
+
+        for cnt in range(0, len(rows), batch_size):
+            MyLogger.get_instance().log(f"Creating batch starting at {cnt}...")
+            edges_batch = rows[cnt:cnt + batch_size]
+            driver.execute_write(query, rows=edges_batch)
+
+
     def test(self, neo4j_conf: str):
 
         client = Neo4jDBClient.from_config(neo4j_conf)
@@ -470,7 +480,7 @@ class DatasetImporter:
             ON (n.node_id);
             """
 
-            client.execute_write(query,rows=rows)
+            self._send_query_in_batches(query, rows, client, 2000)
             client.execute_write(index_query)
 
         client.wait_for_index_creation([n_t+"NodeIdIndex" for n_t in self._n_data_neo4j.keys()])
@@ -498,11 +508,7 @@ class DatasetImporter:
 
             query = query + query_create
 
-            chunk_size = 10000
-            for cnt in range(0, len(edges), chunk_size):
-                MyLogger.get_instance().log(f"Creating edge batch starting at {cnt}...")
-                edges_batch = edges[cnt:cnt+chunk_size]
-                client.execute_write(query,rows=edges_batch)
+            self._send_query_in_batches(query, edges, client, 1000)
 
         MyLogger.get_instance().log("Created whole graph")
         client.close()
