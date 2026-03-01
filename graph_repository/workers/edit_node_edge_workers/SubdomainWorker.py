@@ -186,7 +186,7 @@ class SubdomainWorker(EditWorker):
         CALL (domain){{
             UNWIND domain.parent_domains AS parent_domain
             MATCH (d: {NodeTypes.DOMAIN.value})
-            WHERE parent_domain IN d.parent_domains AND d.domain_name <> domain.domain_name and d.graph_version == {self._version}
+            WHERE parent_domain IN d.parent_domains AND d.domain_name <> domain.domain_name and d.graph_version = {self._version}
             WITH DISTINCT d
             RETURN collect({{
                 match_domain_name: d.domain_name,
@@ -200,7 +200,7 @@ class SubdomainWorker(EditWorker):
         }}
         CALL (domain){{ 
             MATCH (d: {NodeTypes.DOMAIN.value})
-            WHERE domain.domain_name IN d.parent_domains AND d.graph_version == {self._version}
+            WHERE domain.domain_name IN d.parent_domains AND d.graph_version = {self._version}
             RETURN collect(d.domain_name) AS subdomains
         }}
         

@@ -99,8 +99,9 @@ class Neo4jDBClient:
         with self.driver.session(database=self.database) as s:
             return s.execute_read(lambda tx: tx.run(query, **params).data())
 
-    def get_max_id_of_node_type(self, node_type: NodeTypes) -> int:
-        return self.execute_read(f"MATCH (n:{node_type.value}) RETURN max(n.node_id) AS {node_type.value}_max_id")[f'{node_type.value}_max_id']
+    def get_max_id_of_node_type(self, n_t: NodeTypes | str) -> int:
+        n_t_str = n_t.value if type(n_t) == NodeTypes else n_t
+        return self.execute_read(f"MATCH (n:{n_t_str}) RETURN max(n.node_id) AS {n_t_str}_max_id")[0][f'{n_t_str}_max_id']
 
     def get_current_active_graph_version(self) -> int:
         return self.execute_read(f"MATCH (v: {NodeTypes.CURRENT_VERSION.value}) RETURN v.version AS vers")[0]['vers']
@@ -113,6 +114,95 @@ class Neo4jDBClient:
         CREATE(: {NodeTypes.VERSION.value} {{version: {new_version}, n_users: 0}})
         """
         self.execute_write(query)
+
+    def create_node_id_cnt(self, n_t: NodeTypes | str, start_value: int = 0) -> None:
+        n_t_str = n_t.value if type(n_t) == NodeTypes else n_t
+        self.execute_write(f"CREATE (:node_id_cnt {{ cnt_name: \"{n_t_str}\", val: {start_value} }}) ")
+
+    _FREE_NODE_ID_POSTFIX = "_free_node_id"
+
+    @staticmethod
+    def get_free_node_id_query(n_t: NodeTypes, as_subquery: bool, req_number_of_ids: int = 1) -> str | None:
+
+        if req_number_of_ids < 1:
+            return None
+
+        if req_number_of_ids != 1:
+            query = f"""
+            MATCH (free_id: {n_t.value}{Neo4jDBClient._FREE_NODE_ID_POSTFIX})
+            WITH free_id
+            LIMIT {req_number_of_ids}
+            WITH collect(free_id) AS free_nodes
+            WITH free_nodes, [x IN free_nodes | x.node_id] as reused_ids
+            
+            FOREACH (x IN free_nodes | DELETE x)
+            
+            WITH reused_ids, {req_number_of_ids} - size(reused_ids) AS rem_cnt
+            
+            CALL(rem_cnt){{
+                WITH rem_cnt
+                WHERE rem_cnt > 0
+                MATCH (counter: {NodeTypes.ND_ID_CNT.value} {{cnt_name: \"{n_t.value}\" }})
+                SET counter.val = counter.val + rem_cnt
+                RETURN range(counter.val - rem_cnt, counter.val - 1) AS allocated_ids 
+                
+                UNION
+                
+                WITH rem_cnt
+                WHERE rem_cnt = 0
+                RETURN [] AS allocated_ids
+            }}
+            RETURN reused_ids + coalesce( allocated_ids, []) AS free_node_ids
+            """
+        else:
+            query = f"""
+            OPTIONAL MATCH (free_id: {n_t.value}{Neo4jDBClient._FREE_NODE_ID_POSTFIX})
+            WITH free_id
+            LIMIT 1
+            
+            MATCH (counter: {NodeTypes.ND_ID_CNT.value} {{cnt_name: \"{n_t.value}\" }})
+            
+            WITH free_id, counter,
+                CASE WHEN free_id IS NOT NULL
+                    THEN free_id.node_id 
+                    ELSE counter.val
+                END AS free_node_id
+            
+            SET counter.val = CASE WHEN free_id IS NOT NULL
+                                  THEN counter.val
+                                  ELSE counter.val + 1
+                              END 
+                              
+            FOREACH(_ IN CASE WHEN free_id IS NOT NULL THEN [1] ELSE [] END | DELETE free_id)
+            
+            RETURN free_node_id
+            """
+
+        if as_subquery:
+            query = f"CALL {{ {query} }}"
+
+        return query
+
+    def get_free_node_id(self, n_t: NodeTypes, req_number_of_ids: int = 1) -> list[int] | int:
+
+        res = self.execute_write(self.get_free_node_id_query(n_t, False, req_number_of_ids))
+        print(res)
+        ret_val = res[0]['free_node_id' if req_number_of_ids == 1 else 'free_node_ids']
+        return ret_val
+
+    def return_unused_node_ids(self, n_t: NodeTypes, node_ids: int | list[int]) -> None:
+
+        query = f"""
+        UNWIND $ids AS returned_id
+        CREATE (:{n_t.value}{self._FREE_NODE_ID_POSTFIX} {{node_id: returned_id}})
+        """
+
+        ids = [node_ids] if type(id) == int else node_ids
+        self.execute_write(query,**{"ids": ids})
+        return
+
+
+    #TODO RETURN node_id when deleting any node
 
     def set_new_current_graph_version_node(self, new_current_version: int) -> None:
         query = f"""
@@ -172,11 +262,31 @@ class Neo4jDBClient:
         MyLogger.get_instance().log(f"All indexes are in state ONLINE and populated")
         return
 
+    @staticmethod
+    def generate_all_free_node_id_labels() -> list[str]:
+
+        labels = []
+        for n_t in NodeTypes:
+
+            labels.append(n_t.value)
+            if n_t == NodeTypes.IP:
+                break
+
+        return labels
+
     def get_all_labels_in_graph(self) -> list[str]:
+
+        node_id_labels = self.generate_all_free_node_id_labels()
+        node_label_q = "\" AND label <> \"".join(node_id_labels)
+
         return self.execute_read(f"""
         CALL db.labels() 
         YIELD label 
-        WHERE label <> "{NodeTypes.VERSION.value}" AND label <> "{NodeTypes.CURRENT_VERSION.value}" 
+        WHERE label <> "{NodeTypes.VERSION.value}" AND 
+              label <> "{NodeTypes.CURRENT_VERSION.value}" AND 
+              label <> "{NodeTypes.TMP_DOMAIN.value}" AND
+              label <> "{NodeTypes.ND_ID_CNT.value}" AND
+              label \"{node_label_q}\"
         RETURN collect(label) AS lab
         """)[0]['lab']
 
@@ -189,7 +299,28 @@ class Neo4jDBClient:
 
 
     def delete_graph_version(self, version: int) -> None:
-        pass
+
+        labels = self.get_all_labels_in_graph()
+        for label in labels:
+            query = f"""
+            MATCH (n:{label} {{graph_version: {version} }})
+            DETACH DELETE n
+            """
+            self.execute_write(query)
+
+        self.execute_write(f"MATCH (n: {NodeTypes.VERSION.value} {{version: {version} }} ) DELETE n")
+        return
+
+    def send_query_in_batches(self, query: str, data: list, unwind_name: str = "rows", batch_size: int = 1000) -> None:
+        if len(data) < 1:
+            return
+
+        for cnt in range(0, len(data), batch_size):
+            MyLogger.get_instance().log_debug(f"Sending batch with start id {cnt} to neo4j...")
+            batch_data = data[cnt:cnt+batch_size]
+            self.execute_write(query,**{unwind_name: batch_data})
+
+
 
     def _create_edge_copy_query(self, v_label: str, relation: str, current_version: int) -> str:
 
@@ -245,15 +376,25 @@ class Neo4jDBClient:
         MyLogger.get_instance().log(f"Creating new version copy of graph v.{current_version}")
         for label in labels:
 
+            label_max_id = self.get_max_id_of_node_type(NodeTypes.from_str(label))
+
             copy_query = f"""
-            MATCH (n: {label})
+            UNWIND $ids as id 
+            MATCH (n: {label} {{node_id: id}})
             WHERE n.graph_version = {current_version}
             CREATE (copy: {label})
             SET copy = n {{.*, graph_version: {current_version + 1}}}
             """
             MyLogger.get_instance().log_debug(f"Creating new version copy of nodes {label}...")
-            self.execute_write(copy_query)
+            #self.execute_write(copy_query)
+
+            #TODO
+            #self.send_query_in_batches(copy_query,  ,"ids")
+
             MyLogger.get_instance().log_debug(f"Created new version copy of nodes {label}")
+
+
+        domain_max_id = self.get_max_id_of_node_type(NodeTypes.DOMAIN)
 
         edge_copy_match = f"""
             MATCH(n: {NodeTypes.DOMAIN.value})

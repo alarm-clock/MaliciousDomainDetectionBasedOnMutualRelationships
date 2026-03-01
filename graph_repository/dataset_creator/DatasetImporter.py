@@ -10,6 +10,7 @@ from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.dataset_creator.common.Graph import create_dgl_graph
 from graph_repository.dataset_creator.DGLImporter import export_dgl_graph
 from misc.Logger import MyLogger
+from misc.PackageImporter import import_all_modules_from_package
 from graph_repository.graph_repo_misc import parse_ranges
 from graph_repository.Neo4jDBClient import Neo4jDBClient
 import torch as th
@@ -56,7 +57,11 @@ class DatasetImporter:
         self._edge_type_workers = []
         self._known_edges = []
 
-        self._load_worker_modules()
+        import_all_modules_from_package(
+            "graph_repository.workers.dataset_edge_workers",
+            DATASET_WORKER_REGISTRY,
+            self._known_edges
+        )
 
         self._err = False
         self._ranges, max_id = self._create_or_conditions(ranges)
@@ -117,24 +122,6 @@ class DatasetImporter:
                            conf["user"])
             else:
                 return cls(edge_types, ranges, no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"])
-
-    def _load_worker_modules(self):
-        """
-        Method for loading worker modules and storing their available options in _known_edges attribute
-        :return: None
-        """
-
-        import graph_repository.workers.dataset_edge_workers
-
-        for _, module_name, _ in pkgutil.iter_modules(graph_repository.workers.dataset_edge_workers.__path__):
-            importlib.import_module(f"graph_repository.workers.dataset_edge_workers.{module_name}")
-
-        classes = ""
-        for cls in DATASET_WORKER_REGISTRY.values():
-            self._known_edges.extend(cls.available_options)
-            classes += f"{cls.worker_name},"
-
-        MyLogger.get_instance().log_debug(f"Loaded workers: {classes[:-1]} from module dataset_edge_workers")
 
     def _parse_edge_types(self, edge_types: str | None) -> list[str] | None:
         """
@@ -443,7 +430,6 @@ class DatasetImporter:
             edges_batch = rows[cnt:cnt + batch_size]
             driver.execute_write(query, rows=edges_batch)
 
-
     def test(self, neo4j_conf: str):
 
         client = Neo4jDBClient.from_config(neo4j_conf)
@@ -482,6 +468,7 @@ class DatasetImporter:
 
             self._send_query_in_batches(query, rows, client, 2000)
             client.execute_write(index_query)
+            client.create_node_id_cnt(n_t,client.get_max_id_of_node_type(n_t) + 1)
 
         client.wait_for_index_creation([n_t+"NodeIdIndex" for n_t in self._n_data_neo4j.keys()])
 

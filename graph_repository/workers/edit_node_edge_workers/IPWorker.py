@@ -61,14 +61,11 @@ class IPWorker(EditWorker):
         result = driver.execute_read(query, rows=list(self._ip_dict.keys()))
         non_existent_ips = [r['missing'] for r in result]
 
-        ip_max_id = driver.get_max_id_of_node_type(NodeTypes.IP)
-        curr_ip_id = ip_max_id + 1
+        available_ids = driver.get_free_node_id(NodeTypes.IP,len(non_existent_ips))
 
-
-        for ip in non_existent_ips:
+        for cnt, ip in enumerate(non_existent_ips):
             ip_address = self._ip_dict[str(ip)]
-            self._ips.append({'ip_str': str(ip), 'ip_version': ip_address.version, 'node_id': curr_ip_id})
-            curr_ip_id += 1
+            self._ips.append({'ip_str': str(ip), 'ip_version': ip_address.version, 'node_id': available_ids[cnt]})
 
         driver.close()
 

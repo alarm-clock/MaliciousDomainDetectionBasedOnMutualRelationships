@@ -1,6 +1,4 @@
 from typing import Any
-import pkgutil
-import importlib
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.workers.common.GraphTypes import NodeTypes
@@ -10,6 +8,7 @@ from graph_repository.workers.common.EditWorker import EDIT_WORKER_REGISTRY, Edi
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from misc.Pair import replace
 from misc.Logger import MyLogger
+from misc.PackageImporter import get_options_from_registry
 from threading import Lock
 import json
 
@@ -100,24 +99,6 @@ class AddRequest(GraphRequest):
             self._edges[group][self._EDGE_DATA_LOCATION].extend(edges)
 
         self._edges_lock.release()
-
-    def _register_workers(self):
-        """
-        Method for loading worker modules and storing their callback requirements in attribute `_req_callbacks`
-        :return: None
-        """
-
-        import graph_repository.workers.dataset_edge_workers
-
-        for _, module_name, _ in pkgutil.iter_modules(graph_repository.workers.dataset_edge_workers.__path__):
-            importlib.import_module(f"graph_repository.workers.dataset_edge_workers.{module_name}")
-
-        classes = ""
-        for cls in EDIT_WORKER_REGISTRY.values():
-            self._req_callbacks.extend(cls.available_options)
-            classes += f"{cls.worker_name},"
-
-        MyLogger.get_instance().log_debug(f"Loaded workers: {classes[:-1]} from module dataset_edge_workers")
 
     def _build_callback_options(self, options: list[EditWorker.ReqCallbacks]) -> dict[str, Any]:
 
@@ -219,7 +200,7 @@ class AddRequest(GraphRequest):
             MyLogger.get_instance().log_debug(f"Request {self.id} is canceled before it could edit but after graph copy was created")
             return False
 
-        self._register_workers()
+        get_options_from_registry(EDIT_WORKER_REGISTRY,self._req_callbacks)
         if self._dispatch_workers(version):
             return False
 

@@ -1,5 +1,7 @@
 import copy
 
+from cupy_backends.cuda.libs.nvtx import available
+
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.graph_main.GraphRepository import GraphRepository
@@ -94,13 +96,11 @@ class CNAMEWorker(EditWorker):
 
     def _create_dummy_domains(self) -> None:
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
-        max_id = driver.get_max_id_of_node_type(NodeTypes.DUMMY_DOMAIN)
+        available_ids = driver.get_free_node_id(NodeTypes.DUMMY_DOMAIN, len(self._create_domains))
         driver.close()
 
-        curr_id = max_id + 1
-        for domain_name in self._create_domains:
-            self._dummy_nodes.append({'node_id':curr_id, 'domain_name':domain_name})
-            curr_id += 1
+        for cnt, domain_name in enumerate(self._create_domains):
+            self._dummy_nodes.append({'node_id': available_ids[cnt], 'domain_name': domain_name})
 
     def _create_edges(self):
 

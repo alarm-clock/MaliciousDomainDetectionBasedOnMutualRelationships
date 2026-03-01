@@ -20,12 +20,10 @@ class DomainWorker(EditWorker):
     def _compute(self):
 
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
-        max_domain_id = driver.get_max_id_of_node_type(NodeTypes.DOMAIN)
+        available_ids = driver.get_free_node_id(NodeTypes.DOMAIN, len(self._domains))
         driver.close()
 
-        curr_id = max_domain_id + 1
-
-        for domain in self._domains:
+        for cnt, domain in enumerate(self._domains):
 
             try:
                 domain_name = str(domain["domain_name"])
@@ -39,8 +37,7 @@ class DomainWorker(EditWorker):
                 MyLogger.get_instance().log_warning(f"Omitted domain {domain_name} from adding because \'label\' field is missing")
                 continue
 
-            node_id = curr_id
-            curr_id += 1
+            node_id = available_ids[cnt]
 
             try:
                 other_data = str(domain["other_data"])

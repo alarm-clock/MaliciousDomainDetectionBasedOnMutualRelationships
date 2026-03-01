@@ -11,6 +11,7 @@ from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_main.graph_editing.AddRequest import AddRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.Neo4jDBClient import Neo4jDBClient, CouldNotConnect
+from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
 import dgl
 
@@ -62,7 +63,7 @@ def main():
     add_edit_pareser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
     add_edit_pareser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
 
-
+    subparsers.add_parser('test')
 
     args = parser.parse_args()
 
@@ -133,9 +134,7 @@ def main():
         else:
             print("No add input was provided, exiting", file=sys.stderr)
             return
-
-        #todo add graph copying here
-
+        # todo add graph copying here
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
         driver.create_new_version_mirror_of_graph()
 
@@ -143,8 +142,11 @@ def main():
         driver.close()
         #request.edit(current_graph_version)
 
-
-
+    elif args.mode == "test":
+        client = Neo4jDBClient.from_config(args.neo_db)
+        #client.return_unused_node_ids(NodeTypes.IP,[4728, 4727, 4731])
+        print(client.get_free_node_id(NodeTypes.IP,2))
+        return
 
 if __name__ == '__main__':
     main()
