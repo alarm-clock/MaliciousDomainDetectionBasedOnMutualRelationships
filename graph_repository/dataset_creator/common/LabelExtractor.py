@@ -1,6 +1,6 @@
 import threading
 from misc.Logger import MyLogger
-from graph_repository.graph_repo_misc import add_project_into_pipeline, get_domains_parent_domains
+from graph_repository.graph_repo_misc import add_project_into_pipeline, get_domains_parent_domains, domain_depth
 from concurrent.futures import ThreadPoolExecutor
 from pymongo.collection import Collection
 
@@ -40,25 +40,27 @@ class LabelExtractor(threading.Thread):
 
         return instance
 
-    def _parse_label(self, doc) -> tuple[int, int] | tuple[int, int, str, list[str]] :
+    def _parse_label(self, doc) -> tuple[int, int] | tuple[int, int, int, str, list[str]] :
 
         if self._dgl:
             return int(doc['node_id']), int(doc['label'].find("benign") != -1)
         else:
             domain_name = str(doc['domain_name'])
             parent_domains = get_domains_parent_domains(domain_name)
+            depth = domain_depth(domain_name)
 
-            return int(doc['node_id']), int(doc['label'].find("benign") != -1), domain_name, parent_domains
+            return int(doc['node_id']), int(doc['label'].find("benign") != -1), depth, domain_name, parent_domains
 
     def _store_result_for_neo(self, data: list) -> None:
 
-        self.result = {'label': [], 'node_id': [], 'domain_name': [], "parent_domains": []}
+        self.result = {'label': [], 'node_id': [], 'depth': [],'domain_name': [], "parent_domains": []}
 
-        for node_id, label, domain_name, parent_domains in data:
+        for node_id, label, depth, domain_name, parent_domains in data:
             self.result['node_id'].append(node_id)
             self.result['label'].append(label)
             self.result['domain_name'].append(domain_name)
             self.result['parent_domains'].append(parent_domains)
+            self.result['depth'].append(depth)
 
         return
 

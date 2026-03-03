@@ -13,6 +13,7 @@ class NodeTypes(Enum):
               #IP MUST BE LAST DATA NODE, SOME PARTS OF CODE ARE DEPENDENT ON THIS
 
     #supporting node types
+    DUMMY_SUB_DOMAIN = 'Du_sub_domain'
     CURRENT_VERSION = 'CurrentGraphVersion'
     VERSION = 'GraphVersion'
     ND_ID_CNT = 'NodeIdCnt'
@@ -25,6 +26,26 @@ class NodeTypes(Enum):
                 return node
 
         return None
+
+    @staticmethod
+    def get_data_n_t() -> list:
+        data = []
+        for node in NodeTypes:
+            data.append(node)
+            if node == NodeTypes.IP:
+                break
+
+        return data
+    
+    @staticmethod
+    def get_data_n_t_str() -> list[str]:
+        data = []
+        for node in NodeTypes:
+            data.append(node.value)
+            if node == NodeTypes.IP:
+                break
+
+        return data
 
 class EdgeTypes(Enum):
     TRANSLATES = 'translates'

@@ -1,18 +1,15 @@
 from typing import Any
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.Neo4jDBClient import Neo4jDBClient
-from concurrent.futures import ThreadPoolExecutor
-from graph_repository.workers.dataset_edge_workers.IPWorker import IPWorker as en
-from graph_repository.workers.dataset_edge_workers.IPWorker import get_ips_from_record
+from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
+from graph_repository.workers.common.Misc import IPModes, get_ips_from_record
 from graph_repository.workers.common.Enums import EditTypes
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 
+
 #TODO add modes and run options
-#TODO LONG TERM add dynamic node_id checking e.g. not just check max id but also check if there are free ids between
 
 class IPWorker(EditWorker):
-
     worker_name = 'IPWorker'
     req_callbacks = (worker_name, [EditWorker.ReqCallbacks.NODE, EditWorker.ReqCallbacks.EDGE])
     _limit = 2000
@@ -22,14 +19,12 @@ class IPWorker(EditWorker):
         self._submit_nodes_callback = nodes_submit_callback
         self._submit_edges_callback = edges_submit_callback
 
-
         self._edges: list[dict] = []
         self._ips: list[dict] = []
 
         self._ip_dict: dict[str, Any] = {}
 
-
-    def _submit_results(self):
+    def _submit_results(self) -> None:
         self._submit_nodes_callback(self._ips, NodeTypes.IP, self.worker_name, EditTypes.IGNORE_NEW)
 
         query_params = {
@@ -46,13 +41,12 @@ class IPWorker(EditWorker):
         for ip in ips:
             self._edges.append({'ip_str': str(ip), 'domain_name': domain_name})
 
-
-    def _create_ip_nodes(self):
+    def _create_ip_nodes(self) -> None:
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
 
-        query=f"""
+        query = f"""
         UNWIND $rows AS value
-        OPTIONAL MATCH (n:{NodeTypes.IP.value} {{ip_str: value {self._get_version_query(False)}}}
+        OPTIONAL MATCH (n:{NodeTypes.IP.value} {{ip_str: value {get_version_query(self._version,False)}}}
         WITH value, n
         WHERE n IS NULL
         RETURN value AS missing
@@ -61,7 +55,7 @@ class IPWorker(EditWorker):
         result = driver.execute_read(query, rows=list(self._ip_dict.keys()))
         non_existent_ips = [r['missing'] for r in result]
 
-        available_ids = driver.get_free_node_id(NodeTypes.IP,len(non_existent_ips))
+        available_ids = driver.get_free_node_id(NodeTypes.IP, len(non_existent_ips))
 
         for cnt, ip in enumerate(non_existent_ips):
             ip_address = self._ip_dict[str(ip)]
@@ -73,12 +67,11 @@ class IPWorker(EditWorker):
 
         for domain in self._domains:
             domain_name = str(domain['domain_name'])
-            ips = get_ips_from_record(domain, en.Modes.BOTH)
+            ips = get_ips_from_record(domain, IPModes.BOTH)
 
             for ip in ips:
                 self._ip_dict[str(ip)] = ip
-                self._create_pairs( domain_name, list(self._ip_dict.keys()))
-
+                self._create_pairs(domain_name, list(self._ip_dict.keys()))
 
         self._create_ip_nodes()
         self._submit_results()

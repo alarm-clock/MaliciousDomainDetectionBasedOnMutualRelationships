@@ -11,7 +11,8 @@ class EditWorker(Worker):
         EDGE = "edges_submit_callback"
         CALLBACK = "callbacks_submit_callback"
         ALL = "all"
-
+    ADD_DOMAINS = True
+    ADD_TMP_DOMAIN = False
 
     worker_name: str
     req_callbacks: tuple[str, list[ReqCallbacks]]
@@ -28,10 +29,6 @@ class EditWorker(Worker):
     def _register(cls):
         if cls.__name__ != "EditWorker":
             EDIT_WORKER_REGISTRY[cls.worker_name] = cls
-
-
-    def _get_version_query(self, alone: bool) -> str:
-        return ('' if alone else ', ') + f" graph_version: {self._version}"
 
     def compute(self) -> bool:
 

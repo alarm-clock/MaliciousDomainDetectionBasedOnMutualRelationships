@@ -262,22 +262,9 @@ class Neo4jDBClient:
         MyLogger.get_instance().log(f"All indexes are in state ONLINE and populated")
         return
 
-    @staticmethod
-    def generate_all_free_node_id_labels() -> list[str]:
-
-        labels = []
-        for n_t in NodeTypes:
-
-            labels.append(n_t.value)
-            if n_t == NodeTypes.IP:
-                break
-
-        return labels
-
     def get_all_labels_in_graph(self) -> list[str]:
 
-        node_id_labels = self.generate_all_free_node_id_labels()
-        node_label_q = "\" AND label <> \"".join(node_id_labels)
+        node_label_q = "\" AND label <> \"".join(NodeTypes.get_data_n_t_str())
 
         return self.execute_read(f"""
         CALL db.labels() 
@@ -446,7 +433,7 @@ class Neo4jDBClient:
         items_str = ",".join([str(key) + ": row." + str(key) for key in list(rows[0].keys())])
 
         create_query = "UNWIND $rows AS row "
-        query = "CREATE" if edit_type == EditTypes.IGNORE_EXISTING else 'MERGE' + f"(:{node_type if type(node_type) == str else node_type.value} {{ {items_str} }})"
+        query = ("CREATE" if edit_type == EditTypes.IGNORE_EXISTING else 'MERGE') + f"(:{node_type if type(node_type) == str else node_type.value} {{ {items_str} }})"
         create_query += query
 
         self.execute_write(create_query, rows=rows)
@@ -465,41 +452,49 @@ class Neo4jDBClient:
     E_NODE_T1 = "n_t1"
     E_NODE_T2 = "n_t2"
     E_EDGE_VALUE_NAME = "e_v"
+    E_VERSION = 'e_vers'
+    E_NO_DUP = 'e_no_dup'
 
-    def _create_edge_creation_query(self, option: EdgeCreationQueryOptions, m1: str, m2: str, e_t: EdgeTypes,
-                                    n_t1: NodeTypes, n_t2: NodeTypes, e_v: str | None) -> dict[str, str]:
+    def _create_edge_creation_query(self, option: EdgeCreationQueryOptions, m1: str, m2: str, e_t: EdgeTypes | str,
+                                    n_t1: NodeTypes | str, n_t2: NodeTypes | str, e_v: str | None, e_vers: int = -1, e_no_dup: bool = False) -> dict[str, str]:
 
+        version = e_vers if e_vers != -1 else self.get_current_active_graph_version()
         query = f"""
         UNWIND $edges AS edge
-        MATCH (u: {n_t1.value} {{{m1}: edge.u }}), (v: {n_t2.value} {{{m2}: edge.v }}) 
+        MATCH (u: {n_t1.value if type(n_t1) == NodeTypes else n_t1} {{{m1}: edge.u {get_version_query(version,False)} }}), 
+              (v: {n_t2.value if type(n_t1) == NodeTypes else n_t2} {{{m2}: edge.v {get_version_query(version,False)} }}) 
         """
+        creation_command = "CREATE" if e_no_dup else "MERGE"
 
+        e_t = e_t.value if type(e_t) == EdgeTypes else e_t
         if option == self.EdgeCreationQueryOptions.NO_WEIGHT_NO_REVERSE or option == self.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE:
-            query += f" MERGE (u)-[:{e_t.value}]->(v)"
+            query += f" {creation_command} (u)-[:{e_t}]->(v)"
 
             if option == self.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE:
-                query += f" MERGE (v)-[:{e_t.value}]->(u)"
+                query += f" {creation_command} (v)-[:{e_t}]->(u)"
 
         elif option == self.EdgeCreationQueryOptions.WEIGHT_NO_REVERSE or option == self.EdgeCreationQueryOptions.WEIGHT_REVERSE:
 
             if e_v is None:
                 MyLogger.get_instance().log_warning(
-                    f"Edge value was not given a name to edge type {e_t.value}. Default value \"weight\" will be used")
+                    f"Edge value was not given a name to edge type {e_t}. Default value \"weight\" will be used")
                 e_v = "weight"
 
-            query += f" MERGE (u)-[:{e_t.value} {{{e_v}: edge.weight}}]->(v)"
+            query += f" {creation_command} (u)-[:{e_t} {{{e_v}: edge.weight}}]->(v)"
 
             if option == self.EdgeCreationQueryOptions.WEIGHT_REVERSE:
-                query += f" MERGE (v)-[:{e_t.value} {{{e_v}: edge.weight}}]->(u)"
+                query += f" {creation_command} (v)-[:{e_t.value} {{{e_v}: edge.weight}}]->(u)"
 
         return {"edges": query}
 
-    def create_edges(self, rows: list[dict], query: tuple[str, str] | dict) -> None:
+    def create_edges(self, query: tuple[str, str] | dict, rows: list[dict]) -> None:
 
-        if type(query) == dict:
+        if type(query) != dict:
             self.execute_write(query[0], **{query[1]: rows})
         else:
-            query_str = self._create_edge_creation_query(**query)
+            query_str = self._create_edge_creation_query(**query)['edges']
             self.execute_write(query_str, edges=rows)
-
         return
+
+def get_version_query(version: int, alone: bool) -> str:
+    return ('' if alone else ', ') + f" graph_version: {version}"

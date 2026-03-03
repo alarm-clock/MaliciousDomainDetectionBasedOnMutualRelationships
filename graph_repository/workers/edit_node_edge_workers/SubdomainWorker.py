@@ -1,7 +1,7 @@
 import pygtrie
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_repo_misc import get_domains_parent_domains, reverse_domain, calc_jaccard
 
@@ -186,7 +186,7 @@ class SubdomainWorker(EditWorker):
         CALL (domain){{
             UNWIND domain.parent_domains AS parent_domain
             MATCH (d: {NodeTypes.DOMAIN.value})
-            WHERE parent_domain IN d.parent_domains AND d.domain_name <> domain.domain_name and d.graph_version = {self._version}
+            WHERE parent_domain IN d.parent_domains AND d.domain_name <> domain.domain_name AND d.graph_version = {self._version}
             WITH DISTINCT d
             RETURN collect({{
                 match_domain_name: d.domain_name,
@@ -195,7 +195,7 @@ class SubdomainWorker(EditWorker):
         }}
         CALL (domain){{
             UNWIND domain.parent_domains AS parent_domain
-            OPTIONAL MATCH (d: {NodeTypes.DOMAIN.value} {{domain_name: parent_domain {self._get_version_query(False)}}})
+            OPTIONAL MATCH (d: {NodeTypes.DOMAIN.value} {{domain_name: parent_domain {get_version_query(self._version,False)}}})
             RETURN collect(d.domain_name) AS parent_domains_in_graph
         }}
         CALL (domain){{ 

@@ -2,8 +2,7 @@ import copy
 import json
 from dgl import DGLHeteroGraph
 from pymongo import MongoClient
-import importlib
-import pkgutil
+from functools import partial
 from graph_repository.workers.common.DatasetWorker import DATASET_WORKER_REGISTRY
 from graph_repository.dataset_creator.common.LabelExtractor import LabelExtractor
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
@@ -300,9 +299,9 @@ class DatasetImporter:
             for cnt in range(len(u)):
 
                 if e_data is None:
-                    rows.append({"u_id": u[cnt], "v_id": v[cnt]})
+                    rows.append({"u": u[cnt], "v": v[cnt]})
                 else:
-                    rows.append({"u_id": u[cnt], "v_id": v[cnt], e_data[0]: e_data[1][cnt]})
+                    rows.append({"u": u[cnt], "v": v[cnt], e_data[0]: e_data[1][cnt]})
 
             self._edges_neo4j[e_type] = rows
 
@@ -421,16 +420,16 @@ class DatasetImporter:
         self._wait_on_workers()
         return
 
-    def _send_query_in_batches(self, query: str, rows: list[dict], driver: Neo4jDBClient, batch_size: int = 1000) -> None:
+    def _send_query_in_batches(self, func, rows: list[dict], batch_size: int = 1000) -> None:
         if batch_size < 1:
             return
 
         for cnt in range(0, len(rows), batch_size):
             MyLogger.get_instance().log(f"Creating batch starting at {cnt}...")
-            edges_batch = rows[cnt:cnt + batch_size]
-            driver.execute_write(query, rows=edges_batch)
+            batch = rows[cnt:cnt + batch_size]
+            func(batch)
 
-    def test(self, neo4j_conf: str):
+    def _import_into_neo4j(self, neo4j_conf: str):
 
         client = Neo4jDBClient.from_config(neo4j_conf)
         if client is None:
@@ -445,7 +444,7 @@ class DatasetImporter:
                 continue
 
             MyLogger.get_instance().log(f"Creating {len(rows)} {n_t} nodes in neo4j")
-            items_str = ",".join([str(key) + ": row." + str(key) for key in list(rows[0].keys())])
+            #items_str = ",".join([str(key) + ": row." + str(key) for key in list(rows[0].keys())])
 
             constraint_query = f"""
             CREATE CONSTRAINT {n_t}_unique_node_id_version_combo
@@ -455,18 +454,15 @@ class DatasetImporter:
             """
             client.execute_write(constraint_query)
 
-            query = f"""
-            UNWIND $rows AS row
-            CREATE(:{n_t} {{ {items_str} }})
-            """
+            pre_filled = partial(client.create_nodes,n_t)
+            self._send_query_in_batches(pre_filled, rows, 2000)
+
             index_query = f"""
             CREATE INDEX {n_t}NodeIdIndex
             IF NOT EXISTS
             FOR (n:{n_t})
             ON (n.node_id);
             """
-
-            self._send_query_in_batches(query, rows, client, 2000)
             client.execute_write(index_query)
             client.create_node_id_cnt(n_t,client.get_max_id_of_node_type(n_t) + 1)
 
@@ -481,21 +477,25 @@ class DatasetImporter:
 
             MyLogger.get_instance().log(f"Creating {len(edges)} {u_t}-{e_t}->{v_t} edges in neo4j")
 
-            query = f"""
-            UNWIND $rows AS row
-            MATCH (u: {u_t} {{node_id: row.u_id, graph_version: 1}})
-            MATCH (v: {v_t} {{node_id: row.v_id, graph_version: 1}})
-            """
-
             param_name = ""
             for key in edges[0].keys():
                 if key != "u_id" and key != "v_id": param_name = key
 
-            query_create = f"CREATE (u)-[:{e_t}]->(v)" if param_name == "" else f"CREATE (u)-[:{e_t} {{ {param_name}: row.{param_name} }}]->(v)"
+            weight_option = Neo4jDBClient.EdgeCreationQueryOptions.WEIGHT_NO_REVERSE if param_name != "" else Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_NO_REVERSE
+            edge_creation_option = {
+                Neo4jDBClient.E_NODE_T1: u_t,
+                Neo4jDBClient.E_NODE_T2: v_t,
+                Neo4jDBClient.E_OPTION: weight_option,
+                Neo4jDBClient.E_EDGE_VALUE_NAME: param_name,
+                Neo4jDBClient.E_EDGE_T: e_t,
+                Neo4jDBClient.E_MATCH1: "node_id",
+                Neo4jDBClient.E_MATCH2: "node_id",
+                Neo4jDBClient.E_VERSION: 1,
+                Neo4jDBClient.E_NO_DUP: True
+            }
 
-            query = query + query_create
-
-            self._send_query_in_batches(query, edges, client, 1000)
+            pre_filled = partial(client.create_edges,edge_creation_option)
+            self._send_query_in_batches(pre_filled, edges, 1000)
 
         MyLogger.get_instance().log("Created whole graph")
         client.close()
@@ -507,8 +507,6 @@ class DatasetImporter:
             for cnt in range(len(self._n_data_neo4j[n_t])):
                 self._n_data_neo4j[n_t][cnt] = self._n_data_neo4j[n_t][cnt] | ({'graph_version': 1, 'temporary': False} if n_t == NodeTypes.DOMAIN.value else {'graph_version': 1})
 
-
-
     #TODO download and install graph data science plugin for neo4j db, python client has already been downloaded
     def create_graph_and_import_to_neo4j(self, neo4j_conf: str):
         self._for_dgl = False
@@ -518,7 +516,7 @@ class DatasetImporter:
             return
 
         self._add_maintenance_values_to_nodes()
-        self.test(neo4j_conf)
+        self._import_into_neo4j(neo4j_conf)
 
 
     def create_dgl_graph(self, export: str | None = None) -> DGLHeteroGraph | None:

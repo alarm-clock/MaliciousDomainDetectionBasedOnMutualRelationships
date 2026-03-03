@@ -9,6 +9,7 @@ Description: Class used for parallel creation of CNAME edges from dataset
 
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.graph_repo_misc import domain_depth
 from concurrent.futures import ThreadPoolExecutor
 from misc.Logger import MyLogger
 import pymongo
@@ -51,6 +52,7 @@ class CNAMEWorker(DatasetWorker):
         self._du: list[int] = []
         self._dum_dv: list[int] = []
         self._dum_d_names: list[str] = []
+        self._dum_d_depth: list[int] = []
 
     def _submit_result(self) -> None:
         """
@@ -64,9 +66,14 @@ class CNAMEWorker(DatasetWorker):
 
         if len(self._du) > 0:
             #must submit reverse edge separately
-            MyLogger.get_instance().log("Submitting d -> cname -> dum_d")
-            self._submit_callback_method(self._du, self._dum_dv, self._nd_type1, EdgeTypes.CNAME, self._nd_type2,  v_data={'domain_name': self._dum_d_names})
-            MyLogger.get_instance().log("Submitting dum_d -> cname -> d")
+            self._submit_callback_method(
+                self._du,
+                self._dum_dv,
+                self._nd_type1,
+                EdgeTypes.CNAME,
+                self._nd_type2,
+                v_data={'domain_name': self._dum_d_names, 'depth': self._dum_d_depth}
+            )
             self._submit_callback_method(self._dum_dv, self._du, self._nd_type2, EdgeTypes.CNAME, self._nd_type1)
 
     def _connect_nodes_w_cname(self, cname_tup: tuple[bool, int, list[int]]) -> tuple[bool, list[int], list[int]]:
@@ -153,6 +160,7 @@ class CNAMEWorker(DatasetWorker):
             if self._domains[key][self._DOMAINS_ID] == -1:
                 self._domains[key] = (self._DUMMY, dummy_id, self._domains[key][self._DOMAINS_LIST])
                 self._dum_d_names.append(key)
+                self._dum_d_depth.append(domain_depth(key))
                 dummy_id += 1
 
     def _match_entries_with_same_cname(self):

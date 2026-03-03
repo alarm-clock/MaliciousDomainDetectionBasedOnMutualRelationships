@@ -1,11 +1,8 @@
 import copy
-
-from cupy_backends.cuda.libs.nvtx import available
-
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
 from misc.Logger import MyLogger
 from functools import partial
 from graph_repository.workers.common.Enums import CallbackWhen, EditTypes
@@ -74,7 +71,7 @@ class CNAMEWorker(EditWorker):
 
     def _submit(self):
 
-        replace_dummies_callback = partial(self._replace_dummies, self._domains_for_replacing, self._get_version_query(False))
+        replace_dummies_callback = partial(self._replace_dummies, self._domains_for_replacing, get_version_query(self._version,False))
         self._callbacks_submit_callback(replace_dummies_callback, CallbackWhen.BETWEEN_NODES_EDGES, self.worker_name)
         self._nodes_submit_callback(self._dummy_nodes, NodeTypes.DUMMY_DOMAIN, self.worker_name, EditTypes.IGNORE_NEW)
 
@@ -120,8 +117,8 @@ class CNAMEWorker(EditWorker):
 
         find_cnames_in_domains = f"""
         UNWIND $rows AS cname
-        OPTIONAL MATCH (n: {NodeTypes.DOMAIN.value} {{domain_name: cname {self._get_version_query(False)}}})
-        OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: cname {self._get_version_query(False)}}})  
+        OPTIONAL MATCH (n: {NodeTypes.DOMAIN.value} {{domain_name: cname {get_version_query(self._version,False)}}})
+        OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: cname {get_version_query(self._version,False)}}})  
         RETURN cname, n AS domain, m AS dummy      
         """
 
@@ -143,7 +140,7 @@ class CNAMEWorker(EditWorker):
 
         find_if_domain_is_dummy_in_graph = f"""
         UNWIND $rows AS domain
-        OPTIONAL MATCH(n: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: domain {self._get_version_query(False)}}})
+        OPTIONAL MATCH(n: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: domain {get_version_query(self._version,False)}}})
         WITH n, domain
         WHERE n IS NOT NULL
         RETURN domain AS domain_name

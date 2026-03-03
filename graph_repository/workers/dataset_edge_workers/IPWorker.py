@@ -1,5 +1,4 @@
-from ipaddress import ip_address
-from enum import Enum
+from graph_repository.workers.common.Misc import IPModes, get_ips_from_record
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from misc.Logger import MyLogger
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
@@ -9,16 +8,11 @@ from pymongo import ASCENDING
 
 class IPWorker(DatasetWorker):
 
-    class Modes(Enum):
-        BOTH = 0
-        V4 = 1
-        V6 = 2
-
     worker_name = 'ip'
     available_options = [
-        (worker_name, 'ipv4', {'mode': Modes.V4}),
-        (worker_name, 'ipv6', {'mode': Modes.V6}),
-        (worker_name, f'{worker_name}_all', {'mode': Modes.BOTH})
+        (worker_name, 'ipv4', {'mode': IPModes.V4}),
+        (worker_name, 'ipv6', {'mode': IPModes.V6}),
+        (worker_name, f'{worker_name}_all', {'mode': IPModes.BOTH})
     ]
 
     _project = {'_id': 0, 'domain_name': 1, 'dns.A': 1, 'dns.AAAA': 1, 'ip_data': 1, 'node_id': 1 }
@@ -31,7 +25,7 @@ class IPWorker(DatasetWorker):
     _node_type2 = NodeTypes.IP
     _edge_type = EdgeTypes.TRANSLATES
 
-    def __init__(self, submit_callback_method, collection: Collection, ranges: list, mode: Modes = Modes.BOTH):
+    def __init__(self, submit_callback_method, collection: Collection, ranges: list, mode: IPModes = IPModes.BOTH):
         super().__init__(submit_callback_method, collection, ranges, self._project)
         #add_sort_into_pipeline(self._sort, self._pipeline)
         self._mode = mode
@@ -85,46 +79,3 @@ class IPWorker(DatasetWorker):
         MyLogger.get_instance().log("Submitted all IP edges and nodes")
 
         del self._ip_htab, self._ip_data, self._u, self._v
-
-
-#========================End of class==============================================
-
-
-def get_ips_from_record(doc: dict, mode: IPWorker.Modes) -> list:
-    ips: list = []
-
-    if mode == IPWorker.Modes.V4 or mode == IPWorker.Modes.BOTH:
-        a_list = doc['dns'].get('A',[])
-        if a_list is not None:
-            ips.extend([ ip_address(ip_str) for ip_str in a_list  if ip_str != '' ])
-
-    if mode == IPWorker.Modes.V6 or mode == IPWorker.Modes.BOTH:
-        aaaa_list = doc['dns'].get('AAAA',[])
-        if aaaa_list is not None:
-            ips.extend([ ip_address(ip_str) for ip_str in aaaa_list if ip_str != ''])
-
-    if doc.get('ip_data'):
-        ip_data_ips = doc['ip_data']
-        if ip_data_ips is not None:
-
-            for ip_data_item in ip_data_ips:
-                addr: str = ip_data_item['ip']
-
-                if addr == '':
-                    continue
-
-                ip_addr = ip_address(addr)
-
-                if ip_addr in ips:
-                    continue
-
-                if mode == IPWorker.Modes.BOTH:
-                    ips.append(ip_address(addr))
-
-                elif ip_addr.version == 4 and mode == IPWorker.Modes.V4:
-                    ips.append(ip_address(addr))
-
-                elif ip_addr.version == 6 and mode == IPWorker.Modes.V6:
-                    ips.append(ip_address(addr))
-
-    return ips

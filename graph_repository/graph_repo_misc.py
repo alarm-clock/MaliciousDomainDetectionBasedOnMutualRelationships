@@ -159,3 +159,6 @@ def get_domains_parent_domains(domain: str) -> list[str]:
 
 def reverse_domain(domain: str) -> str:
     return '.'.join(reversed(domain.strip().rstrip('.').split('.')))
+
+def domain_depth(domain: str) -> int:
+    return domain.count('.')
