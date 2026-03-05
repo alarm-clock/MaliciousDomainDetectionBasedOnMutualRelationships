@@ -140,7 +140,7 @@ class AddRequest(GraphRequest):
                 break
 
             options = self._build_callback_options(req_callbacks)
-            cls_instance = cls(self._domains, version, **options)
+            cls_instance = cls(self._domains, version, EditWorker.ADD_DOMAINS, **options)
             is_thread = cls_instance.compute()
 
             if is_thread:
@@ -171,7 +171,7 @@ class AddRequest(GraphRequest):
 
         for group, edges in self._edges.items():
             MyLogger.get_instance().log_debug(f"Creating edges for {group}")
-            driver.create_edges(edges[self._E_EDGES_LOC], edges[self._E_QUERY_LOC])
+            driver.create_edges(edges[self._E_QUERY_LOC], edges[self._E_EDGES_LOC])
 
         MyLogger.get_instance().log_debug(f"Created all {len(self._edges.keys())} edges")
         return

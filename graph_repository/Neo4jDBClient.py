@@ -117,7 +117,7 @@ class Neo4jDBClient:
 
     def create_node_id_cnt(self, n_t: NodeTypes | str, start_value: int = 0) -> None:
         n_t_str = n_t.value if type(n_t) == NodeTypes else n_t
-        self.execute_write(f"CREATE (:node_id_cnt {{ cnt_name: \"{n_t_str}\", val: {start_value} }}) ")
+        self.execute_write(f"CREATE (:{NodeTypes.ND_ID_CNT.value} {{ cnt_name: \"{n_t_str}\", val: {start_value} }}) ")
 
     _FREE_NODE_ID_POSTFIX = "_free_node_id"
 
@@ -161,8 +161,8 @@ class Neo4jDBClient:
             LIMIT 1
             
             MATCH (counter: {NodeTypes.ND_ID_CNT.value} {{cnt_name: \"{n_t.value}\" }})
-            
-            WITH free_id, counter,
+
+            WITH free_id, counter, 
                 CASE WHEN free_id IS NOT NULL
                     THEN free_id.node_id 
                     ELSE counter.val
@@ -179,7 +179,7 @@ class Neo4jDBClient:
             """
 
         if as_subquery:
-            query = f"CALL {{ {query} }}"
+            query = f"CALL () {{ {query} }}"
 
         return query
 
@@ -383,6 +383,7 @@ class Neo4jDBClient:
 
         domain_max_id = self.get_max_id_of_node_type(NodeTypes.DOMAIN)
 
+        #TODO this will no longer work because now there are other types of nodes that have edges between each other
         edge_copy_match = f"""
             MATCH(n: {NodeTypes.DOMAIN.value})
             WHERE n.graph_version = {current_version}
@@ -495,6 +496,44 @@ class Neo4jDBClient:
             query_str = self._create_edge_creation_query(**query)['edges']
             self.execute_write(query_str, edges=rows)
         return
+
+    @staticmethod
+    def get_node_replace_query(old_var: str, new_var: str) -> str:
+        return f"""
+        WITH {old_var} AS old, {new_var} AS new
+        MATCH (old)-[r]->(other)
+        MATCH (other2)-[r_rev]->(old)
+        WITH old, new, r, r_rev, other, other2,
+            CASE WHEN startNode(r) = old THEN new ELSE other END AS startNode1,
+            CASE WHEN endNode(r) = old THEN new ELSE other END AS endNode1,
+            CASE WHEN startNode(r_rev) = old THEN new ELSE other2 END AS startNode2,
+            CASE WHEN endNode(r_rev) = old THEN new ELSE other2 END AS endNode2
+
+        CALL apoc.merge.relationship(
+            startNode1,
+            type(r),
+            properties(r),
+            {{}},
+            endNode1
+        ) YIELD rel AS rel1
+        CALL apoc.merge.relationship(
+            startNode2,
+            type(r_rev),
+            properties(r_rev),
+            {{}},
+            endNode2
+        ) YIELD rel AS  rel2
+        DELETE r
+        DELETE r_rev
+        
+        WITH old
+        DETACH DELETE old
+        """
+
+    def check_label_exists(self, label: NodeTypes | str) -> bool:
+        label_str = label if type(label) == str else label.value
+        return len(self.execute_read(f"MATCH (n:{label_str}) RETURN n LIMIT 1")) != 0
+
 
 def get_version_query(version: int, alone: bool) -> str:
     return ('' if alone else ', ') + f" graph_version: {version}"

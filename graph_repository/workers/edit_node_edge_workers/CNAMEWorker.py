@@ -24,7 +24,7 @@ class CNAMEWorker(EditWorker):
         self._nodes_submit_callback = nodes_submit_callback
         self._callbacks_submit_callback = callbacks_submit_callback
 
-        self._domain_names: list[str] = []
+        self._domain_names: set = set()
         self._domains_for_replacing: list[str] = []
         self._parsed_domains: list[ tuple[str, CNAMEWorker.NdTypes, list[str]]] = []
         self._create_domains: list[str] = []
@@ -39,12 +39,13 @@ class CNAMEWorker(EditWorker):
     #check if any domain is not dummy domain in the graph, if yes, replace
     #create new dummies
 
+    """
     @staticmethod
     def _replace_dummies(domains_for_replacing: list[str], version_query: str) -> None:
         #this will run after normal nodes equivalents of dummies exists
         #they will have same domain name but node_id in parameter is for the du_domains
 
-        replace_query = f"""
+        replace_query = f""
         
         UNWIND $domains as d
         
@@ -62,17 +63,18 @@ class CNAMEWorker(EditWorker):
         
         WITH old
         DETACH DELETE old
-        """
+        ""
 
         driver = GraphRepository.get_instance().get_neo4j_driver()
         driver.execute_write(replace_query, rows=domains_for_replacing)
         driver.close()
         return
+    """
 
     def _submit(self):
 
-        replace_dummies_callback = partial(self._replace_dummies, self._domains_for_replacing, get_version_query(self._version,False))
-        self._callbacks_submit_callback(replace_dummies_callback, CallbackWhen.BETWEEN_NODES_EDGES, self.worker_name)
+       # replace_dummies_callback = partial(self._replace_dummies, self._domains_for_replacing, get_version_query(self._version,False))
+       # self._callbacks_submit_callback(replace_dummies_callback, CallbackWhen.BETWEEN_NODES_EDGES, self.worker_name)
         self._nodes_submit_callback(self._dummy_nodes, NodeTypes.DUMMY_DOMAIN, self.worker_name, EditTypes.IGNORE_NEW)
 
         query_option = {
@@ -126,7 +128,11 @@ class CNAMEWorker(EditWorker):
 
         for cname_domain in result:
             cname_name = cname_domain['cname']
-            if cname_domain['domain'] is None and cname_domain['dummy'] is None:
+
+            if cname_name in self._domain_names:
+                self._parsed_domains.append((cname_name, CNAMEWorker.NdTypes.DOMAIN, cname_normal_dict[cname_name]))
+            elif cname_domain['domain'] is None and cname_domain['dummy'] is None:
+
                 self._create_domains.append(cname_name)
                 self._parsed_domains.append((cname_name, CNAMEWorker.NdTypes.DUMMY, cname_normal_dict[cname_name]))
                 #replace(cname_normal_dict[cname_name],0,self.NdTypes.CREATE)
@@ -136,21 +142,6 @@ class CNAMEWorker(EditWorker):
             elif cname_domain['dummy'] is None:
                 self._parsed_domains.append((cname_name, CNAMEWorker.NdTypes.DOMAIN, cname_normal_dict[cname_name]))
                 #replace(self._cname_normal_dict[cname_name],0,self.NdTypes.DUMMY)
-
-
-        find_if_domain_is_dummy_in_graph = f"""
-        UNWIND $rows AS domain
-        OPTIONAL MATCH(n: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: domain {get_version_query(self._version,False)}}})
-        WITH n, domain
-        WHERE n IS NOT NULL
-        RETURN domain AS domain_name
-        """
-
-        result = driver.execute_read(find_if_domain_is_dummy_in_graph, rows=self._domain_names)
-
-        for regular_domain in result:
-            domain_name = regular_domain['domain_name']
-            self._domains_for_replacing.append(domain_name)
 
         driver.close()
         del cname_normal_dict
@@ -171,7 +162,7 @@ class CNAMEWorker(EditWorker):
                     continue
 
             domain_name = str(domain['domain_name'])
-            self._domain_names.append(domain_name)
+            self._domain_names.add(domain_name)
 
             if cname_normal_dict.get(cname_domain) is None:
                 cname_normal_dict[cname_domain] = [domain_name]

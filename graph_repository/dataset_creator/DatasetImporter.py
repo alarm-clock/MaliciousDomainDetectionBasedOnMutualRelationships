@@ -429,6 +429,35 @@ class DatasetImporter:
             batch = rows[cnt:cnt + batch_size]
             func(batch)
 
+    def _replace_other_dummies_with_default_dummy_domain(self, driver: Neo4jDBClient) -> None:
+
+        dummy_labels =  NodeTypes.get_supporting_dummies_n_t()
+        if not driver.check_label_exists(NodeTypes.DUMMY_DOMAIN):
+            driver.create_node_id_cnt(NodeTypes.DUMMY_DOMAIN)
+
+        for label in dummy_labels:
+            query = f"""
+            MATCH (n: {label.value})
+            MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: n.domain_name, graph_version: 1, depth: n.depth}})
+            ON CREATE
+                SET du_match.node_id = null
+            WITH n, du_match
+    
+            CALL(du_match){{
+                WITH du_match
+                WHERE du_match.node_id IS NULL
+            
+                {Neo4jDBClient.get_free_node_id_query(NodeTypes.DUMMY_DOMAIN,True)}
+                
+                SET du_match.node_id = free_node_id        
+            }}
+            
+            {Neo4jDBClient.get_node_replace_query('n','du_match')}
+            """
+            driver.execute_write(query)
+
+        return
+
     def _import_into_neo4j(self, neo4j_conf: str):
 
         client = Neo4jDBClient.from_config(neo4j_conf)
@@ -497,6 +526,7 @@ class DatasetImporter:
             pre_filled = partial(client.create_edges,edge_creation_option)
             self._send_query_in_batches(pre_filled, edges, 1000)
 
+        self._replace_other_dummies_with_default_dummy_domain(client)
         MyLogger.get_instance().log("Created whole graph")
         client.close()
         return

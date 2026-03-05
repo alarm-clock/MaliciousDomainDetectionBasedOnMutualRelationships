@@ -8,12 +8,12 @@ class NodeTypes(Enum):
     DUMMY_DOMAIN = 'Du_domain'
     TMP_DOMAIN = 'Tmp_domain'
     IP = 'IP' #since python guarantees that attributes are in the same order as they are written I can do dirty trick
-              #but one that makes my life easier that when I want filter out supporting nodes then I just go until
+              #but one that makes my life easier, that when I want filter out supporting nodes then I just go until
               # I hit IP
               #IP MUST BE LAST DATA NODE, SOME PARTS OF CODE ARE DEPENDENT ON THIS
 
     #supporting node types
-    DUMMY_SUB_DOMAIN = 'Du_sub_domain'
+    DUMMY_SUB_DOMAIN = 'Sdu_sub_domain'  #all dummy domains that will be created after initial creation must have prefix Sdu_
     CURRENT_VERSION = 'CurrentGraphVersion'
     VERSION = 'GraphVersion'
     ND_ID_CNT = 'NodeIdCnt'
@@ -46,6 +46,17 @@ class NodeTypes(Enum):
                 break
 
         return data
+
+    @staticmethod
+    def get_supporting_dummies_n_t() -> list:
+        dummies = []
+        prefix = "Sdu_"
+        for node in NodeTypes:
+            type_prefix = node.value[:len(prefix)]
+            if type_prefix == prefix:
+                dummies.append(node)
+
+        return dummies
 
 class EdgeTypes(Enum):
     TRANSLATES = 'translates'
