@@ -1,5 +1,7 @@
 import copy
 import json
+import time
+
 from dgl import DGLHeteroGraph
 from pymongo import MongoClient
 from functools import partial
@@ -260,12 +262,12 @@ class DatasetImporter:
         rows = [dict(zip(keys, values)) for values in zip(*n_data.values())]
 
         if "node_id" not in keys:
-            cnt = 0
-            for row in rows:
-                row["node_id"] = cnt
-                cnt += 1
 
-        if self._n_data.get(n_t) is None:
+            for cnt, row in enumerate(rows):
+                row["node_id"] = cnt
+
+
+        if self._n_data_neo4j.get(n_t) is None:
             self._n_data_neo4j[n_t] = rows
 
         else:
@@ -275,6 +277,8 @@ class DatasetImporter:
                 self._err = True
                 return
 
+            #TODO maybe I should sort it by node_id before inserting but who knows, most likely I don't need this part
+            MyLogger.get_instance().log_debug(f"SOMEHOW I GOT HERE {n_t}")
             for cnt in range(len(rows)):
                 self._n_data_neo4j[n_t][cnt] = self._n_data_neo4j[n_t][cnt] | rows[cnt]
 
@@ -328,8 +332,10 @@ class DatasetImporter:
             self._store_edge(e_type_tup, u, v, e_data)
 
             if u_data is not None:
+                MyLogger.get_instance().log_debug(f"u_data length is {len(u_data)}")
                 self._store_n_data(u_t.value, u_data)
             if v_data is not None:
+                MyLogger.get_instance().log_debug(f"v_data length is {len(v_data)}")
                 self._store_n_data(v_t.value, v_data)
 
             if len(u) > 0 and len(v) > 0:
@@ -420,11 +426,27 @@ class DatasetImporter:
         self._wait_on_workers()
         return
 
-    def _send_query_in_batches(self, func, rows: list[dict], batch_size: int = 1000) -> None:
+
+    #def _send_batches(self, func) -> None:
+
+    def _send_query_in_batches(self, func, rows: list[dict] | dict[str, list[dict]], batch_size: int = 1000) -> None:
+        """
+        Function that sends query in batches if there is high chance that query is too large to handle by database server
+        :param func: Function that sends query that takes rows as it's parameter
+        :param rows: Either `list[dict]` where each dict is one input row (this is for functions that have specific param
+        for input rows) or `dict[str, list[dict]]` where the `list[dict]` part is same as before and the outside dict are pairs
+        function's parameter name and data
+        :param batch_size: `int` size of batch, default is 1000
+        :return: None
+        """
+
         if batch_size < 1:
             return
 
+        #if type(rows) is dict:
+
         for cnt in range(0, len(rows), batch_size):
+            time.sleep(0.4)
             MyLogger.get_instance().log(f"Creating batch starting at {cnt}...")
             batch = rows[cnt:cnt + batch_size]
             func(batch)

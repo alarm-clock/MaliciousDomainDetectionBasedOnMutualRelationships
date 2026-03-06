@@ -47,7 +47,7 @@ class MyLogger:
         self._lock.release()
 
     def log(self, msg: str):
-        if self._logfile is None or self._log_level.value[1] <= MyLogger.LogLevel.INFO.value[1]:
+        if self._logfile is None or self._log_level.value[1] > MyLogger.LogLevel.INFO.value[1]:
             return
 
         threading.Thread(target=self._concurent_log, args=(msg,)).start()
@@ -59,13 +59,13 @@ class MyLogger:
         threading.Thread(target=self._concurent_log, args=(msg,MyLogger.LogLevel.ERROR)).start()
 
     def log_warning(self, msg: str) -> None:
-        if self._logfile is None or self._log_level.value[1] <= MyLogger.LogLevel.WARNING.value[1]:
+        if self._logfile is None or self._log_level.value[1] > MyLogger.LogLevel.WARNING.value[1]:
             return
 
         threading.Thread(target=self._concurent_log, args=(msg,MyLogger.LogLevel.WARNING)).start()
 
     def log_debug(self, msg: str, concurrent_log: bool = True, with_time: bool = True) -> None:
-        if self._logfile is None or self._log_level.value[1] <= MyLogger.LogLevel.DEBUG.value[1]:
+        if self._logfile is None or self._log_level.value[1] > MyLogger.LogLevel.DEBUG.value[1]:
             return
 
         if concurrent_log:

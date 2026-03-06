@@ -232,7 +232,7 @@ class Neo4jDBClient:
 
         self.wait_for_index_creation(index_names)
 
-    def wait_for_index_creation(self, index_names: list[str], time_between_queries: float = 2.0) -> None:
+    def wait_for_index_creation(self, index_names: list[str], time_between_queries: float = 8.0) -> None:
 
         query = f"""
         SHOW INDEXES
