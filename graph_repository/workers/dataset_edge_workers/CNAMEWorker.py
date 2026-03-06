@@ -26,6 +26,9 @@ class CNAMEWorker(DatasetWorker):
         format (name, option name, kwargs for that option or none)
     """
 
+    LONE_CNAMES = True
+    NO_LONE_CNAMES = False
+
     worker_name = "cname"
     available_options = [(worker_name,worker_name,None), (worker_name,f'{worker_name}_all',None)]
 
@@ -86,6 +89,7 @@ class CNAMEWorker(DatasetWorker):
         :return: Tuple with (flag indicating if these edges are for dummy or normal domain, u, v)
         """
 
+        #MyLogger.get_instance().log_debug(f"TUPAN {cname_tup}")
         cname_id = cname_tup[self._DOMAINS_ID]
 
         u = [u_id for u_id in cname_tup[self._DOMAINS_LIST] if u_id != cname_id]
@@ -99,9 +103,11 @@ class CNAMEWorker(DatasetWorker):
     def _create_edges(self):
 
         with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [executor.submit(self._connect_nodes_w_cname, cname_tup) for cname_tup in
-                       self._domains.values() if
-                       len(cname_tup[self._DOMAINS_LIST]) > 1]  # no connection can be made with one domain
+            futures = [executor.submit(self._connect_nodes_w_cname, cname_tup) for cname_tup in self._domains.values()]
+
+            #TODO mode to toggle this
+            #if len(cname_tup[self._DOMAINS_LIST]) > 1
+            # no connection can be made with one domain
 
             for future in futures:
                 result = future.result()
@@ -109,9 +115,11 @@ class CNAMEWorker(DatasetWorker):
                     edge_t, u, v = result
 
                     if edge_t == self._DUMMY:
+                        #MyLogger.get_instance().log_debug(f"PICACINA {u} {v}")
                         self._du.extend(u)
                         self._dum_dv.extend(v)
                     else:
+                       # MyLogger.get_instance().log_debug(f"AMANA HY {u} {v}")
                         self._u.extend(u)
                         self._v.extend(v)
 
@@ -134,6 +142,7 @@ class CNAMEWorker(DatasetWorker):
         found = self._collection.find(match, {"domain_name": 1, "_id": 0, "node_id": 1})
 
         for doc in found:
+            MyLogger.get_instance().log_debug(f"{doc['domain_name']} {doc['node_id']}  {self._domains[doc['domain_name']][self._DOMAINS_LIST]}")
             self._domains[doc["domain_name"]] = (self._DOMAIN, int(doc['node_id']),
                                                  self._domains[doc["domain_name"]][self._DOMAINS_LIST])
             # I don't need to check if domain is in the domains dictionary because I got it from it

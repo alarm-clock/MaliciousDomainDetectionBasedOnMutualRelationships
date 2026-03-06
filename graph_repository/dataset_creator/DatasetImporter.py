@@ -277,8 +277,6 @@ class DatasetImporter:
                 self._err = True
                 return
 
-            #TODO maybe I should sort it by node_id before inserting but who knows, most likely I don't need this part
-            MyLogger.get_instance().log_debug(f"SOMEHOW I GOT HERE {n_t}")
             for cnt in range(len(rows)):
                 self._n_data_neo4j[n_t][cnt] = self._n_data_neo4j[n_t][cnt] | rows[cnt]
 
@@ -332,10 +330,10 @@ class DatasetImporter:
             self._store_edge(e_type_tup, u, v, e_data)
 
             if u_data is not None:
-                MyLogger.get_instance().log_debug(f"u_data length is {len(u_data)}")
+                MyLogger.get_instance().log_debug(f"u_data length is {len(u_data['domain_name'])}")
                 self._store_n_data(u_t.value, u_data)
             if v_data is not None:
-                MyLogger.get_instance().log_debug(f"v_data length is {len(v_data)}")
+                MyLogger.get_instance().log_debug(f"v_data length is {len(v_data['domain_name'])}")
                 self._store_n_data(v_t.value, v_data)
 
             if len(u) > 0 and len(v) > 0:
