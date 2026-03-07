@@ -2,6 +2,9 @@ import time
 
 from neo4j import GraphDatabase
 from enum import Enum
+
+from sklearn.utils import deprecated
+
 from misc.Logger import MyLogger
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.workers.common.Enums import EditTypes
@@ -9,6 +12,7 @@ from neo4j.exceptions import ServiceUnavailable, AuthError
 from graph_repository.graph_main.graph_editing.common.Exceptions import TooManyVersions, Neo4jIndexError
 import json
 import sys
+from typing import Any
 
 
 class CouldNotConnect(Exception):
@@ -20,9 +24,30 @@ class CouldNotConnect(Exception):
 
 
 class Neo4jDBClient:
-    def __init__(self, host: str, port: int, username: str, password: str, database: str, alt_host: str | None = None):
+    """
+    Class that represents Neo4j domain relationship graph database driver. While it provides simple functions for
+    direct graph querying, it also has more complex methods for managing domain relationship graph.
+    """
+
+    def __init__(self, host: str, port: int, username: str, password: str, database: str, alt_host: str | None = None, batch_delay: float = 0.0, batch_size: int = 1000):
+        """
+        Class constructor that checks parameter validity and connects to database
+        :param host: `str`
+        :param port: `int`
+        :param username: `str`
+        :param password: `str`
+        :param database: `str`
+        :param alt_host: `str` Alias that can be used to connect to the database
+        :param batch_delay: `float`
+        :param batch_size: `int`
+        """
 
         self._err = False
+
+        if batch_delay < 0.0 or batch_size < 1:
+            self._err = True
+            raise ValueError("Invalid batch options")
+
         MyLogger.get_instance().log(f"Trying to connect to Neo4j db at {host}:{port} with user {username}...")
         try:
             driver = GraphDatabase.driver(f'bolt://{host}:{port}', auth=(username, password))
@@ -55,12 +80,21 @@ class Neo4jDBClient:
 
         self.driver = driver
         self.database = database
+        self._batch_delay = batch_delay
+        self._batch_size = batch_size
 
     @classmethod
     def from_config(cls, config: str):
+        """
+        Method that creates instance of `Neo4jDBClient` from configuration file
+        :param config: `str` path to configuration file
+        :return: Instance of `Neo4jDBClient`
+        """
 
         host = ''
         alt_host = None
+        batch_delay = 0.0
+        batch_size = 1000
         user = ''
         port = 0
         pwd = ''
@@ -86,43 +120,100 @@ class Neo4jDBClient:
             except KeyError:
                 alt_host = None
 
-        return Neo4jDBClient(host, port, user, pwd, db, alt_host)
+            try:
+                batch_delay = conf['batch_delay']
+            except KeyError:
+                pass
 
-    def close(self):
+            try:
+                batch_size = conf['batch_size']
+            except KeyError:
+                pass
+
+        return Neo4jDBClient(host, port, user, pwd, db, alt_host, batch_delay, batch_size)
+
+    def close(self) -> None:
+        """
+        Method that closes connection with the database
+        :return: None
+        """
         self.driver.close()
 
-    def execute_write(self, query, **params):
+    def execute_write(self, query, **params) -> Any:
+        """
+        Method that executes write on the graph
+        :param query: `str`
+        :param params: query parameters (values that will be substituted in query instead of $variables in query)
+        :return: `Any` query result
+        """
         with self.driver.session(database=self.database) as s:
             return s.execute_write(lambda tx: tx.run(query, **params).data())
 
-    def execute_read(self, query, **params):
+    def execute_read(self, query, **params) -> Any:
+        """
+        Method that executes read on the graph
+        :param query: `str`
+        :param params: query parameters (values that will be substituted in query instead of $variables in query)
+        :return: `Any` query result
+        """
         with self.driver.session(database=self.database) as s:
             return s.execute_read(lambda tx: tx.run(query, **params).data())
 
     def get_max_id_of_node_type(self, n_t: NodeTypes | str) -> int:
+        """
+        Method that returns max node_id of given ``n_t`` that is present in the graph
+        :param n_t: `NodeTypes` node type for which max id will be returned
+        :return: `int` max id
+        """
         n_t_str = n_t.value if type(n_t) == NodeTypes else n_t
         return self.execute_read(f"MATCH (n:{n_t_str}) RETURN max(n.node_id) AS {n_t_str}_max_id")[0][f'{n_t_str}_max_id']
 
     def get_current_active_graph_version(self) -> int:
+        """
+        Method that returns current graph version that should be used for computation
+        :return: `int` current version
+        """
         return self.execute_read(f"MATCH (v: {NodeTypes.CURRENT_VERSION.value}) RETURN v.version AS vers")[0]['vers']
 
     def get_existing_versions(self) -> list[int]:
+        """
+        Method that returns all existing version of graph
+        :return: `list[int] all graph versions
+        """
         return self.execute_read(f"MATCH (v: {NodeTypes.VERSION.value}) RETURN collect(v.version) AS vers")[0]['vers']
 
     def set_new_graph_version_node(self, new_version: int) -> None:
+        """
+        Method for setting new graph version node, if such version already exists then nothing will happen
+        :param new_version: `int` new graph version number
+        :return: None
+        """
         query = f"""
-        CREATE(: {NodeTypes.VERSION.value} {{version: {new_version}, n_users: 0}})
+        MERGE (: {NodeTypes.VERSION.value} {{version: {new_version}, n_users: 0}})
         """
         self.execute_write(query)
 
     def create_node_id_cnt(self, n_t: NodeTypes | str, start_value: int = 0) -> None:
+        """
+        Method that creates node_id counter for given ``n_t`` node type, if counter for given ``n_t`` exists, nothing will happen
+        :param n_t: `NodeTypes` for which counter will be created
+        :param start_value: `int` Counters start value
+        :return: None
+        """
         n_t_str = n_t.value if type(n_t) == NodeTypes else n_t
-        self.execute_write(f"CREATE (:{NodeTypes.ND_ID_CNT.value} {{ cnt_name: \"{n_t_str}\", val: {start_value} }}) ")
+        self.execute_write(f"MERGE (:{NodeTypes.ND_ID_CNT.value} {{ cnt_name: \"{n_t_str}\", val: {start_value} }}) ")
 
     _FREE_NODE_ID_POSTFIX = "_free_node_id"
 
     @staticmethod
     def get_free_node_id_query(n_t: NodeTypes, as_subquery: bool, req_number_of_ids: int = 1) -> str | None:
+        """
+        Method that returns query that can be used as part of larger query for dynamic allocation of node_ids for given ``n_t`` `NodeTypes`
+        :param n_t: `NodeTypes` specifying for which node type these ids are
+        :param as_subquery: `bool` specifying if query is being called as subquery
+        :param req_number_of_ids: `int` number of ids that need to be allocated
+        :return: `str` on success, None if ``req_number_of_ids is less then 1
+        """
 
         if req_number_of_ids < 1:
             return None
@@ -184,6 +275,12 @@ class Neo4jDBClient:
         return query
 
     def get_free_node_id(self, n_t: NodeTypes, req_number_of_ids: int = 1) -> list[int] | int:
+        """
+        Method that allocates and returns specified number of node_ids for given ``n_t`` `NodeTypes`
+        :param n_t: `NodeTypes` specifying for which node type these ids are
+        :param req_number_of_ids: `int` required number of ids
+        :return: `int | list[int]` ids that have been allocated
+        """
 
         res = self.execute_write(self.get_free_node_id_query(n_t, False, req_number_of_ids))
         print(res)
@@ -191,6 +288,12 @@ class Neo4jDBClient:
         return ret_val
 
     def return_unused_node_ids(self, n_t: NodeTypes, node_ids: int | list[int]) -> None:
+        """
+        Method for returning unused node_ids that have been allocated
+        :param n_t: `NodeTypes` specifying to which node types these ids belong to
+        :param node_ids: `int | list[int]` Ids that will be returned
+        :return: None
+        """
 
         query = f"""
         UNWIND $ids AS returned_id
@@ -204,13 +307,28 @@ class Neo4jDBClient:
 
     #TODO RETURN node_id when deleting any node
 
-    def set_new_current_graph_version_node(self, new_current_version: int) -> None:
+    def set_new_current_graph_version_node(self, new_current_version: int) -> bool:
+        """
+        Method that sets the new current graph version
+        :param new_current_version: `int` new current graph version
+        :return: True on success, False otherwise (new version is not present in graph)
+        """
+
+        if new_current_version not in self.get_existing_versions():
+            MyLogger.get_instance().log_error(f'Version {new_current_version} is not present in graph, therefore can not be set as new current graph version')
+            return False
+
+        if new_current_version == self.get_current_active_graph_version():
+            MyLogger.get_instance().log(f"Version {new_current_version} is already set as current graph version")
+            return True
+
         query = f"""
         OPTIONAL MATCH (old_version: {NodeTypes.CURRENT_VERSION.value})
         DETACH DELETE old_version
         CREATE (: {NodeTypes.CURRENT_VERSION.value} {{version: {new_current_version}}})
         """
         self.execute_write(query)
+        return True
 
     def _create_indexes_for_graph_copy(self) -> None:
         labels = self.get_all_labels_in_graph()
@@ -233,6 +351,12 @@ class Neo4jDBClient:
         self.wait_for_index_creation(index_names)
 
     def wait_for_index_creation(self, index_names: list[str], time_between_queries: float = 8.0) -> None:
+        """
+        Method that waits until indexes in ``index_names`` have been created.
+        :param index_names: `list[str]` of index names
+        :param time_between_queries: `float` in seconds how much to wait between subsequent queries
+        :return: None
+        """
 
         query = f"""
         SHOW INDEXES
@@ -263,6 +387,10 @@ class Neo4jDBClient:
         return
 
     def get_all_labels_in_graph(self) -> list[str]:
+        """
+        Method that returns all node types that are in the graphs, excluding those used to manage system
+        :return: `list[str]` With all node types that are in the graph
+        """
 
         node_label_q = "\" AND label <> \"".join(NodeTypes.get_data_n_t_str())
 
@@ -278,6 +406,10 @@ class Neo4jDBClient:
         """)[0]['lab']
 
     def get_all_relationships_in_graph(self) -> list[str]:
+        """
+        Method that returns all relationships that are in graph
+        :return: `list[str]` with all relationships types
+        """
         return self.execute_read(f"""
         CALL db.relationshipTypes()
         YIELD relationshipType
@@ -285,8 +417,19 @@ class Neo4jDBClient:
         """)[0]['rel']
 
 
-    def delete_graph_version(self, version: int) -> None:
+    def delete_graph_version(self, version: int, force: bool = False) -> bool:
+        """
+        Method that deletes one version of graph
+        :param version: `int` specifying version that will be deleted
+        :param force: `bool` used to bypass checks like if deleted version is current graph version
+        :return: True on success, False otherwise
+        """
+        current_version = self.get_current_active_graph_version()
+        if current_version == version and not force:
+            MyLogger.get_instance().log_warning(f"Tried to delete current graph version which is version {version}!")
+            return False
 
+        #TODO BATCHES BABY
         labels = self.get_all_labels_in_graph()
         for label in labels:
             query = f"""
@@ -296,18 +439,10 @@ class Neo4jDBClient:
             self.execute_write(query)
 
         self.execute_write(f"MATCH (n: {NodeTypes.VERSION.value} {{version: {version} }} ) DELETE n")
-        return
-
-    def send_query_in_batches(self, query: str, data: list, unwind_name: str = "rows", batch_size: int = 1000) -> None:
-        if len(data) < 1:
-            return
-
-        for cnt in range(0, len(data), batch_size):
-            MyLogger.get_instance().log_debug(f"Sending batch with start id {cnt} to neo4j...")
-            batch_data = data[cnt:cnt+batch_size]
-            self.execute_write(query,**{unwind_name: batch_data})
-
-
+        if force and current_version == version:
+            MyLogger.get_instance().log_warning(f"Deleted current version of graph which was version {version}! Force flag was set")
+            self.execute_write(f"MATCH (n: {NodeTypes.CURRENT_VERSION.value} {{version: {version} }} ) DELETE n")
+        return True
 
     def _create_edge_copy_query(self, v_label: str, relation: str, current_version: int) -> str:
 
@@ -427,6 +562,13 @@ class Neo4jDBClient:
  #       return current_version + 1
 
     def create_nodes(self, node_type: NodeTypes | str, rows: list[dict], edit_type: EditTypes = EditTypes.IGNORE_EXISTING) -> None:
+        """
+        Method for creating nodes in the graph
+        :param node_type: Either `NodeTypes` or `str` specifying node types, (best to use NodeTypes)
+        :param rows: `list[dict]` with data that will be stored in the node's
+        :param edit_type: `EditTypes` enum specifying how to handle case when created node is duplicate in graph
+        :return: None
+        """
 
         if len(rows) <= 0:
             return
@@ -489,6 +631,14 @@ class Neo4jDBClient:
         return {"edges": query}
 
     def create_edges(self, query: tuple[str, str] | dict, rows: list[dict]) -> None:
+        """
+        Method for creating edges in graph
+        :param query: `dict` edge creation query parameters from which query is build, best to use this option ``OR``
+            `tuple[str, str]` where first `str` is custom query string and second `str` is parameter name
+        :param rows: `list[dict]` List with edges, if query is build from parameters then dict must consist from 2 keys
+            where the first key (u) is start of the edge and the second key (v) is end of edge
+        :return: None
+        """
 
         if type(query) != dict:
             self.execute_write(query[0], **{query[1]: rows})
@@ -498,17 +648,112 @@ class Neo4jDBClient:
         return
 
     @staticmethod
-    def get_node_replace_query(old_var: str, new_var: str) -> str:
-        return f"""
-        WITH {old_var} AS old, {new_var} AS new
-        MATCH (old)-[r]->(other)
-        MATCH (other2)-[r_rev]->(old)
-        WITH old, new, r, r_rev, other, other2,
-            CASE WHEN startNode(r) = old THEN new ELSE other END AS startNode1,
-            CASE WHEN endNode(r) = old THEN new ELSE other END AS endNode1,
-            CASE WHEN startNode(r_rev) = old THEN new ELSE other2 END AS startNode2,
-            CASE WHEN endNode(r_rev) = old THEN new ELSE other2 END AS endNode2
+    def get_node_replace_query(old_var: str, new_var: str, call: bool = False) -> str:
+        """
+        Method that returns query subpart for node replacing
+        :param old_var: `str` Old noded variable that will be replaced
+        :param new_var: `str` New noded variable that will be replaced
+        :param call: `bool` Whether to use replace query as sub-query
+        :return: `str` query
+        """
 
+        return f"""
+        {f'CALL ('+old_var+','+new_var+'){' if call else ''}
+        WITH {old_var} AS old, {new_var} AS new
+        MATCH (old)-[r]->()
+        CALL apoc.refactor.from(r, new) YIELD input, output
+        
+        WITH old, new
+        MATCH ()-[r]->(old)
+        CALL apoc.refactor.to(r, new) YIELD input, output
+        
+        WITH  old
+        DETACH DELETE old
+        {'}' if call else ''}
+        """
+    #        DELETE r
+    #    DELETE r_rev
+    def check_label_exists(self, label: NodeTypes | str) -> bool:
+        label_str = label if type(label) == str else label.value
+        return len(self.execute_read(f"MATCH (n:{label_str}) RETURN n LIMIT 1")) != 0
+
+    def _create_cartesian_batches(self, func, data: list[tuple[str, list]], batch_build: dict[str, list],
+                                  batch_size: int, batch_delay: float) -> None:
+
+        if len(data) == 0:
+            return
+
+        key, rows = data[0]
+        rest = data[1:]
+        rest_empty = len(rest) == 0
+
+        for cnt in range(0, len(rows), batch_size):
+            batch = rows[cnt:cnt + batch_size]
+            batch_build[key] = batch
+
+            if rest_empty:
+                time.sleep(batch_delay)
+                MyLogger.get_instance().log_debug(f"Creating cartesian batch starting at {cnt} for key {key}...")
+                func(**batch_build)
+            else:
+                self._create_cartesian_batches(func, rest, batch_build, batch_size, batch_delay)
+
+    def _send_batch(self, func, data: list[dict] | tuple[str, list], batch_size: int, batch_delay: float) -> None:
+
+        mode = type(data) == list
+        rows = data if mode else data[1]
+
+        for cnt in range(0, len(rows), batch_size):
+            time.sleep(batch_delay)
+            MyLogger.get_instance().log(f"Creating batch starting at {cnt}...")
+            batch = rows[cnt:cnt + batch_size]
+
+            if mode:
+                func(batch)
+            else:
+                func(**{data[0]: batch})
+
+    def send_query_in_batches_func(self, func, rows: list[dict] | dict[str, list], batch_size: int | None = None,
+                                   batch_delay: float | None = None, as_one_param: bool = True) -> None:
+        """
+        Function that sends query in batches if there is high chance that query is too large to handled by database server
+        :param func: Function that sends query that takes rows as it's parameter
+        :param rows: Either `list[dict]` where each dict is one input row (this is for functions that have specific param
+             for input rows) ``or`` `dict[str, list]` where the `list` part are data that will be unwinded in query
+            function's parameter name and data
+        :param batch_size: `int` size of batch, if `None` is provided, instances default value is used
+        :param batch_delay: `float` delay between two queries, if `None` is provided, instances default value is used
+        :param as_one_param: `bool` whether to send query as one parameter or not, has only meaning when rows is `dict` and there is more than one item in it, default is True
+        :return: None
+        """
+
+        if batch_size is None:
+            batch_size = self._batch_size
+        if batch_delay is None:
+            batch_delay = self._batch_delay
+
+        if batch_size < 1:
+            return
+
+        if type(rows) is dict:
+            if as_one_param:
+                self._create_cartesian_batches(func, list(rows.items()), {}, batch_size, batch_delay)
+            else:
+                # I mean I know this is a bit stupid but there could be some obscure use of this mode
+                for key, val in rows.items():
+                    self._send_batch(func, (key, val), batch_size, batch_delay)
+        else:
+            self._send_batch(func, rows, batch_size, batch_delay)
+
+
+def get_version_query(version: int, alone: bool) -> str:
+    return ('' if alone else ', ') + f" graph_version: {version}"
+
+
+
+"""
+        MATCH (old)-[r]->(other)
+        WITH old, new, r, other
         CALL apoc.merge.relationship(
             startNode1,
             type(r),
@@ -516,6 +761,12 @@ class Neo4jDBClient:
             {{}},
             endNode1
         ) YIELD rel AS rel1
+        DELETE r
+        
+        MATCH (other2)-[r_rev]->(old)
+        WITH old, new, r, r_rev, other, other2
+
+
         CALL apoc.merge.relationship(
             startNode2,
             type(r_rev),
@@ -523,17 +774,6 @@ class Neo4jDBClient:
             {{}},
             endNode2
         ) YIELD rel AS  rel2
-        DELETE r
-        DELETE r_rev
+
         
-        WITH old
-        DETACH DELETE old
-        """
-
-    def check_label_exists(self, label: NodeTypes | str) -> bool:
-        label_str = label if type(label) == str else label.value
-        return len(self.execute_read(f"MATCH (n:{label_str}) RETURN n LIMIT 1")) != 0
-
-
-def get_version_query(version: int, alone: bool) -> str:
-    return ('' if alone else ', ') + f" graph_version: {version}"
+"""

@@ -424,40 +424,16 @@ class DatasetImporter:
         self._wait_on_workers()
         return
 
-
-    #def _send_batches(self, func) -> None:
-
-    def _send_query_in_batches(self, func, rows: list[dict] | dict[str, list[dict]], batch_size: int = 1000) -> None:
-        """
-        Function that sends query in batches if there is high chance that query is too large to handle by database server
-        :param func: Function that sends query that takes rows as it's parameter
-        :param rows: Either `list[dict]` where each dict is one input row (this is for functions that have specific param
-        for input rows) or `dict[str, list[dict]]` where the `list[dict]` part is same as before and the outside dict are pairs
-        function's parameter name and data
-        :param batch_size: `int` size of batch, default is 1000
-        :return: None
-        """
-
-        if batch_size < 1:
-            return
-
-        #if type(rows) is dict:
-
-        for cnt in range(0, len(rows), batch_size):
-            time.sleep(0.4)
-            MyLogger.get_instance().log(f"Creating batch starting at {cnt}...")
-            batch = rows[cnt:cnt + batch_size]
-            func(batch)
-
     def _replace_other_dummies_with_default_dummy_domain(self, driver: Neo4jDBClient) -> None:
 
         dummy_labels =  NodeTypes.get_supporting_dummies_n_t()
         if not driver.check_label_exists(NodeTypes.DUMMY_DOMAIN):
             driver.create_node_id_cnt(NodeTypes.DUMMY_DOMAIN)
 
-        for label in dummy_labels:
+        for label in dummy_labels: # UNWIND $ids AS id {{node_id: id}}
             query = f"""
-            MATCH (n: {label.value})
+            UNWIND $ids AS id
+            MATCH (n: {label.value} {{node_id: id}})
             MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: n.domain_name, graph_version: 1, depth: n.depth}})
             ON CREATE
                 SET du_match.node_id = null
@@ -474,7 +450,10 @@ class DatasetImporter:
             
             {Neo4jDBClient.get_node_replace_query('n','du_match')}
             """
-            driver.execute_write(query)
+
+            ids = list(range(driver.get_max_id_of_node_type(label) + 1))
+            pre_filled = partial(driver.execute_write, query)
+            driver.send_query_in_batches_func(pre_filled,{"ids": ids}, as_one_param=False)
 
         return
 
@@ -504,7 +483,7 @@ class DatasetImporter:
             client.execute_write(constraint_query)
 
             pre_filled = partial(client.create_nodes,n_t)
-            self._send_query_in_batches(pre_filled, rows, 2000)
+            client.send_query_in_batches_func(pre_filled, rows)
 
             index_query = f"""
             CREATE INDEX {n_t}NodeIdIndex
@@ -544,7 +523,7 @@ class DatasetImporter:
             }
 
             pre_filled = partial(client.create_edges,edge_creation_option)
-            self._send_query_in_batches(pre_filled, edges, 1000)
+            client.send_query_in_batches_func(pre_filled, edges)
 
         self._replace_other_dummies_with_default_dummy_domain(client)
         MyLogger.get_instance().log("Created whole graph")
