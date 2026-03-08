@@ -1,7 +1,7 @@
 from enum import Enum
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
-from graph_repository.graph_repo_misc import domain_depth, reverse_domain
+from graph_repository.graph_repo_misc import domain_depth, reverse_domain, get_domains_parent_domains
 import pymongo
 from concurrent.futures import ThreadPoolExecutor
 import pygtrie
@@ -80,7 +80,7 @@ class SubdomainWorker(DatasetWorker):
             self._nd_type2,
             self._e_type,
             self._nd_type2,
-            u_data={"domain_name": self._dummy_name, 'depth': self._dummy_depth}
+            u_data={"domain_name": self._dummy_name, 'depth': self._dummy_depth, "parent_domains": [get_domains_parent_domains(domain_name) for domain_name in self._dummy_name] }
         )
         self._submit_callback_method(self._du_d_u,self._du_d_v,self._nd_type2,self._e_type, self._nd_type1)
         self._submit_callback_method(self._du_d_v,self._du_d_u,self._nd_type1, self._e_type, self._nd_type2)

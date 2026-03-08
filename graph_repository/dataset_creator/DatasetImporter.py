@@ -434,7 +434,7 @@ class DatasetImporter:
             query = f"""
             UNWIND $ids AS id
             MATCH (n: {label.value} {{node_id: id}})
-            MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: n.domain_name, graph_version: 1, depth: n.depth}})
+            MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: n.domain_name, graph_version: 1, depth: n.depth, parent_domains: n.parent_domains}})
             ON CREATE
                 SET du_match.node_id = null
             WITH n, du_match

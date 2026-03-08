@@ -10,6 +10,7 @@ Description: Class used for parallel creation of CNAME edges from dataset
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.graph_repo_misc import domain_depth
+from graph_repository.graph_repo_misc import get_domains_parent_domains
 from concurrent.futures import ThreadPoolExecutor
 from misc.Logger import MyLogger
 import pymongo
@@ -30,7 +31,11 @@ class CNAMEWorker(DatasetWorker):
     NO_LONE_CNAMES = False
 
     worker_name = "cname"
-    available_options = [(worker_name,worker_name,None), (worker_name,f'{worker_name}_all',None)]
+    available_options = [
+        (worker_name,worker_name,{"mode": True}),
+        (worker_name,worker_name+"_no_lone", {"mode": False}),
+        (worker_name,f'{worker_name}_all',{"mode": True})
+    ]
 
     _project: dict = {'_id': 0, "dns.CNAME.value": 1, "node_id": 1}
     _nd_type1 = NodeTypes.DOMAIN
@@ -43,7 +48,7 @@ class CNAMEWorker(DatasetWorker):
     _DOMAINS_LIST = 2
     _BATCH_SIZE = 5000
 
-    def __init__(self, submit_callback_method, collection: pymongo.collection.Collection, ranges: list):
+    def __init__(self, submit_callback_method, collection: pymongo.collection.Collection, ranges: list, mode: bool):
         """
         Initializes CNAMEWorker class attributes.
         :param submit_callback_method: Method for submitting results to dispatcher
@@ -56,6 +61,7 @@ class CNAMEWorker(DatasetWorker):
         self._dum_dv: list[int] = []
         self._dum_d_names: list[str] = []
         self._dum_d_depth: list[int] = []
+        self._mode = mode
 
     def _submit_result(self) -> None:
         """
@@ -75,7 +81,7 @@ class CNAMEWorker(DatasetWorker):
                 self._nd_type1,
                 EdgeTypes.CNAME,
                 self._nd_type2,
-                v_data={'domain_name': self._dum_d_names, 'depth': self._dum_d_depth}
+                v_data={'domain_name': self._dum_d_names, 'depth': self._dum_d_depth, 'parent_domains': [get_domains_parent_domains(domain) for domain in self._dum_d_names]}
             )
             self._submit_callback_method(self._dum_dv, self._du, self._nd_type2, EdgeTypes.CNAME, self._nd_type1)
 
@@ -103,7 +109,10 @@ class CNAMEWorker(DatasetWorker):
     def _create_edges(self):
 
         with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [executor.submit(self._connect_nodes_w_cname, cname_tup) for cname_tup in self._domains.values()]
+            futures = [
+                executor.submit(self._connect_nodes_w_cname, cname_tup) for cname_tup in self._domains.values()
+                if len(cname_tup[self._DOMAINS_LIST]) > 1 or self._mode == self.LONE_CNAMES
+            ]
 
             #TODO mode to toggle this
             #if len(cname_tup[self._DOMAINS_LIST]) > 1
@@ -168,9 +177,13 @@ class CNAMEWorker(DatasetWorker):
         for key in self._domains.keys():
             if self._domains[key][self._DOMAINS_ID] == -1:
                 self._domains[key] = (self._DUMMY, dummy_id, self._domains[key][self._DOMAINS_LIST])
-                self._dum_d_names.append(key)
-                self._dum_d_depth.append(domain_depth(key))
                 dummy_id += 1
+
+                #based on the chosen mode dummy domains are created or not
+                if self._mode == self.LONE_CNAMES or len(self._domains[key][self._DOMAINS_LIST]) > 1:
+                    self._dum_d_names.append(key)
+                    self._dum_d_depth.append(domain_depth(key))
+
 
     def _match_entries_with_same_cname(self):
 

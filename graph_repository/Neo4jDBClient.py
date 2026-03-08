@@ -746,8 +746,8 @@ class Neo4jDBClient:
             self._send_batch(func, rows, batch_size, batch_delay)
 
 
-def get_version_query(version: int, alone: bool) -> str:
-    return ('' if alone else ', ') + f" graph_version: {version}"
+def get_version_query(version: int, alone: bool, variable: str | None = None) -> str:
+    return ('' if alone else ', ') + (variable+'.' if variable is not None else '')  +f"graph_version: {version}"
 
 
 
