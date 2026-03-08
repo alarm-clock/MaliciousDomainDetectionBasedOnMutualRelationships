@@ -17,6 +17,8 @@ class NodeTypes(Enum):
     CURRENT_VERSION = 'CurrentGraphVersion'
     VERSION = 'GraphVersion'
     ND_ID_CNT = 'NodeIdCnt'
+    MAINTENANCE = 'Maintenance'
+
 
     @staticmethod
     def from_str(n_t: str):

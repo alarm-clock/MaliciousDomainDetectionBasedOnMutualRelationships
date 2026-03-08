@@ -3,7 +3,7 @@ from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.graph_repo_misc import get_domains_parent_domains, reverse_domain, calc_jaccard, domain_depth
+from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
 from graph_repository.workers.common.Enums import EditTypes
 from misc.Pair import replace
 from typing import Any, Iterable
@@ -11,7 +11,7 @@ from typing import Any, Iterable
 class SubdomainWorker(EditWorker):
 
     worker_name = 'subdomain'
-    req_callbacks = (worker_name, [EditWorker.ReqCallbacks.EDGE])
+    req_callbacks = (worker_name, [EditWorker.ReqCallbacks.EDGE, EditWorker.ReqCallbacks.NODE])
     _limit = 5000
 
     _index_query = f"""

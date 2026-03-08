@@ -13,7 +13,7 @@ from graph_repository.dataset_creator.DGLImporter import export_dgl_graph
 from misc.Logger import MyLogger
 from misc.PackageImporter import import_all_modules_from_package
 from graph_repository.graph_repo_misc import parse_ranges
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBClient import Neo4jDBClient, CouldNotConnect
 import torch as th
 from threading import Lock
 import sys
@@ -330,10 +330,10 @@ class DatasetImporter:
             self._store_edge(e_type_tup, u, v, e_data)
 
             if u_data is not None:
-                MyLogger.get_instance().log_debug(f"u_data length is {len(u_data['domain_name'])}")
+                #MyLogger.get_instance().log_debug(f"u_data length is {len(u_data['domain_name'])}")
                 self._store_n_data(u_t.value, u_data)
             if v_data is not None:
-                MyLogger.get_instance().log_debug(f"v_data length is {len(v_data['domain_name'])}")
+                #MyLogger.get_instance().log_debug(f"v_data length is {len(v_data['domain_name'])}")
                 self._store_n_data(v_t.value, v_data)
 
             if len(u) > 0 and len(v) > 0:
@@ -459,7 +459,11 @@ class DatasetImporter:
 
     def _import_into_neo4j(self, neo4j_conf: str):
 
-        client = Neo4jDBClient.from_config(neo4j_conf)
+        try:
+            client = Neo4jDBClient.from_config(neo4j_conf)
+        except CouldNotConnect:
+            return
+
         if client is None:
             return
 

@@ -77,6 +77,11 @@ class Neo4jDBClient:
             print(err, file=sys.stderr)
             self._err = True
             raise CouldNotConnect(host, port, username)
+        except ServiceUnavailable as err:
+            MyLogger.get_instance().log_error(f"Even though connected to the server, verify connection returned service unavailable: {err}")
+            print(err, file=sys.stderr)
+            self._err = True
+            raise CouldNotConnect(host, port, username)
 
         self.driver = driver
         self.database = database
@@ -158,6 +163,15 @@ class Neo4jDBClient:
         """
         with self.driver.session(database=self.database) as s:
             return s.execute_read(lambda tx: tx.run(query, **params).data())
+
+    def set_maintenance_node(self) -> None:
+        self.execute_write(f"CREATE (:{NodeTypes.MAINTENANCE.value})")
+
+    def remove_maintenance_node(self) -> None:
+        self.execute_write(f"MATCH (n:{NodeTypes.MAINTENANCE.value}) DETACH DELETE n")
+
+    def is_graph_in_maintenance(self) -> bool:
+        return self.execute_read(f"MATCH (n: {NodeTypes.MAINTENANCE.value}) RETURN n AS is")[0]['is']
 
     def get_max_id_of_node_type(self, n_t: NodeTypes | str) -> int:
         """
