@@ -151,7 +151,7 @@ class CNAMEWorker(DatasetWorker):
         found = self._collection.find(match, {"domain_name": 1, "_id": 0, "node_id": 1})
 
         for doc in found:
-            MyLogger.get_instance().log_debug(f"{doc['domain_name']} {doc['node_id']}  {self._domains[doc['domain_name']][self._DOMAINS_LIST]}")
+            #MyLogger.get_instance().log_debug(f"{doc['domain_name']} {doc['node_id']}  {self._domains[doc['domain_name']][self._DOMAINS_LIST]}")
             self._domains[doc["domain_name"]] = (self._DOMAIN, int(doc['node_id']),
                                                  self._domains[doc["domain_name"]][self._DOMAINS_LIST])
             # I don't need to check if domain is in the domains dictionary because I got it from it
