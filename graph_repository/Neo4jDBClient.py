@@ -392,7 +392,7 @@ class Neo4jDBClient:
         :return: `list[str]` With all node types that are in the graph
         """
 
-        node_label_q = "\" AND label <> \"".join(NodeTypes.get_data_n_t_str())
+        node_label_q = "\" AND label <> \"".join([ n_t_str+Neo4jDBClient._FREE_NODE_ID_POSTFIX for n_t_str in NodeTypes.get_data_n_t_str()])
 
         return self.execute_read(f"""
         CALL db.labels() 
@@ -401,7 +401,7 @@ class Neo4jDBClient:
               label <> "{NodeTypes.CURRENT_VERSION.value}" AND 
               label <> "{NodeTypes.TMP_DOMAIN.value}" AND
               label <> "{NodeTypes.ND_ID_CNT.value}" AND
-              label \"{node_label_q}\"
+              label <> "{node_label_q}"
         RETURN collect(label) AS lab
         """)[0]['lab']
 
