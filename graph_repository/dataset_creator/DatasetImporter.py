@@ -489,7 +489,7 @@ class DatasetImporter:
                 {Neo4jDBClient.get_node_replace_query('n','du_match')} 
                 ",
                 {{
-                    batchsize: 3,
+                    batchsize: 1,
                     parallel: false,
                     batchMode: 'SINGLE'
                 }}

@@ -265,6 +265,31 @@ class Neo4jDBClient:
             WITH free_id
             LIMIT 1
             
+            CALL (free_id) {{
+                WITH free_id
+                WHERE free_id IS NOT NULL
+                WITH free_id.node_id AS free_node_id, free_id
+                DELETE free_id
+                RETURN free_node_id
+
+                UNION
+                
+                WITH free_id
+                WHERE free_id IS NULL
+                MATCH (counter: {NodeTypes.ND_ID_CNT.value} {{cnt_name: '{n_t.value}' }})
+                SET counter.val = counter.val + 1
+                RETURN counter.val - 1 AS free_node_id
+            }}
+            
+            RETURN free_node_id
+            """
+
+
+            f"""
+            OPTIONAL MATCH (free_id: {n_t.value}{Neo4jDBClient._FREE_NODE_ID_POSTFIX})
+            WITH free_id
+            LIMIT 1
+            
             MATCH (counter: {NodeTypes.ND_ID_CNT.value} {{cnt_name: '{n_t.value}' }})
 
             WITH free_id, counter, 
@@ -675,11 +700,15 @@ class Neo4jDBClient:
         return f"""
         {f'CALL ('+old_var+','+new_var+'){' if call else ''}
         WITH {old_var} AS old, {new_var} AS new
+        REMOVE old:Sdu_sub_domain
+        WITH old, new
+        
         CALL apoc.refactor.mergeNodes([new, old], {{
             properties: 'discard',
             mergeRels: true
         }}) YIELD node
-        RETURN 1
+        
+        RETURN node
         {'}' if call else ''}
         """
     #        DELETE r
