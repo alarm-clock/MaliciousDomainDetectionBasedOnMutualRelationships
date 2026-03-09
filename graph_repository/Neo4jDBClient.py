@@ -247,7 +247,7 @@ class Neo4jDBClient:
             CALL(rem_cnt){{
                 WITH rem_cnt
                 WHERE rem_cnt > 0
-                MATCH (counter: {NodeTypes.ND_ID_CNT.value} {{cnt_name: \"{n_t.value}\" }})
+                MATCH (counter: {NodeTypes.ND_ID_CNT.value} {{cnt_name: '{n_t.value}' }})
                 SET counter.val = counter.val + rem_cnt
                 RETURN range(counter.val - rem_cnt, counter.val - 1) AS allocated_ids 
                 
@@ -265,7 +265,7 @@ class Neo4jDBClient:
             WITH free_id
             LIMIT 1
             
-            MATCH (counter: {NodeTypes.ND_ID_CNT.value} {{cnt_name: \"{n_t.value}\" }})
+            MATCH (counter: {NodeTypes.ND_ID_CNT.value} {{cnt_name: '{n_t.value}' }})
 
             WITH free_id, counter, 
                 CASE WHEN free_id IS NOT NULL
@@ -671,18 +671,15 @@ class Neo4jDBClient:
         :return: `str` query
         """
 
+        #TODO REMOVE OLD LABELS FROM THE NEW NODE
         return f"""
         {f'CALL ('+old_var+','+new_var+'){' if call else ''}
         WITH {old_var} AS old, {new_var} AS new
-        MATCH (old)-[r]->()
-        CALL apoc.refactor.from(r, new) YIELD input, output
-        
-        WITH old, new
-        MATCH ()-[r]->(old)
-        CALL apoc.refactor.to(r, new) YIELD input, output
-        
-        WITH  old
-        DETACH DELETE old
+        CALL apoc.refactor.mergeNodes([new, old], {{
+            properties: 'discard',
+            mergeRels: true
+        }}) YIELD node
+        RETURN 1
         {'}' if call else ''}
         """
     #        DELETE r
@@ -764,6 +761,17 @@ def get_version_query(version: int, alone: bool, variable: str | None = None) ->
     return ('' if alone else ', ') + (variable+'.' if variable is not None else '')  +f"graph_version: {version}"
 
 
+"""
+        MATCH (old)-[r]->()
+        CALL apoc.refactor.from(r, new) YIELD input, output
+        
+        WITH old, new
+        MATCH ()-[r]->(old)
+        CALL apoc.refactor.to(r, new) YIELD input, output
+        
+        WITH  old
+        DETACH DELETE old
+"""
 
 """
         MATCH (old)-[r]->(other)

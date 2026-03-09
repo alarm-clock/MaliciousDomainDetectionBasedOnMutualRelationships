@@ -466,36 +466,47 @@ class DatasetImporter:
             print(f"Converting {label} domains to {NodeTypes.DUMMY_DOMAIN.value}...")
 
             query = f"""
-            UNWIND $ids AS id
-            MATCH (n: {label.value} {{node_id: id}})
-            MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: n.domain_name}})
-            ON CREATE
-                SET du_match.node_id = null,
-                    du_match.graph_version = 1,
-                    du_match.depth = n.depth,
-                    du_match.parent_domains = n.parent_domains
-            WITH n, du_match
-    
-            CALL(du_match){{
-                WITH du_match
-                WHERE du_match.node_id IS NULL
-            
-                {Neo4jDBClient.get_free_node_id_query(NodeTypes.DUMMY_DOMAIN,True)}
+            CALL apoc.periodic.iterate(
+                "MATCH (n: {label.value}) RETURN n",
+                "
+                    MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: n.domain_name}})
+                    ON CREATE
+                        SET du_match.node_id = null,
+                            du_match.graph_version = 1,
+                            du_match.depth = n.depth,
+                            du_match.parent_domains = n.parent_domains
+                    WITH n, du_match
+        
+                    CALL(du_match){{
+                        WITH du_match
+                        WHERE du_match.node_id IS NULL
                 
-                SET du_match.node_id = free_node_id        
-            }}
-            
-            {Neo4jDBClient.get_node_replace_query('n','du_match')}
+                        {Neo4jDBClient.get_free_node_id_query(NodeTypes.DUMMY_DOMAIN,True)}
+                    
+                        SET du_match.node_id = free_node_id        
+                    }}
+                
+                {Neo4jDBClient.get_node_replace_query('n','du_match')} 
+                ",
+                {{
+                    batchsize: 3,
+                    parallel: false,
+                    batchMode: 'SINGLE'
+                }}
+            ) YIELD batch
+            RETURN batch
             """
-
 
             max_id = driver.get_max_id_of_node_type(label)
             if max_id is None:
                 continue
 
-            ids = list(range(driver.get_max_id_of_node_type(label) + 1))
-            pre_filled = partial(driver.execute_write, query)
-            driver.send_query_in_batches_func(pre_filled,{"ids": ids}, as_one_param=False)
+            #ids = list(range(driver.get_max_id_of_node_type(label) + 1))
+            #pre_filled = partial(driver.execute_write, query)
+            #driver.send_query_in_batches_func(pre_filled,{"ids": ids}, as_one_param=False)
+
+            res = driver.execute_write(query)
+            MyLogger.log(str(res[0]))
 
         MyLogger.get_instance().log("Converted all service dummy nodes")
         print("Converted all service dummy nodes")
