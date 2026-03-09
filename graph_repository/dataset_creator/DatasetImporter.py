@@ -425,12 +425,38 @@ class DatasetImporter:
         return
 
     @staticmethod
+    def _create_domain_name_indexes(driver: Neo4jDBClient) -> bool:
+
+        dummy_labels = NodeTypes.get_supporting_dummies_n_t()
+        dummy_labels.append(NodeTypes.DOMAIN)
+        dummy_labels.append(NodeTypes.DUMMY_DOMAIN)
+
+        for label in dummy_labels:
+            query = f"""
+            CREATE INDEX Domain_Name_Index_{label.value} 
+            IF NOT EXISTS
+            FOR (d: {label.value})
+            ON (d.domain_name);
+            """
+
+            driver.execute_write(query)
+
+        try:
+            driver.wait_for_index_creation(["Domain_Name_Index_"+label.value for label in dummy_labels],10.0)
+        except Exception:
+            return False
+
+        return True
+
+    @staticmethod
     def replace_other_dummies_with_default_dummy_domain(driver: Neo4jDBClient) -> None:
 
         dummy_labels =  NodeTypes.get_supporting_dummies_n_t()
         if not driver.check_label_exists(NodeTypes.DUMMY_DOMAIN):
             MyLogger.get_instance().log_debug("There is no dummy domain in graph, creating node_id counter for them")
             driver.create_node_id_cnt(NodeTypes.DUMMY_DOMAIN)
+
+        DatasetImporter._create_domain_name_indexes(driver)
 
         MyLogger.get_instance().log_debug(f"Found service dummy domains in graph are {dummy_labels}")
 
@@ -442,9 +468,12 @@ class DatasetImporter:
             query = f"""
             UNWIND $ids AS id
             MATCH (n: {label.value} {{node_id: id}})
-            MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: n.domain_name, graph_version: 1, depth: n.depth, parent_domains: n.parent_domains}})
+            MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: n.domain_name}})
             ON CREATE
-                SET du_match.node_id = null
+                SET du_match.node_id = null,
+                    du_match.graph_version = 1,
+                    du_match.depth = n.depth,
+                    du_match.parent_domains = n.parent_domains
             WITH n, du_match
     
             CALL(du_match){{
