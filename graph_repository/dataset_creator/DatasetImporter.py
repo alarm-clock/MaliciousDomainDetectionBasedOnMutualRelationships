@@ -31,7 +31,7 @@ class DatasetImporter:
     def __init__(self, edge_types: str | None = None, ranges: str | None = None, no_lone_nd: bool = False,
                  client: str = 'localhost',
                  port: int = 27017, db: str = "datasets", collection: str = "domains", pwd: str = None,
-                 user: str = None):
+                 user: str = None, neo4j_conf: str | None = None):
         """
         Creates `DatasetImporter` instance that connects to MongoDB, prepares shared parts of aggregation pipeline, and finaly
         scans all available edge workers and their options.
@@ -46,6 +46,7 @@ class DatasetImporter:
         :param user: `str` user for connecting to database instance
         """
 
+        self._neo4j_conf = neo4j_conf
         if pwd is not None and user is not None:
             self.client = MongoClient(f"mongodb://{user}:{pwd}@{client}:{port}/{db}")
         else:
@@ -105,7 +106,7 @@ class DatasetImporter:
 
     @classmethod
     def from_config(cls, config: str, edge_types: str | None = None, ranges: str | None = None,
-                    no_lone_nd: bool = False):
+                    no_lone_nd: bool = False, neo_config: str | None = None):
         """
         Creates `DatabaseImporter` instance with MongoDb configuration stored in config
         :param config: `str` path to file containing connection MongoDB details in json format
@@ -119,10 +120,9 @@ class DatasetImporter:
 
             if conf.get('pwd'):
                 return cls(edge_types, ranges, no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"],
-                           conf["pwd"],
-                           conf["user"])
+                           conf["pwd"], conf["user"], neo_config)
             else:
-                return cls(edge_types, ranges, no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"])
+                return cls(edge_types, ranges, no_lone_nd, conf["client"], conf["port"], conf["db"], conf["collection"], neo4j_conf=neo_config)
 
     def _parse_edge_types(self, edge_types: str | None) -> list[str] | None:
         """
@@ -424,13 +424,21 @@ class DatasetImporter:
         self._wait_on_workers()
         return
 
-    def _replace_other_dummies_with_default_dummy_domain(self, driver: Neo4jDBClient) -> None:
+    @staticmethod
+    def replace_other_dummies_with_default_dummy_domain(driver: Neo4jDBClient) -> None:
 
         dummy_labels =  NodeTypes.get_supporting_dummies_n_t()
         if not driver.check_label_exists(NodeTypes.DUMMY_DOMAIN):
+            MyLogger.get_instance().log_debug("There is no dummy domain in graph, creating node_id counter for them")
             driver.create_node_id_cnt(NodeTypes.DUMMY_DOMAIN)
 
+        MyLogger.get_instance().log_debug(f"Found service dummy domains in graph are {dummy_labels}")
+
         for label in dummy_labels: # UNWIND $ids AS id {{node_id: id}}
+
+            MyLogger.get_instance().log(f"Converting {label} domains to {NodeTypes.DUMMY_DOMAIN.value}...")
+            print(f"Converting {label} domains to {NodeTypes.DUMMY_DOMAIN.value}...")
+
             query = f"""
             UNWIND $ids AS id
             MATCH (n: {label.value} {{node_id: id}})
@@ -451,16 +459,28 @@ class DatasetImporter:
             {Neo4jDBClient.get_node_replace_query('n','du_match')}
             """
 
+
+            max_id = driver.get_max_id_of_node_type(label)
+            if max_id is None:
+                continue
+
             ids = list(range(driver.get_max_id_of_node_type(label) + 1))
             pre_filled = partial(driver.execute_write, query)
             driver.send_query_in_batches_func(pre_filled,{"ids": ids}, as_one_param=False)
 
+        MyLogger.get_instance().log("Converted all service dummy nodes")
+        print("Converted all service dummy nodes")
         return
 
-    def _import_into_neo4j(self, neo4j_conf: str):
+    def _import_into_neo4j(self):
+
+        if self._neo4j_conf is None:
+            print("Neo4j connection config file not provided, exiting!", file=sys.stderr)
+            MyLogger.get_instance().log_error("Neo4j connection config file not provided, exiting!")
+            return
 
         try:
-            client = Neo4jDBClient.from_config(neo4j_conf)
+            client = Neo4jDBClient.from_config(self._neo4j_conf)
         except CouldNotConnect:
             return
 
@@ -529,7 +549,7 @@ class DatasetImporter:
             pre_filled = partial(client.create_edges,edge_creation_option)
             client.send_query_in_batches_func(pre_filled, edges)
 
-        self._replace_other_dummies_with_default_dummy_domain(client)
+        self.replace_other_dummies_with_default_dummy_domain(client)
         MyLogger.get_instance().log("Created whole graph")
         client.close()
         return
@@ -540,8 +560,15 @@ class DatasetImporter:
             for cnt in range(len(self._n_data_neo4j[n_t])):
                 self._n_data_neo4j[n_t][cnt] = self._n_data_neo4j[n_t][cnt] | ({'graph_version': 1, 'temporary': False} if n_t == NodeTypes.DOMAIN.value else {'graph_version': 1})
 
-    #TODO download and install graph data science plugin for neo4j db, python client has already been downloaded
-    def create_graph_and_import_to_neo4j(self, neo4j_conf: str):
+    def create_graph_and_import_to_neo4j(self):
+
+        if self._neo4j_conf is None:
+            print("Neo4j connection config not provided, exiting!", file=sys.stderr)
+            MyLogger.get_instance().log_error("Neo4j connection config not provided, exiting!")
+
+        if self._err:
+            return
+
         self._for_dgl = False
         self._create_graph_from_dataset()
 
@@ -549,7 +576,7 @@ class DatasetImporter:
             return
 
         self._add_maintenance_values_to_nodes()
-        self._import_into_neo4j(neo4j_conf)
+        self._import_into_neo4j()
 
 
     def create_dgl_graph(self, export: str | None = None) -> DGLHeteroGraph | None:

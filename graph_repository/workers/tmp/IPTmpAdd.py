@@ -5,6 +5,13 @@ from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
 from graph_repository.workers.common.TmpFunctions import register
 
 def tmp_add_ip_edge(domain: dict, version: int, driver: Neo4jDBClient) -> tuple[list[dict], dict[str, Any]] | None:
+    """
+    Function for creating edges between `domain` and it's IP addresses that are in the graph
+    :param domain: `dict` with domain information
+    :param version: `int` graph version in which to look for IP nodes
+    :param driver: `Neo4jDBClient` open driver for graph querying
+    :return: `tuple[` edges`,` edge_creation_options`]` when there is at least one domain's IP address in graph otherwise None
+    """
 
     domain_name = domain['domain_name']
     ips = get_ips_from_record(domain, IPModes.BOTH)

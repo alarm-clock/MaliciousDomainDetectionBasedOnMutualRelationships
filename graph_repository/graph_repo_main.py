@@ -50,6 +50,7 @@ def main():
     import_parser.add_argument('--dgl_exp',type=str,help="Path where created dgl graph will be stored")
     import_parser.add_argument('-e','--etypes',type=str,help="Edge types that will be created, specified in format \"etype1,etype2,...\"")
     import_parser.add_argument("-r","--ranges",type=str,help="Ranges specified in format \"start1,end1,start2,end2,...\"")
+    import_parser.add_argument('--convert_supporting', '-c', action='store_true',help="Convert supporting dummy domains into normal dummy domains")
     import_parser.add_argument('-t','--test_connection', type=str,help="Test connection to Neo4j server")
 
     # Dgl import go here
@@ -96,11 +97,17 @@ def main():
                 return
             return
 
+        if args.convert_supporting:
+            driver = Neo4jDBClient.from_config(args.neo_db)
+            DatasetImporter.replace_other_dummies_with_default_dummy_domain(driver)
+            driver.close()
+            return
+
         if args.mongo_db is None:
             print("MongoDB connection config file not provided, exiting",file=sys.stderr)
             return
 
-        dset_importer = DatasetImporter.from_config(args.mongo_db, args.etypes, args.ranges)
+        dset_importer = DatasetImporter.from_config(args.mongo_db, args.etypes, args.ranges, neo_config=args.neo_db)
         g = dgl.DGLGraph()
 
         if args.dgl:
@@ -108,7 +115,7 @@ def main():
         elif args.dgl_exp is not None:
             g = dset_importer.create_dgl_graph(args.dgl_exp)
         elif args.neo:
-            dset_importer.create_graph_and_import_to_neo4j(args.neo_db)
+            dset_importer.create_graph_and_import_to_neo4j()
 
     elif args.mode == "import_dgl":
         g = import_dgl_graph(args.path_to_graph)
