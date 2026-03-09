@@ -506,7 +506,7 @@ class DatasetImporter:
             #driver.send_query_in_batches_func(pre_filled,{"ids": ids}, as_one_param=False)
 
             res = driver.execute_write(query)
-            MyLogger.log(str(res[0]))
+            MyLogger.get_instance().log(str(res[0]))
 
         MyLogger.get_instance().log("Converted all service dummy nodes")
         print("Converted all service dummy nodes")
