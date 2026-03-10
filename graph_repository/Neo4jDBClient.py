@@ -187,7 +187,11 @@ class Neo4jDBClient:
         Method that returns current graph version that should be used for computation
         :return: `int` current version
         """
-        return self.execute_read(f"MATCH (v: {NodeTypes.CURRENT_VERSION.value}) RETURN v.version AS vers")[0]['vers']
+        active_version = self.execute_read(f"MATCH (v: {NodeTypes.CURRENT_VERSION.value}) RETURN v.version AS vers")
+        if len(active_version) == 0:
+            return -1
+
+        return active_version[0]['vers']
 
     def get_existing_versions(self) -> list[int]:
         """
@@ -522,6 +526,22 @@ class Neo4jDBClient:
             """
         return copy_query
 
+    def _create_node_version_index(self) -> None:
+
+        labels = self.get_all_labels_in_graph()
+        index_names = [label+"_version" for label in labels]
+        for label in labels:
+            query = f"""
+            CREATE INDEX {label}_version
+            IF NOT EXISTS
+            FOR (n: {label}) 
+            ON n.graph_version
+            """
+
+            self.execute_write(query)
+
+        self.wait_for_index_creation(index_names,10.0)
+
     def create_new_version_mirror_of_graph(self) -> int:
 
         all_used_versions = self.get_existing_versions()
@@ -532,47 +552,61 @@ class Neo4jDBClient:
         self._create_indexes_for_graph_copy()
         current_version = self.get_current_active_graph_version()
         labels = self.get_all_labels_in_graph()
-        relations = self.get_all_relationships_in_graph()
 
         MyLogger.get_instance().log(f"Creating new version copy of graph v.{current_version}")
         for label in labels:
 
-            label_max_id = self.get_max_id_of_node_type(NodeTypes.from_str(label))
-
             copy_query = f"""
-            UNWIND $ids as id 
-            MATCH (n: {label} {{node_id: id}})
-            WHERE n.graph_version = {current_version}
-            CREATE (copy: {label})
-            SET copy = n {{.*, graph_version: {current_version + 1}}}
+            
+            CALL apoc.periodic.iterate(
+                "MATCH (n: {label} {{graph_version: {current_version}}}) RETURN n",
+                "CREATE (copy: {label}) SET copy = n {{.*, graph_version: {current_version + 1}}}",
+                {{
+                    batch_size: {self._batch_size},
+                    parallel: true,
+                    batchMode: 'BATCH'
+                }}
+            
+            ) YIELD batch
+            
+            RETURN batch
             """
             MyLogger.get_instance().log_debug(f"Creating new version copy of nodes {label}...")
-            #self.execute_write(copy_query)
-
-            #TODO
-            #self.send_query_in_batches(copy_query,  ,"ids")
-
-            MyLogger.get_instance().log_debug(f"Created new version copy of nodes {label}")
+            res = self.execute_write(copy_query)
+            MyLogger.get_instance().log_debug(f"Created new version copy of nodes {label}: res is {res[0]}")
 
 
-        domain_max_id = self.get_max_id_of_node_type(NodeTypes.DOMAIN)
+        self._create_node_version_index()
+        for u_label in labels:
+            for v_label in labels:
+                edge_copy_query = f"""
+                CALL apoc.periodic.iterate(
+                    "MATCH (n: {u_label} {{ graph_version: {current_version}}})-[r]->(m: {v_label} {{graph_version: {current_version}}})
+                     WITH DISTINCT r, n, m
+                     RETURN r, n.node_id AS n_id, m.node_id AS m_id
+                    ",
+                    "MATCH (n_copy: {u_label} {{node_id: n_id, graph_version: {current_version + 1}}}),
+                           (m_copy: {v_label} {{node_id: m_id, graph_version: {current_version + 1}}})
+                     CREATE (n_copy)-[rel_copy: $(type(r))]->(m_copy)
+                     SET rel_copy = properties(r)
+                    ",
+                    {{
+                        batch_size: {50},
+                        parallel: false,
+                        batchMode: 'BATCH'
+                    }}
+                )
+                """
+                MyLogger.get_instance().log_debug(f"Coping edges into new version between ({u_label})->({v_label})...")
+                res = self.execute_write(edge_copy_query)
+                MyLogger.get_instance().log_debug(f"Copied all edges between {u_label} and {v_label}, res: {res}")
 
-        #TODO this will no longer work because now there are other types of nodes that have edges between each other
-        edge_copy_match = f"""
-            MATCH(n: {NodeTypes.DOMAIN.value})
-            WHERE n.graph_version = {current_version}
-        
-            MATCH(copy: {NodeTypes.DOMAIN.value})
-            WHERE copy.graph_version = {current_version + 1} AND copy.domain_name = n.domain_name
-            
-            """
+        #for v_label in labels:
+        #    for relation in relations:
+        #        edge_copy_match += self._create_edge_copy_query(v_label, relation, current_version)
 
-        for v_label in labels:
-            for relation in relations:
-                edge_copy_match += self._create_edge_copy_query(v_label, relation, current_version)
 
-        MyLogger.get_instance().log_debug(f"Coping edges into new version...")
-        self.execute_write(edge_copy_match)
+        #self.execute_write(edge_copy_match)
         self.set_new_graph_version_node(current_version + 1)
         MyLogger.get_instance().log_debug(f"Copied all edges")
         MyLogger.get_instance().log(f"Created new version of graph. New graph version is v.{current_version + 1}")

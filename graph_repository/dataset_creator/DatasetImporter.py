@@ -527,8 +527,8 @@ class DatasetImporter:
         if client is None:
             return
 
-        client.set_new_current_graph_version_node(1)
         client.set_new_graph_version_node(1)
+        client.set_new_current_graph_version_node(1)
 
         for n_t, rows in self._n_data_neo4j.items():
 
