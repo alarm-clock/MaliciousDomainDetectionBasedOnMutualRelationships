@@ -40,15 +40,19 @@ class GraphRepository:
 
     def stop(self, finish_all_submitted_edits: FinishType = FinishType.FINISH_NONE) -> None:
 
-        MyLogger.get_instance().log("Graph repository is being shut down")
+        MyLogger.get_instance().log("Graph repository is being shut down...")
         self._stop_event.set()
 
         if finish_all_submitted_edits == FinishType.FINISH_NONE:
+            MyLogger.get_instance().log("No currently working edit will be finished")
             self._worker_stop_event.set()
         elif finish_all_submitted_edits == FinishType.FINISH_CURRENT:
+            MyLogger.get_instance().log("Currently working edit will be finished")
             while not self._request_q.empty():
                 self._request_q.get_nowait()
                 self._request_q.task_done()
+        else:
+            MyLogger.get_instance().log("All edits that are in queue will be finished before shut down")
 
         self._request_q.put(FinishRequest())
         self._edit_worker.join() #no timeout because I need to wait if worker is wrapping up and potentially finishing all work

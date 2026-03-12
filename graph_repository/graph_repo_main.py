@@ -136,18 +136,17 @@ def main():
         if args.json_file is not None:
             request = AddRequest.from_json_file(args.json_file,RequestPriority.LOW)
         elif args.json is not None:
-            #request = AddRequest.from_json_str(args.json, RequestPriority.LOW)
-            e = 42
+            request = AddRequest.from_json_str(args.json, RequestPriority.LOW)
         else:
             print("No add input was provided, exiting", file=sys.stderr)
             return
         # todo add graph copying here
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
-        driver.create_new_version_mirror_of_graph()
+        #driver.create_new_version_mirror_of_graph()
 
         current_graph_version = driver.get_current_active_graph_version()
         driver.close()
-        #request.edit(current_graph_version)
+        request.edit(current_graph_version)
 
     elif args.mode == "test":
         client = Neo4jDBClient.from_config(args.neo_db)

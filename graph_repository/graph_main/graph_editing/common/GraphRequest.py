@@ -6,7 +6,7 @@ from graph_repository.graph_main.graph_editing.common.RequestPriority import Req
 
 #TODO check and wait limited time in the main queue
 #todo proper init
-#todo addition of two requests together (this may not work because each type does it's own thing, or at leas will be hard to implement)
+#todo addition of two requests together (this may not work because each type does it's own thing, or at least it will be hard to implement)
 
 @total_ordering
 class GraphRequest(ABC):

@@ -134,7 +134,7 @@ class SubdomainWorker(EditWorker):
                         [domain_name]
                     )
                 else:
-                    self._subs[parent_domain][self._SUBDOMAINS_POS] |= parent_domains[:cnt]
+                    self._subs[parent_domain][self._SUBDOMAINS_POS].update(parent_domains[:cnt])
                     self._subs[parent_domain][self._SUBDOMAINS_FROM_DSET].append(domain_name)
 
         domains_and_related_domains = driver.execute_read(find_related_domains_query, parent_domains=list(self._subs.keys()))
