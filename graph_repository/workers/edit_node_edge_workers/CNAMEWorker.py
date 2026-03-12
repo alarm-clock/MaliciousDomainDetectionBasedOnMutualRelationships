@@ -3,6 +3,7 @@ from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
+from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
 from misc.Logger import MyLogger
 from functools import partial
 from graph_repository.workers.common.Enums import CallbackWhen, EditTypes
@@ -11,7 +12,7 @@ from enum import Enum
 class CNAMEWorker(EditWorker):
 
     worker_name = 'CNAMEWorker'
-    req_callbacks = (worker_name, EditWorker.ReqCallbacks.ALL)
+    req_callbacks = (worker_name, [EditWorker.ReqCallbacks.ALL])
     _limit = 5000
 
     class NdTypes(Enum):
@@ -28,48 +29,9 @@ class CNAMEWorker(EditWorker):
         self._domains_for_replacing: list[str] = []
         self._parsed_domains: list[ tuple[str, CNAMEWorker.NdTypes, list[str]]] = []
         self._create_domains: list[str] = []
-       # self._cname_normal_dict: dict[str, tuple[CNAMEWorker.NdTypes, list[str]]] = {}
         self._dummy_nodes: list[dict] = []
         self._d_d_edges: list[dict] = []
         self._du_d_edges: list[dict] = []
-
-    #extract cnames, match them with domains that are in edit
-    #find cnames between normal domains in graph
-    #find cnames between dummy domains in graph
-    #check if any domain is not dummy domain in the graph, if yes, replace
-    #create new dummies
-
-    """
-    @staticmethod
-    def _replace_dummies(domains_for_replacing: list[str], version_query: str) -> None:
-        #this will run after normal nodes equivalents of dummies exists
-        #they will have same domain name but node_id in parameter is for the du_domains
-
-        replace_query = f""
-        
-        UNWIND $domains as d
-        
-        MATCH (old: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: d {version_query}}})
-        MATCH (new: {NodeTypes.DOMAIN.value} {{domain_name: d {version_query}}})
-        WITH old, new
-        MATCH (old)-[r:{EdgeTypes.CNAME.value}->(other)
-        WITH old, new, r, other
-            CASE WHEN startNode(r) = old THEN new ELSE other END AS startNode
-            CASE WHEN endNode(r) = old THEN new ELSE other END AS endNode
-        
-        CREATE (startNode)-[newR: TYPE(r)]->(endNode)
-        SET newR = PROPERTIES(r)
-        DELETE r
-        
-        WITH old
-        DETACH DELETE old
-        ""
-
-        driver = GraphRepository.get_instance().get_neo4j_driver()
-        driver.execute_write(replace_query, rows=domains_for_replacing)
-        driver.close()
-        return
-    """
 
     def _submit(self):
 
@@ -91,15 +53,15 @@ class CNAMEWorker(EditWorker):
         query_option2 = copy.deepcopy(query_option)
         query_option2[Neo4jDBClient.E_NODE_T1] = NodeTypes.DUMMY_DOMAIN
 
-        self._edges_submit_callback(self._du_d_edges, query_option2, self.worker_name)
+        self._edges_submit_callback(self._du_d_edges, query_option2, self.worker_name+"_du")
 
     def _create_dummy_domains(self) -> None:
-        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
-        available_ids = driver.get_free_node_id(NodeTypes.DUMMY_DOMAIN, len(self._create_domains))
-        driver.close()
+        #driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        #available_ids = driver.get_free_node_id(NodeTypes.DUMMY_DOMAIN, len(self._create_domains))
+        #driver.close()
 
-        for cnt, domain_name in enumerate(self._create_domains):
-            self._dummy_nodes.append({'node_id': available_ids[cnt], 'domain_name': domain_name})
+        for domain_name in self._create_domains:
+            self._dummy_nodes.append({'domain_name': domain_name, 'depth': domain_depth(domain_name), 'parent_domains': get_domains_parent_domains(domain_name)})
 
     def _create_edges(self):
 
@@ -153,15 +115,16 @@ class CNAMEWorker(EditWorker):
 
         for domain in self._domains:
 
+            domain_name = str(domain['domain_name'])
             try:
                 cname_domain = domain['dns']['CNAME']['value']
-            except KeyError:
+            except (KeyError,TypeError):
                 try:
                     cname_domain = domain['dns']['CNAME']
                 except KeyError:
+                    MyLogger.get_instance().log_debug(f'Omitting domain {domain_name} because it does not have a CNAME DNS entry')
                     continue
 
-            domain_name = str(domain['domain_name'])
             self._domain_names.add(domain_name)
 
             if cname_normal_dict.get(cname_domain) is None:

@@ -19,7 +19,6 @@ class AddRequest(GraphRequest):
     #tim padom potrebujem to spravit ze sa mi parsnu data podobne ako v dataset importery a daju sa do formatu ze
     # #mozem ich mozem fuknut do query
 
-    _NODE_DATA_LOCATION = 1
     _EDGE_DATA_LOCATION = 1
     _E_EDGES_LOC = 1
     _E_QUERY_LOC = 0
@@ -40,6 +39,8 @@ class AddRequest(GraphRequest):
 
         #              group (str)  tuple[callback | None, callback | None, callback | None]
         self._callbacks: dict = {}
+
+        self._du_domains: set[str] = set()
 
         self._req_callbacks: list[tuple[str, list[EditWorker.ReqCallbacks]]] = []
 
@@ -75,23 +76,56 @@ class AddRequest(GraphRequest):
             default_tuple = (None, None, None)
             self._callbacks[group] = default_tuple
 
-        replace(self._callbacks[group], when.value, callback)
+        MyLogger.get_instance().log_debug(f"Receiving callback {str(callback)} from group {group}")
+        self._callbacks[group] = replace(self._callbacks[group], when.value, callback)
 
         self._callback_lock.release()
+
+    def _parse_submitted_du_domains(self, nodes: list[dict]) -> None:
+
+        for node in nodes:
+            domain_name = node['domain_name']
+            if domain_name not in self._du_domains:
+                if self._nodes.get('du_domains_group') is None:
+                    self._nodes['du_domains_group'] = (NodeTypes.DUMMY_DOMAIN, EditTypes.IGNORE_NEW, [node])
+                else:
+                    self._nodes['du_domains_group'][self._N_NODES_LOC].append(node)
+
+        return
+
+    def _add_node_ids_to_du_domains(self) -> None:
+
+        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        free_ids = driver.get_free_node_id(NodeTypes.DUMMY_DOMAIN, len(self._nodes['du_domains_group'][self._N_NODES_LOC]))
+
+        if type(free_ids) != int:
+            for cnt, node in enumerate( self._nodes['du_domains_group'][self._N_NODES_LOC]):
+                node['node_id'] = free_ids[cnt]
+        else:
+            self._nodes['du_domains_group'][self._N_NODES_LOC][0]['node_id'] = free_ids
+
+        return
 
     def submit_nodes(self, nodes: list[dict], node_type: NodeTypes, group: str, edit_type: EditTypes) -> None:
         self._nodes_lock.acquire()
 
-        if self._nodes.get(group) is None:
+        MyLogger.get_instance().log_debug(f"Receiving {len(nodes)} nodes of type {node_type.value} from group {group}")
+
+        if node_type == NodeTypes.DUMMY_DOMAIN:
+            self._parse_submitted_du_domains(nodes)
+
+        elif self._nodes.get(group) is None:
             self._nodes[group] = (node_type, edit_type, nodes)
         else:
-            self._nodes[group][self._NODE_DATA_LOCATION].extend(nodes)
+            self._nodes[group][self._N_NODES_LOC].extend(nodes)
 
         self._nodes_lock.release()
 
     def submit_edges(self, edges: list[dict], edge_creation_query: tuple[str, str] | dict[str, Any], group: str):
 
         self._edges_lock.acquire()
+
+        MyLogger.get_instance().log_debug(f"Receiving {len(edges)} edges from group {group}")
 
         if self._edges.get(group) is None:
             self._edges[group] = (edge_creation_query, edges)
@@ -114,7 +148,7 @@ class AddRequest(GraphRequest):
 
         for option in options:
             if option == EditWorker.ReqCallbacks.ALL:
-                MyLogger.get_instance().log_warning("Do not use ALL option in combination with other options. Ignoring all option!")
+                MyLogger.get_instance().log_warning("Do not use ALL option in combination with other options. Ignoring ALL option!")
                 continue
 
             options_dict[option.value] = available_callbacks[option]
@@ -132,6 +166,7 @@ class AddRequest(GraphRequest):
         error = False
 
         for worker_name, req_callbacks in self._req_callbacks:
+
             cls = EDIT_WORKER_REGISTRY.get(worker_name)
 
             if cls is None:
@@ -140,7 +175,7 @@ class AddRequest(GraphRequest):
                 break
 
             options = self._build_callback_options(req_callbacks)
-            cls_instance = cls(self._domains, version, EditWorker.ADD_DOMAINS, **options)
+            cls_instance = cls(self._domains, version, **options)
             is_thread = cls_instance.compute()
 
             if is_thread:
@@ -158,10 +193,12 @@ class AddRequest(GraphRequest):
     #todo add option to just create node and edge without any other calculation because why the fuck not
     def _create_nodes(self, driver: Neo4jDBClient, version: int) -> None:
 
+        self._add_node_ids_to_du_domains()
         self._add_maintenace_values_to_nodes(version)
 
         for group, data in self._nodes.items():
             MyLogger.get_instance().log_debug(f"Creating nodes for group {group}")
+            #print(group, data[self._N_NODES_LOC])
             driver.create_nodes(data[self._N_NODE_T_LOC],data[self._N_NODES_LOC],data[self._N_EDIT_T_LOC])
 
         MyLogger.get_instance().log_debug(f"Created all {len(self._nodes.keys())} nodes")
@@ -170,6 +207,7 @@ class AddRequest(GraphRequest):
     def _create_edges(self, driver: Neo4jDBClient) -> None:
 
         for group, edges in self._edges.items():
+            #print(group, edges)
             MyLogger.get_instance().log_debug(f"Creating edges for {group}")
             driver.create_edges(edges[self._E_QUERY_LOC], edges[self._E_EDGES_LOC])
 

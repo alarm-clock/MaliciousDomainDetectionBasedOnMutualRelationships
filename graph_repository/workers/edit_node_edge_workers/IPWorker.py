@@ -18,10 +18,8 @@ class IPWorker(EditWorker):
         super().__init__(domains, version, IPWorker._limit)
         self._submit_nodes_callback = nodes_submit_callback
         self._submit_edges_callback = edges_submit_callback
-
         self._edges: list[dict] = []
         self._ips: list[dict] = []
-
         self._ip_dict: dict[str, Any] = {}
 
     def _submit_results(self) -> None:
@@ -29,32 +27,30 @@ class IPWorker(EditWorker):
 
         query_params = {
             Neo4jDBClient.E_EDGE_T: EdgeTypes.TRANSLATES,
-            Neo4jDBClient.E_NODE_T1: NodeTypes.DOMAIN,
-            Neo4jDBClient.E_NODE_T2: NodeTypes.IP,
+            Neo4jDBClient.E_NODE_T1: NodeTypes.IP,
+            Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
             Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
-            Neo4jDBClient.E_MATCH1: "domain_name",
-            Neo4jDBClient.E_MATCH2: "ip_str"
+            Neo4jDBClient.E_MATCH1: "ip_str",
+            Neo4jDBClient.E_MATCH2: "domain_name"
         }
         self._submit_edges_callback(self._edges, query_params, self.worker_name)
 
     def _create_pairs(self, domain_name: str, ips: list) -> None:
         for ip in ips:
-            self._edges.append({'ip_str': str(ip), 'domain_name': domain_name})
+            self._edges.append({'u': str(ip), 'v': domain_name})
 
     def _create_ip_nodes(self) -> None:
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
 
         query = f"""
-        UNWIND $rows AS value
-        OPTIONAL MATCH (n:{NodeTypes.IP.value} {{ip_str: value {get_version_query(self._version,False)}}}
-        WITH value, n
+        UNWIND $rows AS ip
+        OPTIONAL MATCH (n:{NodeTypes.IP.value} {{ip_str: ip {get_version_query(self._version,False)}}})
+        WITH ip, n
         WHERE n IS NULL
-        RETURN value AS missing
+        RETURN collect(ip) AS missing
         """
 
-        result = driver.execute_read(query, rows=list(self._ip_dict.keys()))
-        non_existent_ips = [r['missing'] for r in result]
-
+        non_existent_ips = driver.execute_read(query, rows=list(self._ip_dict.keys()))[0]['missing']
         available_ids = driver.get_free_node_id(NodeTypes.IP, len(non_existent_ips))
 
         for cnt, ip in enumerate(non_existent_ips):
@@ -69,9 +65,13 @@ class IPWorker(EditWorker):
             domain_name = str(domain['domain_name'])
             ips = get_ips_from_record(domain, IPModes.BOTH)
 
+            ip_strs = []
             for ip in ips:
-                self._ip_dict[str(ip)] = ip
-                self._create_pairs(domain_name, list(self._ip_dict.keys()))
+                ip_str = str(ip)
+                self._ip_dict[ip_str] = ip
+                ip_strs.append(ip_str)
+
+            self._create_pairs(domain_name, ip_strs)
 
         self._create_ip_nodes()
         self._submit_results()

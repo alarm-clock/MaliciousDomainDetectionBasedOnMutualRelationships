@@ -3,7 +3,7 @@ from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
 from graph_repository.workers.common.GraphTypes import NodeTypes
 from graph_repository.workers.common.Enums import EditTypes, CallbackWhen
-from graph_repository.graph_repo_misc import get_domains_parent_domains
+from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
 from functools import partial
 from misc.Logger import MyLogger
 
@@ -24,28 +24,17 @@ class DomainWorker(EditWorker):
         # this will run after normal nodes equivalents of dummies exists
         # they will have same domain name but node_id in parameter is for the du_domains
 
+        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
         replace_query = f"""
 
         UNWIND $domains as d
 
         MATCH (old: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: d {version_query}}})
         MATCH (new: {NodeTypes.DOMAIN.value} {{domain_name: d {version_query}}})
-        WITH old, new
-        MATCH (old)-[r]->(other)
-        WITH old, new, r, other
-            CASE WHEN startNode(r) = old THEN new ELSE other END AS startNode
-            CASE WHEN endNode(r) = old THEN new ELSE other END AS endNode
-
-        CREATE (startNode)-[newR: TYPE(r)]->(endNode)
-        SET newR = PROPERTIES(r)
-        DELETE r
-
-        WITH old
-        DETACH DELETE old
+        {driver.get_node_replace_query('old','new', NodeTypes.DUMMY_DOMAIN.value ,False)}
         """
 
-        driver = GraphRepository.get_instance().get_neo4j_driver()
-        driver.execute_write(replace_query, rows=domains_for_replacing)
+        driver.execute_write(replace_query, domains=domains_for_replacing)
         driver.close()
         return
 
@@ -75,7 +64,6 @@ class DomainWorker(EditWorker):
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
         available_ids = driver.get_free_node_id(NodeTypes.DOMAIN, len(self._domains))
 
-
         domain_names = []
         for cnt, domain in enumerate(self._domains):
 
@@ -99,7 +87,15 @@ class DomainWorker(EditWorker):
                 other_data = None
 
             parent_domains = get_domains_parent_domains(domain_name)
-            self._domains_for_creation.append({'domain_name': domain_name, 'label': label, 'node_id': node_id, 'other_data': other_data, 'parent_domains': parent_domains})
+            depth = domain_depth(domain_name)
+            self._domains_for_creation.append({
+                'domain_name': domain_name,
+                'label': label,
+                'node_id': node_id,
+                'other_data': other_data,
+                'parent_domains': parent_domains,
+                'depth': depth
+            })
             domain_names.append(domain_name)
 
         self._find_du_domains(domain_names, driver)

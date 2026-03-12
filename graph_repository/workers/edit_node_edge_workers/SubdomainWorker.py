@@ -1,3 +1,5 @@
+import copy
+
 import pygtrie
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
@@ -58,7 +60,7 @@ class SubdomainWorker(EditWorker):
                 self._d_d_sub_edges.append({"u": parent_domain, "v": subdomain})
             elif parent_domain_n_t == NodeTypes.DOMAIN.value and sub_n_t == NodeTypes.DUMMY_DOMAIN.value:
                 self._d_dum_sub_edges.append({"u": parent_domain, "v": subdomain})
-            elif parent_domain_n_t == NodeTypes.DUMMY_DOMAIN and sub_n_t == NodeTypes.DOMAIN.value:
+            elif parent_domain_n_t == NodeTypes.DUMMY_DOMAIN.value and sub_n_t == NodeTypes.DOMAIN.value:
                 self._d_dum_sub_edges.append({"u": subdomain, "v": parent_domain})
             else:
                 self._dum_dum_sub_edges.append({'u': parent_domain, 'v': subdomain})
@@ -70,6 +72,7 @@ class SubdomainWorker(EditWorker):
 
         for parent_domain, data_tuple in self._subs.items():
             parent_n_t, sub_ds, sub_ds_from_dset = data_tuple
+            #print(data_tuple)
             self._create_edges_between_d_and_sub_ds(parent_domain, parent_n_t, sub_ds, False)
             self._create_edges_between_d_and_sub_ds(parent_domain, parent_n_t, sub_ds_from_dset, True)
 
@@ -84,11 +87,13 @@ class SubdomainWorker(EditWorker):
         }
         self._edge_submit_callback(self._d_d_sub_edges, query_option, self.worker_name + "_d_d")
 
-        query_option[Neo4jDBClient.E_NODE_T2] = NodeTypes.DUMMY_DOMAIN
-        self._edge_submit_callback(self._d_dum_sub_edges, query_option, self.worker_name + "_d_dum")
+        query_option_du_d = copy.deepcopy(query_option)
+        query_option_du_d[Neo4jDBClient.E_NODE_T2] = NodeTypes.DUMMY_DOMAIN
+        self._edge_submit_callback(self._d_dum_sub_edges, query_option_du_d, self.worker_name + "_d_dum")
 
-        query_option[Neo4jDBClient.E_NODE_T1] = NodeTypes.DUMMY_DOMAIN
-        self._edge_submit_callback(self._dum_dum_sub_edges, query_option, self.worker_name + "_dum_dum")
+        query_option_du_du = copy.deepcopy(query_option_du_d)
+        query_option_du_du[Neo4jDBClient.E_NODE_T1] = NodeTypes.DUMMY_DOMAIN
+        self._edge_submit_callback(self._dum_dum_sub_edges, query_option_du_du, self.worker_name + "_dum_dum")
         return
 
     def _find_related_domains_and_data(self) -> None:
@@ -126,13 +131,13 @@ class SubdomainWorker(EditWorker):
                     self._subs[parent_domain] = (
                         None if parent_domain not in self._domains_in_dset else NodeTypes.DOMAIN.value,
                         set(parent_domains[:cnt]),
-                        []
+                        [domain_name]
                     )
                 else:
                     self._subs[parent_domain][self._SUBDOMAINS_POS] |= parent_domains[:cnt]
                     self._subs[parent_domain][self._SUBDOMAINS_FROM_DSET].append(domain_name)
 
-        domains_and_related_domains = driver.execute_read(find_related_domains_query, parent_tuples=list(self._subs.keys()))
+        domains_and_related_domains = driver.execute_read(find_related_domains_query, parent_domains=list(self._subs.keys()))
 
         for row in domains_and_related_domains:
             #self._domain_data[row["domain_name"]] = row['parents_in_graph']
@@ -146,8 +151,8 @@ class SubdomainWorker(EditWorker):
                         "depth": domain_depth(row['d']),
                         "parent_domains": get_domains_parent_domains(row['d'])
                     })
+                self._subs[row['d']] = replace(self._subs[row['d']],self._NODE_TYPE_POS,n_t)
 
-                replace(self._subs[row['d']],self._NODE_TYPE_POS,n_t)
 
 
         del domains_and_related_domains
