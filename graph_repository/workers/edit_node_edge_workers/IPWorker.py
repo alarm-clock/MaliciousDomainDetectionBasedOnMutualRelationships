@@ -39,8 +39,21 @@ class IPWorker(EditWorker):
         for ip in ips:
             self._edges.append({'u': str(ip), 'v': domain_name})
 
+    def _create_index_on_ip_str(self, driver: Neo4jDBClient) -> None:
+
+        driver.execute_write(f"""
+        CREATE INDEX {NodeTypes.IP.value}_ip_str_idx
+        IF NOT EXISTS
+        FOR (n: {NodeTypes.IP.value})
+        ON (n.ip_str);
+        """)
+
+        driver.wait_for_index_creation([f'{NodeTypes.IP.value}_ip_str_idx'])
+
     def _create_ip_nodes(self) -> None:
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+
+        self._create_index_on_ip_str(driver)
 
         query = f"""
         UNWIND $rows AS ip
