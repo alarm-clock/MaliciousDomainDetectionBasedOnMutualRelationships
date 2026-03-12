@@ -52,3 +52,7 @@ class DatasetWorker(Worker):
     def _register(cls):
         if cls.__name__ != "DatasetWorker":
             DATASET_WORKER_REGISTRY[cls.worker_name] = cls
+
+    @classmethod
+    def opts(cls):
+        return cls.available_options

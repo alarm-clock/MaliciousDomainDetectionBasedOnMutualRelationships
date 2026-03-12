@@ -30,11 +30,15 @@ class EditWorker(Worker):
         if cls.__name__ != "EditWorker":
             EDIT_WORKER_REGISTRY[cls.worker_name] = cls
 
+    @classmethod
+    def opts(cls):
+        return cls.req_callbacks
+
     def compute(self) -> bool:
 
         if len(self._domains) > self._edge_limit:
             self.start()
-            return False
+            return True
         else:
             self.run()
-            return True
+            return False

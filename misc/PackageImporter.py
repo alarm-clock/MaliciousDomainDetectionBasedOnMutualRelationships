@@ -1,5 +1,7 @@
 import importlib
 import pkgutil
+from typing import Iterable
+
 from misc.Logger import MyLogger
 
 
@@ -12,7 +14,12 @@ def get_options_from_registry(register: dict, options: list) -> None:
     """
     classes = ""
     for cls in register.values():
-        options.extend(cls.available_options)
+
+        opts = cls.opts()
+        if type(opts) == list or type(opts) == Iterable:
+            options.extend(opts)
+        else:
+            options.append(opts)
         classes += f"{cls.worker_name},"
 
     MyLogger.get_instance().log_debug(f"Loaded options from workers: {classes[:-1]} from module dataset_edge_workers")

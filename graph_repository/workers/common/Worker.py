@@ -55,6 +55,10 @@ class Worker(threading.Thread, ABC):
         """
         pass
 
+    @classmethod
+    def opts(cls):
+        raise NotImplementedError
+
     def run(self):
         """
         Starts a worker thread.
