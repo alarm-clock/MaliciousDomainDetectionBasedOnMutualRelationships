@@ -1,6 +1,8 @@
+from typing import Any
 
-def replace(t: tuple, pos: int, val) -> tuple:
-    return t[:pos] + val + t[pos:]
+
+def replace(t: tuple, pos: int, val: tuple | Any) -> tuple:
+    return t[:pos] + (val if type(val) == tuple else (val,)) + t[pos + 1:]
 
 class Pair:
     __slots__ = ["first","second"]
