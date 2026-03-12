@@ -264,6 +264,7 @@ class Neo4jDBClient:
             RETURN reused_ids + coalesce( allocated_ids, []) AS free_node_ids
             """
         else:
+
             query = f"""
             OPTIONAL MATCH (free_id: {n_t.value}{Neo4jDBClient._FREE_NODE_ID_POSTFIX})
             WITH free_id
@@ -326,7 +327,6 @@ class Neo4jDBClient:
         """
 
         res = self.execute_write(self.get_free_node_id_query(n_t, False, req_number_of_ids))
-        print(res)
         ret_val = res[0]['free_node_id' if req_number_of_ids == 1 else 'free_node_ids']
         return ret_val
 
@@ -487,45 +487,6 @@ class Neo4jDBClient:
             self.execute_write(f"MATCH (n: {NodeTypes.CURRENT_VERSION.value} {{version: {version} }} ) DELETE n")
         return True
 
-    def _create_edge_copy_query(self, v_label: str, relation: str, current_version: int) -> str:
-
-        copy_query = f"""
-        WITH n, copy
-            OPTIONAL MATCH (n)-[rel:{relation}]->(v:{v_label})
-            WHERE v.graph_version = {current_version}
-            OPTIONAL MATCH (v_copy:{v_label} {{
-                node_id: v.node_id,
-                graph_version: {current_version + 1}
-            }})
-            WITH DISTINCT n, copy, rel, v_copy
-            FOREACH (_ IN CASE WHEN rel IS NOT NULL AND v_copy IS NOT NULL THEN [1] ELSE [] END |
-                CREATE (copy)-[rel_copy:{relation}]->(v_copy)
-                SET rel_copy = properties(rel)
-            )
-        """
-        #for future me: Optional match is used because most of those relation combinations doesn't exist in the graph
-        # and if I would use normal match, which doesn't return null, then it would not work, and it would end early
-        # foreach is used to create edge for each n->v where there is relation and copy of v
-
-        #domain only creates edge going out, other domain creates edge going back
-        if v_label != NodeTypes.DOMAIN.value:
-
-            copy_query += f"""
-            WITH n, copy
-                OPTIONAL MATCH (v:{v_label})-[rel:{relation}]->(n)
-                WHERE v.graph_version = {current_version}
-                OPTIONAL MATCH (v_copy:{v_label} {{
-                    node_id: v.node_id,
-                    graph_version: {current_version + 1}
-                }})
-                WITH DISTINCT n, copy, rel, v_copy
-                FOREACH (_ IN CASE WHEN rel IS NOT NULL AND v_copy IS NOT NULL THEN [1] ELSE [] END |
-                    CREATE (v_copy)-[rel_copy:{relation}]->(copy)
-                    SET rel_copy = properties(rel)
-                )
-            """
-        return copy_query
-
     def _create_node_version_index(self) -> None:
 
         labels = self.get_all_labels_in_graph()
@@ -562,7 +523,7 @@ class Neo4jDBClient:
                 "MATCH (n: {label} {{graph_version: {current_version}}}) RETURN n",
                 "CREATE (copy: {label}) SET copy = n {{.*, graph_version: {current_version + 1}}}",
                 {{
-                    batch_size: {self._batch_size},
+                    batchSize: {self._batch_size},
                     parallel: true,
                     batchMode: 'BATCH'
                 }}
@@ -591,7 +552,7 @@ class Neo4jDBClient:
                      SET rel_copy = properties(r)
                     ",
                     {{
-                        batch_size: {50},
+                        batchSize: {self._batch_size},
                         parallel: false,
                         batchMode: 'BATCH'
                     }}
@@ -601,38 +562,10 @@ class Neo4jDBClient:
                 res = self.execute_write(edge_copy_query)
                 MyLogger.get_instance().log_debug(f"Copied all edges between {u_label} and {v_label}, res: {res}")
 
-        #for v_label in labels:
-        #    for relation in relations:
-        #        edge_copy_match += self._create_edge_copy_query(v_label, relation, current_version)
-
-
-        #self.execute_write(edge_copy_match)
         self.set_new_graph_version_node(current_version + 1)
         MyLogger.get_instance().log_debug(f"Copied all edges")
         MyLogger.get_instance().log(f"Created new version of graph. New graph version is v.{current_version + 1}")
         return current_version + 1
-
-
-# this is universal solution that will work, but for now, all other types of nodes are only connected with domain nodes therefore
-# only this will be coded for now but I leave this here if I decide to model something that doesn't follow this pattern
- #       for label in labels:
-
- #           edge_copy_match = f"""
- #           MATCH (n: {label} {{version: {current_version}}}), (copy: {label} {{version:  {current_version + 1} }})
- #           WHERE n.node_id = copy.node_id
- #           """
- #           if label == NodeTypes.DOMAIN.value:
- #               for v_label in labels:
- #                   edge_copy_match += self._create_edge_copy_query(v_label, current_version)
- #
- #           else:
- #               #in the future I might code some storage to store pairings
- #               v_label = NodeTypes.DOMAIN.value
- #               edge_copy_match += self._create_edge_copy_query(v_label, current_version)
-#
- #           self.execute_write(edge_copy_match)
-#
- #       return current_version + 1
 
     def create_nodes(self, node_type: NodeTypes | str, rows: list[dict], edit_type: EditTypes = EditTypes.IGNORE_EXISTING) -> None:
         """
@@ -672,7 +605,7 @@ class Neo4jDBClient:
     E_NO_DUP = 'e_no_dup'
 
     def _create_edge_creation_query(self, option: EdgeCreationQueryOptions, m1: str, m2: str, e_t: EdgeTypes | str,
-                                    n_t1: NodeTypes | str, n_t2: NodeTypes | str, e_v: str | None, e_vers: int = -1, e_no_dup: bool = False) -> dict[str, str]:
+                                    n_t1: NodeTypes | str, n_t2: NodeTypes | str, e_v: str | None =  None, e_vers: int = -1, e_no_dup: bool = False) -> dict[str, str]:
 
         version = e_vers if e_vers != -1 else self.get_current_active_graph_version()
         query = f"""
@@ -721,27 +654,26 @@ class Neo4jDBClient:
         return
 
     @staticmethod
-    def get_node_replace_query(old_var: str, new_var: str, call: bool = False) -> str:
+    def get_node_replace_query(old_var: str, new_var: str, old_label: str | None = None, call: bool = False) -> str:
         """
         Method that returns query subpart for node replacing
         :param old_var: `str` Old noded variable that will be replaced
         :param new_var: `str` New noded variable that will be replaced
         :param call: `bool` Whether to use replace query as sub-query
+        :param old_label: `str` Old node label or `None` in which case node's label will be dynamically found and replaced
         :return: `str` query
         """
 
-        #TODO REMOVE OLD LABELS FROM THE NEW NODE
         return f"""
         {f'CALL ('+old_var+','+new_var+'){' if call else ''}
         WITH {old_var} AS old, {new_var} AS new
-        REMOVE old:Sdu_sub_domain
+        REMOVE old:{'$(labels(old))' if old_label is not None else old_label}
         WITH old, new
         
         CALL apoc.refactor.mergeNodes([new, old], {{
             properties: 'discard',
             mergeRels: true
-        }}) YIELD node
-        
+        }}) YIELD node 
         RETURN node
         {'}' if call else ''}
         """
@@ -793,7 +725,7 @@ class Neo4jDBClient:
         Function that sends query in batches if there is high chance that query is too large to handled by database server
         :param func: Function that sends query that takes rows as it's parameter
         :param rows: Either `list[dict]` where each dict is one input row (this is for functions that have specific param
-             for input rows) ``or`` `dict[str, list]` where the `list` part are data that will be unwinded in query
+            for input rows) ``or`` `dict[str, list]` where the `list` part are data that will be unwinded in query
             function's parameter name and data
         :param batch_size: `int` size of batch, if `None` is provided, instances default value is used
         :param batch_delay: `float` delay between two queries, if `None` is provided, instances default value is used
@@ -822,43 +754,3 @@ class Neo4jDBClient:
 
 def get_version_query(version: int, alone: bool, variable: str | None = None) -> str:
     return ('' if alone else ', ') + (variable+'.' if variable is not None else '')  +f"graph_version: {version}"
-
-
-"""
-        MATCH (old)-[r]->()
-        CALL apoc.refactor.from(r, new) YIELD input, output
-        
-        WITH old, new
-        MATCH ()-[r]->(old)
-        CALL apoc.refactor.to(r, new) YIELD input, output
-        
-        WITH  old
-        DETACH DELETE old
-"""
-
-"""
-        MATCH (old)-[r]->(other)
-        WITH old, new, r, other
-        CALL apoc.merge.relationship(
-            startNode1,
-            type(r),
-            properties(r),
-            {{}},
-            endNode1
-        ) YIELD rel AS rel1
-        DELETE r
-        
-        MATCH (other2)-[r_rev]->(old)
-        WITH old, new, r, r_rev, other, other2
-
-
-        CALL apoc.merge.relationship(
-            startNode2,
-            type(r_rev),
-            properties(r_rev),
-            {{}},
-            endNode2
-        ) YIELD rel AS  rel2
-
-        
-"""
