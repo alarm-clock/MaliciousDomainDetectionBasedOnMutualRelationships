@@ -212,6 +212,7 @@ class AddRequest(GraphRequest):
             driver.create_edges(edges[self._E_QUERY_LOC], edges[self._E_EDGES_LOC])
 
         MyLogger.get_instance().log_debug(f"Created all {len(self._edges.keys())} edges")
+        driver.wait_for_index_creation(None)
         return
 
     def _run_callbacks(self, which: CallbackWhen) -> None:

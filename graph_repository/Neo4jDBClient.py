@@ -393,7 +393,7 @@ class Neo4jDBClient:
 
         self.wait_for_index_creation(index_names)
 
-    def wait_for_index_creation(self, index_names: list[str], time_between_queries: float = 8.0) -> None:
+    def wait_for_index_creation(self, index_names: list[str] | None, time_between_queries: float = 8.0) -> None:
         """
         Method that waits until indexes in ``index_names`` have been created.
         :param index_names: `list[str]` of index names
@@ -404,13 +404,17 @@ class Neo4jDBClient:
         query = f"""
         SHOW INDEXES
         YIELD name, state, populationPercent
-        WHERE state = 'POPULATING' OR state = 'ERROR' AND name IN $index_names 
+        WHERE state = 'POPULATING' OR state = 'ERROR' {'AND name IN $index_names' if index_names is not None else ''} 
         RETURN name, state, populationPercent
         """
 
         all_created = False
         while not all_created:
-            result = self.execute_read(query, index_names=index_names)
+
+            if index_names is not None:
+                result = self.execute_read(query, index_names=index_names)
+            else:
+                result = self.execute_read(query)
 
             if len(result) == 0:
                 break
