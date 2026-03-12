@@ -463,7 +463,6 @@ class DatasetImporter:
         for label in dummy_labels: # UNWIND $ids AS id {{node_id: id}}
 
             MyLogger.get_instance().log(f"Converting {label} domains to {NodeTypes.DUMMY_DOMAIN.value}...")
-            print(f"Converting {label} domains to {NodeTypes.DUMMY_DOMAIN.value}...")
 
             query = f"""
             CALL apoc.periodic.iterate(
@@ -486,7 +485,7 @@ class DatasetImporter:
                         SET du_match.node_id = free_node_id        
                     }}
                 
-                {Neo4jDBClient.get_node_replace_query('n','du_match')} 
+                {Neo4jDBClient.get_node_replace_query('n','du_match', label)} 
                 ",
                 {{
                     batchsize: 1,
@@ -501,15 +500,10 @@ class DatasetImporter:
             if max_id is None:
                 continue
 
-            #ids = list(range(driver.get_max_id_of_node_type(label) + 1))
-            #pre_filled = partial(driver.execute_write, query)
-            #driver.send_query_in_batches_func(pre_filled,{"ids": ids}, as_one_param=False)
-
             res = driver.execute_write(query)
             MyLogger.get_instance().log(str(res[0]))
 
         MyLogger.get_instance().log("Converted all service dummy nodes")
-        print("Converted all service dummy nodes")
         return
 
     def _import_into_neo4j(self):
