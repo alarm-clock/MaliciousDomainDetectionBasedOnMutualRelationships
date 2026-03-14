@@ -12,13 +12,8 @@ from misc.PackageImporter import get_options_from_registry
 from threading import Lock
 import json
 
-#TODO everything must be done with CURRENT version of the graph!!!
-#new graph version will be done outside of this class in the thread that will run this
 
 class AddRequest(GraphRequest):
-    #tim padom potrebujem to spravit ze sa mi parsnu data podobne ako v dataset importery a daju sa do formatu ze
-    # #mozem ich mozem fuknut do query
-
     _EDGE_DATA_LOCATION = 1
     _E_EDGES_LOC = 1
     _E_QUERY_LOC = 0
@@ -47,24 +42,6 @@ class AddRequest(GraphRequest):
         self._nodes_lock = Lock()
         self._edges_lock = Lock()
         self._callback_lock = Lock()
-
-    @classmethod
-    def from_json_file(cls, json_file: str, priority: RequestPriority, timeout: float = 600.0):
-
-        with open(json_file) as f:
-            doms = json.load(f)
-            if type(doms) != list:
-                doms = [doms]
-
-        return cls(doms, priority, timeout)
-
-    @classmethod
-    def from_json_str(cls, json_str: str, priority: RequestPriority, timeout: float = 600.0):
-        doms = json.loads(json_str)
-        if type(doms) != list:
-            doms = [doms]
-
-        return cls(doms, priority, timeout)
 
     #@classmethod
     #def from_csv_file
@@ -96,10 +73,11 @@ class AddRequest(GraphRequest):
     def _add_node_ids_to_du_domains(self) -> None:
 
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
-        free_ids = driver.get_free_node_id(NodeTypes.DUMMY_DOMAIN, len(self._nodes['du_domains_group'][self._N_NODES_LOC]))
+        free_ids = driver.get_free_node_id(NodeTypes.DUMMY_DOMAIN,
+                                           len(self._nodes['du_domains_group'][self._N_NODES_LOC]))
 
         if type(free_ids) != int:
-            for cnt, node in enumerate( self._nodes['du_domains_group'][self._N_NODES_LOC]):
+            for cnt, node in enumerate(self._nodes['du_domains_group'][self._N_NODES_LOC]):
                 node['node_id'] = free_ids[cnt]
         else:
             self._nodes['du_domains_group'][self._N_NODES_LOC][0]['node_id'] = free_ids
@@ -148,7 +126,8 @@ class AddRequest(GraphRequest):
 
         for option in options:
             if option == EditWorker.ReqCallbacks.ALL:
-                MyLogger.get_instance().log_warning("Do not use ALL option in combination with other options. Ignoring ALL option!")
+                MyLogger.get_instance().log_warning(
+                    "Do not use ALL option in combination with other options. Ignoring ALL option!")
                 continue
 
             options_dict[option.value] = available_callbacks[option]
@@ -170,7 +149,8 @@ class AddRequest(GraphRequest):
             cls = EDIT_WORKER_REGISTRY.get(worker_name)
 
             if cls is None:
-                MyLogger.get_instance().log_error(f"For some reason could not find worker {worker_name} even though it was registered")
+                MyLogger.get_instance().log_error(
+                    f"For some reason could not find worker {worker_name} even though it was registered")
                 error = True
                 break
 
@@ -184,22 +164,23 @@ class AddRequest(GraphRequest):
         self._wait_on_workers(workers_list)
         return error
 
-    def _add_maintenace_values_to_nodes(self, version: int) -> None:
+    def _add_maintenance_values_to_nodes(self, version: int) -> None:
         for n_t, _, nodes in self._nodes.values():
             for cnt in range(len(nodes)):
-                nodes[cnt] = nodes[cnt] | ({'graph_version': version, 'temporary': False} if n_t == NodeTypes.DOMAIN.value else {'graph_version': version})
-
+                nodes[cnt] = nodes[cnt] | (
+                    {'graph_version': version, 'temporary': False} if n_t == NodeTypes.DOMAIN.value else {
+                        'graph_version': version})
 
     #todo add option to just create node and edge without any other calculation because why the fuck not
     def _create_nodes(self, driver: Neo4jDBClient, version: int) -> None:
 
         self._add_node_ids_to_du_domains()
-        self._add_maintenace_values_to_nodes(version)
+        self._add_maintenance_values_to_nodes(version)
 
         for group, data in self._nodes.items():
             MyLogger.get_instance().log_debug(f"Creating nodes for group {group}")
             #print(group, data[self._N_NODES_LOC])
-            driver.create_nodes(data[self._N_NODE_T_LOC],data[self._N_NODES_LOC],data[self._N_EDIT_T_LOC])
+            driver.create_nodes(data[self._N_NODE_T_LOC], data[self._N_NODES_LOC], data[self._N_EDIT_T_LOC])
 
         MyLogger.get_instance().log_debug(f"Created all {len(self._nodes.keys())} nodes")
         return
@@ -236,10 +217,11 @@ class AddRequest(GraphRequest):
     def edit(self, version: int) -> bool:
 
         if self._canceled:
-            MyLogger.get_instance().log_debug(f"Request {self.id} is canceled before it could edit but after graph copy was created")
+            MyLogger.get_instance().log_debug(
+                f"Request {self.id} is canceled before it could edit but after graph copy was created")
             return False
 
-        get_options_from_registry(EDIT_WORKER_REGISTRY,self._req_callbacks)
+        get_options_from_registry(EDIT_WORKER_REGISTRY, self._req_callbacks)
         if self._dispatch_workers(version):
             return False
 

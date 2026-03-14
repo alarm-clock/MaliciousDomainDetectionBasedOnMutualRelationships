@@ -325,10 +325,30 @@ class Neo4jDBClient:
         :param req_number_of_ids: `int` required number of ids
         :return: `int | list[int]` ids that have been allocated
         """
+        if req_number_of_ids < 1:
+            return []
 
         res = self.execute_write(self.get_free_node_id_query(n_t, False, req_number_of_ids))
         ret_val = res[0]['free_node_id' if req_number_of_ids == 1 else 'free_node_ids']
         return ret_val
+
+    @staticmethod
+    def get_node_id_return_query(n_t: NodeTypes | str, id_var_name: str, with_survival: str, last: bool) -> str:
+        """
+        Method that returns query for returning node_ids of deleted nodes
+        :param last: `bool` that signals that nothing will follow this query
+        :param with_survival: `str` variables that should survive this query
+        :param n_t: `NodeTypes | str` node type of node which's node_id is returned, can be dynamic function like "labels(var_name)[0]"
+        :param id_var_name: `str` variable that holds node_id that will be returned
+        :return: `str` query
+        """
+
+        return f"""
+        WITH {'"'+ n_t.value + '"' if type(n_t) == NodeTypes else n_t} || "{Neo4jDBClient._FREE_NODE_ID_POSTFIX}" AS del_q_n_t, 
+             {with_survival} 
+        CREATE (:$(del_q_n_t) {{node_id: {id_var_name} }})
+        """ + ('' if last else 'WITH ' + with_survival )
+
 
     def return_unused_node_ids(self, n_t: NodeTypes, node_ids: int | list[int]) -> None:
         """
@@ -340,7 +360,7 @@ class Neo4jDBClient:
 
         query = f"""
         UNWIND $ids AS returned_id
-        CREATE (:{n_t.value}{self._FREE_NODE_ID_POSTFIX} {{node_id: returned_id}})
+        {Neo4jDBClient.get_node_id_return_query(n_t, 'returned_id', "returned_id", True)}
         """
 
         ids = [node_ids] if type(id) == int else node_ids
@@ -583,13 +603,93 @@ class Neo4jDBClient:
         if len(rows) <= 0:
             return
 
-        items_str = ",".join([str(key) + ": row." + str(key) for key in list(rows[0].keys())])
-
+        items_str = Neo4jDBClient.create_item_string(rows, "row")
         create_query = "UNWIND $rows AS row "
         query = ("CREATE" if edit_type == EditTypes.IGNORE_EXISTING else 'MERGE') + f"(:{node_type if type(node_type) == str else node_type.value} {{ {items_str} }})"
         create_query += query
 
         self.execute_write(create_query, rows=rows)
+
+    @staticmethod
+    def create_item_string(rows: list[dict], unwind_var_name: str) -> str | None:
+        if len(rows) == 0:
+            return None
+
+        return  ",".join([str(key) + ":" + unwind_var_name + "." + str(key) for key in list(rows[0].keys())])
+
+    @staticmethod
+    def get_delete_nodes_edge_free_neighbours(
+            var_name: str,
+            as_subquery: bool,
+            only_rels_with_domains: bool = True ,
+            also_delete_domains: bool = False,
+            with_survival: str = "" ) -> str:
+        """
+        Method that returns (sub)query for deleting neighboring nodes that have no other relation then that with `var_name`
+        :param var_name: `string` variable name of the node which's neighbors should be checked and deleted
+        :param as_subquery: `bool` flag indicating if query should be used inside CALL (...) {...}
+        :param only_rels_with_domains: `bool` flag indicating if only relations with domains should be counted, defaults to `True`
+        :param also_delete_domains: `bool` flag indicating that also domains should be checked, defaults to `False`
+        :param with_survival: `str` that is used to pass variables that should survive WITH, do not use if ``as_subquery`` is True, defaults to ""
+        :return: `str` (sub)query or "" if invalid combination of parameters was used
+        """
+
+        if as_subquery and with_survival.lstrip() != "":
+            return ""
+
+        where_label = f":{NodeTypes.DOMAIN.value}" if only_rels_with_domains else ""
+        do_not_match_domains = f'AND NOT m_del_var:{NodeTypes.DOMAIN.value}' if not also_delete_domains else ''
+
+        if with_survival != "":
+            removed_white_space = with_survival.lstrip()
+            if removed_white_space != "":
+                with_survival = (',' if removed_white_space[0] != ',' else "" ) + with_survival
+
+        return f"""
+        {('CALL ('+var_name+'){') if as_subquery else ''}
+        WITH {var_name} {with_survival}
+        OPTIONAL MATCH ({var_name})-->(m_del_var)
+        WITH {var_name}, m_del_var {with_survival}
+        WHERE m_del_var IS NOT NULL AND COUNT {{(m_del_var)--(m_other_rel{where_label} WHERE m_other_rel <> {var_name})}} = 0 {do_not_match_domains}
+        {Neo4jDBClient.get_node_id_return_query(
+            "labels(m_del_var)[0]", 
+            "m_del_var.node_id", 
+            f'{var_name}, m_del_var {with_survival}'
+        )}
+        DETACH DELETE m_del_var
+        {'}' if as_subquery else 'WITH DISTINCT ' + var_name + ' ' + with_survival}
+        """
+
+    def delete_nodes(self, nodes: list[dict[str, Any]], n_t: NodeTypes, only_rels_with_domains: bool = True) -> None:
+        """
+        Method that deletes `nodes` and optionally deletes neighbors that won't have any other relation after `nodes` are deleted
+        :param nodes: `list[dict]` of nodes where dictionary contains element name/s that will be matched to find node that will be deleted
+        :param n_t: `NodeTypes` node type of deleted nodes
+        :param only_rels_with_domains: `bool` flag indicating if only relations with domains should be counted, only used if `del_lone_neigh` is true, defaults to `True`
+        :return:
+        """
+
+        items_str = Neo4jDBClient.create_item_string(nodes, "node")
+        where_label = f":{NodeTypes.DOMAIN.value}" if only_rels_with_domains else ""
+        #do_not_match_domains = f'AND NOT node_for_del:{NodeTypes.DOMAIN.value}' if not also_del_neigh_domains else ''
+
+        node_del_query= f"""
+        UNWIND $nodes AS node
+        MATCH (n: {n_t.value} {{ {items_str} }})
+        //must put this before opt match because otherwise rows would explode and node id would be returned many many times
+        {Neo4jDBClient.get_node_id_return_query(n_t,"n.node_id", 'n', False)}
+        OPTIONAL MATCH (n)--(node_for_del:!{NodeTypes.DOMAIN.value})
+        DETACH DELETE n
+
+        WITH DISTINCT node_for_del WHERE node_for_del IS NOT NULL AND COUNT {{(node_for_del)--(m_other_rel{where_label})}} = 0 
+        {Neo4jDBClient.get_node_id_return_query("labels(node_for_del)[0]","node_for_del.node_id", f'node_for_del', True)}
+        DETACH DELETE node_for_del
+        """
+        MyLogger.get_instance().log_debug("Deleting nodes and their neighbors")
+        self.execute_write(node_del_query, nodes=nodes)
+        MyLogger.get_instance().log_debug("Deleted nodes and their neighbors")
+        return
+
 
     class EdgeCreationQueryOptions(Enum):
 
@@ -633,10 +733,10 @@ class Neo4jDBClient:
                     f"Edge value was not given a name to edge type {e_t}. Default value \"weight\" will be used")
                 e_v = "weight"
 
-            query += f" {creation_command} (u)-[:{e_t} {{{e_v}: edge.weight}}]->(v)"
+            query += f" {creation_command} (u)-[:{e_t} {{{e_v}: edge.{e_v}}}]->(v)"
 
             if option == self.EdgeCreationQueryOptions.WEIGHT_REVERSE:
-                query += f" {creation_command} (v)-[:{e_t.value} {{{e_v}: edge.weight}}]->(u)"
+                query += f" {creation_command} (v)-[:{e_t} {{{e_v}: edge.{e_v}}}]->(u)"
 
         return {"edges": query}
 

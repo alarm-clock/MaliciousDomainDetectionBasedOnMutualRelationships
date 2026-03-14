@@ -9,6 +9,8 @@ from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, expor
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_main.graph_editing.AddRequest import AddRequest
+from graph_repository.graph_main.graph_editing.DeleteRequest import DeleteRequest
+from graph_repository.graph_main.graph_editing.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.Neo4jDBClient import Neo4jDBClient, CouldNotConnect
 from graph_repository.workers.common.GraphTypes import NodeTypes
@@ -59,10 +61,13 @@ def main():
     dgl_import_parser.add_argument("-r",action='store_true',help="Regenerate train/test mask")
     dgl_import_parser.add_argument('--exp',type=str, help="Path where dgl graph will be stored")
 
-    # Add edit go here
-    add_edit_pareser = subparsers.add_parser('edit_add')
-    add_edit_pareser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
-    add_edit_pareser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
+    # Edit go here
+    edit_parser = subparsers.add_parser('edit')
+    edit_parser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
+    edit_parser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
+    edit_parser.add_argument('-a','--add',action='store_true',help="Add domains to graph")
+    edit_parser.add_argument('-d','--delete',action='store_true',help="Delete domains from graph")
+    edit_parser.add_argument('-e','--edit',action="store_true",help="Edit domains in graph")
 
     subparsers.add_parser('test')
 
@@ -126,17 +131,26 @@ def main():
         if args.exp is not None:
             export_dgl_graph(g,args.exp)
 
-    elif args.mode == "edit_add":
+    elif args.mode == "edit":
         repository = GraphRepository.get_instance(args.neo_db)
 
         if repository is None:
             print("Neo database connection config file not provided, exiting",file=sys.stderr)
             return
 
+        if args.add:
+            cls = AddRequest
+        elif args.delete:
+            cls = DeleteRequest
+        elif args.edit:
+            cls = EditRequest
+        else:
+            return
+
         if args.json_file is not None:
-            request = AddRequest.from_json_file(args.json_file,RequestPriority.LOW)
+            request = cls.from_json_file(args.json_file,RequestPriority.LOW)
         elif args.json is not None:
-            request = AddRequest.from_json_str(args.json, RequestPriority.LOW)
+            request = cls.from_json_str(args.json,RequestPriority.LOW)
         else:
             print("No add input was provided, exiting", file=sys.stderr)
             return

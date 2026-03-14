@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from functools import total_ordering
 from threading import Thread
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
+import json
 
 #TODO check and wait limited time in the main queue
 #todo proper init
@@ -16,6 +17,29 @@ class GraphRequest(ABC):
         self._canceled = False
         self._timeout = timeout
         self.id = None  #TODO
+
+
+    @staticmethod
+    def _normalize_json_data(data) -> list:
+        return data if type(data) == list else [data]
+
+    @classmethod
+    def _check_class(cls):
+        if isinstance(cls, GraphRequest):
+            raise TypeError("GraphRequest cannot be instantiated, only subclasses of GraphRequest are allowed")
+
+    @classmethod
+    def from_json_file(cls, json_file: str, priority: RequestPriority, timeout: float = 600.0):
+        cls._check_class()
+        with open(json_file) as f:
+            domains = GraphRequest._normalize_json_data(json.load(f))
+        return cls(domains, priority, timeout)
+
+    @classmethod
+    def from_json_str(cls, json_str: str, priority: RequestPriority, timeout: float = 600.0):
+        cls._check_class()
+        domains = GraphRequest._normalize_json_data(json.loads(json_str))
+        return cls(domains, priority, timeout)
 
     def __lt__(self, other):
         if not isinstance(other, RequestPriority):

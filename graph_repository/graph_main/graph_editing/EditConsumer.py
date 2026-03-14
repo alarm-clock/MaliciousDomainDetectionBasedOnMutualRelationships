@@ -44,6 +44,8 @@ def _handle_request(request: GraphRequest, stop_event: threading.Event, driver_c
                 cnt = 0
 
             time.sleep(10.0)
+            continue
+
         except Neo4jIndexError as err:
             MyLogger.get_instance().log_error(str(err))
             return
