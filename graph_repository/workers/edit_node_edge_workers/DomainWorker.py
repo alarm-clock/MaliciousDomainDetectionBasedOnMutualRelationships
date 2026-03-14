@@ -63,28 +63,30 @@ class DomainWorker(EditWorker):
 
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
         available_ids = driver.get_free_node_id(NodeTypes.DOMAIN, len(self._domains))
+        available_ids = available_ids if type(available_ids) == list else [available_ids]
 
+        ids_for_returning = []
         domain_names = []
         for cnt, domain in enumerate(self._domains):
-
+            node_id = available_ids[cnt]
             try:
                 domain_name = str(domain["domain_name"])
             except KeyError:
                 MyLogger.get_instance().log_warning("Omitted domain from adding because \'domain_name\' field is missing")
+                ids_for_returning.append(node_id)
                 continue
 
             try:
                 label = int(str(domain["label"]).find('benign') != -1)
             except KeyError:
                 MyLogger.get_instance().log_warning(f"Omitted domain {domain_name} from adding because \'label\' field is missing")
+                ids_for_returning.append(node_id)
                 continue
-
-            node_id = available_ids[cnt]
 
             try:
                 other_data = str(domain["other_data"])
             except KeyError:
-                other_data = None
+                other_data = ""
 
             parent_domains = get_domains_parent_domains(domain_name)
             depth = domain_depth(domain_name)
@@ -97,6 +99,9 @@ class DomainWorker(EditWorker):
                 'depth': depth
             })
             domain_names.append(domain_name)
+
+        if len(ids_for_returning) > 0:
+            driver.return_unused_node_ids(NodeTypes.DOMAIN, ids_for_returning)
 
         self._find_du_domains(domain_names, driver)
         driver.close()

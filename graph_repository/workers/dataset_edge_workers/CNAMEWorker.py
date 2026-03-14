@@ -6,6 +6,7 @@ Email: xbukas00@stud.fit.vutbr.cz
 Date: 10.2.2026
 Description: Class used for parallel creation of CNAME edges from dataset
 """
+import copy
 
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
@@ -13,6 +14,7 @@ from graph_repository.graph_repo_misc import domain_depth
 from graph_repository.graph_repo_misc import get_domains_parent_domains
 from concurrent.futures import ThreadPoolExecutor
 from misc.Logger import MyLogger
+from misc.Pair import replace
 import pymongo
 
 
@@ -37,7 +39,7 @@ class CNAMEWorker(DatasetWorker):
         (worker_name,f'{worker_name}_all',{"mode": True})
     ]
 
-    _project: dict = {'_id': 0, "dns.CNAME.value": 1, "node_id": 1}
+    _project: dict = {'_id': 0, "dns.CNAME.value": 1, "node_id": 1, "domain_name": 1}
     _nd_type1 = NodeTypes.DOMAIN
     _nd_type2 = NodeTypes.DUMMY_DOMAIN
     _DUMMY = False
@@ -46,6 +48,7 @@ class CNAMEWorker(DatasetWorker):
     _DOMAINS_TYPE = 0
     _DOMAINS_ID = 1
     _DOMAINS_LIST = 2
+    _DOMAIN_NAMES_LIST = 3
     _BATCH_SIZE = 5000
 
     def __init__(self, submit_callback_method, collection: pymongo.collection.Collection, ranges: list, mode: bool):
@@ -56,7 +59,10 @@ class CNAMEWorker(DatasetWorker):
         :param ranges: Dictionary with `or` conditions used to filter collection entries by `node_id`
         """
         super().__init__(submit_callback_method, collection, ranges, self._project)
-        self._domains: dict[str, tuple[bool, int, list[int]]] = {}
+        self._domains: dict[str, tuple[bool, int, list[int], list[str]]] = {}
+
+        self._owners = []
+        self._d_du_owners = []
         self._du: list[int] = []
         self._dum_dv: list[int] = []
         self._dum_d_names: list[str] = []
@@ -71,7 +77,14 @@ class CNAMEWorker(DatasetWorker):
 
         if len(self._u) > 0:
             MyLogger.get_instance().log("Submitting d -> cname -> d")
-            self._submit_callback_method(self._u, self._v, self._nd_type1, EdgeTypes.CNAME, self._nd_type1)
+            self._submit_callback_method(
+                self._u,
+                self._v,
+                self._nd_type1,
+                EdgeTypes.CNAME,
+                self._nd_type1,
+                e_data=('owner',self._owners)
+            )
 
         if len(self._du) > 0:
             #must submit reverse edge separately
@@ -81,11 +94,23 @@ class CNAMEWorker(DatasetWorker):
                 self._nd_type1,
                 EdgeTypes.CNAME,
                 self._nd_type2,
-                v_data={'domain_name': self._dum_d_names, 'depth': self._dum_d_depth, 'parent_domains': [get_domains_parent_domains(domain) for domain in self._dum_d_names]}
+                v_data={
+                    'domain_name': self._dum_d_names,
+                    'depth': self._dum_d_depth,
+                    'parent_domains': [get_domains_parent_domains(domain) for domain in self._dum_d_names]
+                },
+                e_data=("owner",self._d_du_owners)
             )
-            self._submit_callback_method(self._dum_dv, self._du, self._nd_type2, EdgeTypes.CNAME, self._nd_type1)
+            self._submit_callback_method(
+                self._dum_dv,
+                self._du,
+                self._nd_type2,
+                EdgeTypes.CNAME,
+                self._nd_type1 ,
+                e_data=("owner",self._d_du_owners)
+            )
 
-    def _connect_nodes_w_cname(self, cname_tup: tuple[bool, int, list[int]]) -> tuple[bool, list[int], list[int]]:
+    def _connect_nodes_w_cname(self, cname_tup: tuple[bool, int, list[int], list[str]]) -> tuple[bool, list[int], list[int], list[int]]:
         """
         Method for connecting domains with their CNAME domain which is either in datasets or dummy domain is created
         instead. For dummy domain option it only creates edges in one way, the other way is created by submitting in
@@ -95,16 +120,25 @@ class CNAMEWorker(DatasetWorker):
         :return: Tuple with (flag indicating if these edges are for dummy or normal domain, u, v)
         """
 
-        #MyLogger.get_instance().log_debug(f"TUPAN {cname_tup}")
         cname_id = cname_tup[self._DOMAINS_ID]
+        u = []
+        owner = []
 
-        u = [u_id for u_id in cname_tup[self._DOMAINS_LIST] if u_id != cname_id]
-        v = [cname_tup[self._DOMAINS_ID]] * len(u)
+        for cnt in range(len(cname_tup[self._DOMAINS_LIST])):
+            u_id = cname_tup[self._DOMAINS_LIST][cnt]
+            if u_id != cname_id:
+                u.append(u_id)
+                owner.append(cname_tup[self._DOMAIN_NAMES_LIST][cnt])
+
+        #u = [u_id for u_id in cname_tup[self._DOMAINS_LIST] if u_id != cname_id]
+        v = [cname_id] * len(u)
+        #owner = copy.deepcopy(u) #owner is domain that has cname entry
 
         if cname_tup[self._DOMAINS_TYPE] == self._DOMAIN:
             u[:], v[:] = u + v, v + u
+            owner[:] = owner + owner #reverse edges but both half's have same order
 
-        return cname_tup[self._DOMAINS_TYPE], u, v
+        return cname_tup[self._DOMAINS_TYPE], u, v, owner
 
     def _create_edges(self):
 
@@ -121,16 +155,16 @@ class CNAMEWorker(DatasetWorker):
             for future in futures:
                 result = future.result()
                 if result is not None:
-                    edge_t, u, v = result
+                    edge_t, u, v, owners = result
 
                     if edge_t == self._DUMMY:
-                        #MyLogger.get_instance().log_debug(f"PICACINA {u} {v}")
                         self._du.extend(u)
                         self._dum_dv.extend(v)
+                        self._d_du_owners.extend(owners)
                     else:
-                       # MyLogger.get_instance().log_debug(f"AMANA HY {u} {v}")
                         self._u.extend(u)
                         self._v.extend(v)
+                        self._owners.extend(owners)
 
     def _create_domain_batches(self) -> list[list[str]]:
 
@@ -151,9 +185,10 @@ class CNAMEWorker(DatasetWorker):
         found = self._collection.find(match, {"domain_name": 1, "_id": 0, "node_id": 1})
 
         for doc in found:
-            #MyLogger.get_instance().log_debug(f"{doc['domain_name']} {doc['node_id']}  {self._domains[doc['domain_name']][self._DOMAINS_LIST]}")
             self._domains[doc["domain_name"]] = (self._DOMAIN, int(doc['node_id']),
-                                                 self._domains[doc["domain_name"]][self._DOMAINS_LIST])
+                                                 self._domains[doc["domain_name"]][self._DOMAINS_LIST],
+                                                 self._domains[doc["domain_name"]][self._DOMAIN_NAMES_LIST]
+                                                 )
             # I don't need to check if domain is in the domains dictionary because I got it from it
             # also I don't need to check if there is a list because there already must be one
             # there also isn't need for the lock because in dictionary this domain is a key
@@ -176,7 +211,7 @@ class CNAMEWorker(DatasetWorker):
         dummy_id = 0
         for key in self._domains.keys():
             if self._domains[key][self._DOMAINS_ID] == -1:
-                self._domains[key] = (self._DUMMY, dummy_id, self._domains[key][self._DOMAINS_LIST])
+                self._domains[key] = replace(self._domains[key],self._DOMAINS_ID,dummy_id) #(self._DUMMY, dummy_id, self._domains[key][self._DOMAINS_LIST])
                 dummy_id += 1
 
                 #based on the chosen mode dummy domains are created or not
@@ -192,9 +227,15 @@ class CNAMEWorker(DatasetWorker):
         for doc in cursor:
             if doc.get('dns'):
                 if doc['dns']['CNAME']['value'] not in self._domains:
-                    self._domains[doc['dns']['CNAME']['value']] = (self._DUMMY, -1, [int(doc['node_id'])])
+                    self._domains[doc['dns']['CNAME']['value']] = (
+                        self._DUMMY,
+                        -1,
+                        [int(doc['node_id'])],
+                        [str(doc['domain_name'])]
+                    )
                 else:
                     self._domains[doc['dns']['CNAME']['value']][self._DOMAINS_LIST].append(int(doc['node_id']))
+                    self._domains[doc['dns']['CNAME']['value']][self._DOMAIN_NAMES_LIST].append(str(doc['domain_name']))
 
         MyLogger.get_instance().log("Stored all CNAME domains in the internal structure")
         self._find_cnames_in_db()

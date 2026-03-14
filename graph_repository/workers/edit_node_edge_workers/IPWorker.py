@@ -50,6 +50,11 @@ class IPWorker(EditWorker):
 
         driver.wait_for_index_creation([f'{NodeTypes.IP.value}_ip_str_idx'])
 
+    def _append_ip_new_ip_addr(self, ip, node_id: int) -> None:
+        ip_address = self._ip_dict[str(ip)]
+        self._ips.append({'ip_str': str(ip), 'ip_version': ip_address.version, 'node_id': node_id})
+        return
+
     def _create_ip_nodes(self) -> None:
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
 
@@ -64,11 +69,15 @@ class IPWorker(EditWorker):
         """
 
         non_existent_ips = driver.execute_read(query, rows=list(self._ip_dict.keys()))[0]['missing']
-        available_ids = driver.get_free_node_id(NodeTypes.IP, len(non_existent_ips))
+        n_non_exist_ips = len(non_existent_ips)
+        available_ids = driver.get_free_node_id(NodeTypes.IP, n_non_exist_ips)
 
-        for cnt, ip in enumerate(non_existent_ips):
-            ip_address = self._ip_dict[str(ip)]
-            self._ips.append({'ip_str': str(ip), 'ip_version': ip_address.version, 'node_id': available_ids[cnt]})
+
+        if n_non_exist_ips > 1:
+            for cnt, ip in enumerate(non_existent_ips):
+                self._append_ip_new_ip_addr(ip, available_ids[cnt])
+        elif n_non_exist_ips == 1:
+            self._append_ip_new_ip_addr(non_existent_ips[0], available_ids)
 
         driver.close()
 

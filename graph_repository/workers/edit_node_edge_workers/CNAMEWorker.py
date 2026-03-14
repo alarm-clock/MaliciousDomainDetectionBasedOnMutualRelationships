@@ -34,18 +34,16 @@ class CNAMEWorker(EditWorker):
         self._du_d_edges: list[dict] = []
 
     def _submit(self):
-
-       # replace_dummies_callback = partial(self._replace_dummies, self._domains_for_replacing, get_version_query(self._version,False))
-       # self._callbacks_submit_callback(replace_dummies_callback, CallbackWhen.BETWEEN_NODES_EDGES, self.worker_name)
         self._nodes_submit_callback(self._dummy_nodes, NodeTypes.DUMMY_DOMAIN, self.worker_name, EditTypes.IGNORE_NEW)
 
         query_option = {
             Neo4jDBClient.E_NODE_T1: NodeTypes.DOMAIN,
             Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
-            Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
+            Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.WEIGHT_REVERSE,
             Neo4jDBClient.E_EDGE_T: EdgeTypes.CNAME,
             Neo4jDBClient.E_MATCH1: "domain_name",
-            Neo4jDBClient.E_MATCH2: "domain_name"
+            Neo4jDBClient.E_MATCH2: "domain_name",
+            Neo4jDBClient.E_EDGE_VALUE_NAME: "owner"
         }
 
         self._edges_submit_callback(self._d_d_edges, query_option, self.worker_name)
@@ -56,9 +54,6 @@ class CNAMEWorker(EditWorker):
         self._edges_submit_callback(self._du_d_edges, query_option2, self.worker_name+"_du")
 
     def _create_dummy_domains(self) -> None:
-        #driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
-        #available_ids = driver.get_free_node_id(NodeTypes.DUMMY_DOMAIN, len(self._create_domains))
-        #driver.close()
 
         for domain_name in self._create_domains:
             self._dummy_nodes.append({'domain_name': domain_name, 'depth': domain_depth(domain_name), 'parent_domains': get_domains_parent_domains(domain_name)})
@@ -70,9 +65,9 @@ class CNAMEWorker(EditWorker):
         for cname_domain, n_t, domains in self._parsed_domains:
             for domain_name in domains:
                 if n_t == CNAMEWorker.NdTypes.DOMAIN:
-                    self._d_d_edges.append({'u':cname_domain, 'v':domain_name})
+                    self._d_d_edges.append({'u':cname_domain, 'v':domain_name, "owner": domain_name})
                 else:
-                    self._du_d_edges.append({'u':cname_domain, 'v':domain_name})
+                    self._du_d_edges.append({'u':cname_domain, 'v':domain_name, "owner": domain_name})
 
 
     def _find_cnames_in_graph(self, cname_normal_dict: dict[str, list[str]]) -> None:
@@ -94,16 +89,15 @@ class CNAMEWorker(EditWorker):
             if cname_name in self._domain_names:
                 self._parsed_domains.append((cname_name, CNAMEWorker.NdTypes.DOMAIN, cname_normal_dict[cname_name]))
             elif cname_domain['domain'] is None and cname_domain['dummy'] is None:
-
                 self._create_domains.append(cname_name)
                 self._parsed_domains.append((cname_name, CNAMEWorker.NdTypes.DUMMY, cname_normal_dict[cname_name]))
-                #replace(cname_normal_dict[cname_name],0,self.NdTypes.CREATE)
+
             elif cname_domain['domain'] is None:
                 self._parsed_domains.append((cname_name, CNAMEWorker.NdTypes.DUMMY, cname_normal_dict[cname_name]))
-                #replace(cname_normal_dict[cname_name],0,self.NdTypes.DOMAIN)
+
             elif cname_domain['dummy'] is None:
                 self._parsed_domains.append((cname_name, CNAMEWorker.NdTypes.DOMAIN, cname_normal_dict[cname_name]))
-                #replace(self._cname_normal_dict[cname_name],0,self.NdTypes.DUMMY)
+
 
         driver.close()
         del cname_normal_dict
