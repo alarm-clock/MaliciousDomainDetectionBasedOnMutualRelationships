@@ -4,6 +4,7 @@ from queue import PriorityQueue, Empty
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest, FinishRequest
 from graph_repository.Neo4jDBClient import Neo4jDBClient
 from graph_repository.graph_main.graph_editing.common.Exceptions import TooManyVersions, Neo4jIndexError
+from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
 from misc.Logger import MyLogger
 from enum import Enum
 
@@ -22,14 +23,22 @@ def _handle_request(request: GraphRequest, stop_event: threading.Event, driver_c
     it will stop editing
     :return: None
     """
+    MyLogger.get_instance().log(f"Handling request {request.id}")
+    request.state = RequestStates.IN_PROGRESS
+    request.filter()
+
+    if request.get_n_domains() == 0:
+        MyLogger.get_instance().log(f"Request {request.id} has no domains after filtering")
+        request.state = RequestStates.DONE
+        return
 
     driver: Neo4jDBClient = Neo4jDBClient.from_config(driver_conf_file)
-
     cnt = 0
     waiting_on_copy = True
     new_version = -1
     while waiting_on_copy:
         if stop_event.is_set():
+            request.cancel()
             MyLogger.get_instance().log_warning(f"Edit request handler was stopped before it could finish request")
             driver.close()
             return
@@ -51,6 +60,7 @@ def _handle_request(request: GraphRequest, stop_event: threading.Event, driver_c
             return
 
     if stop_event.is_set():
+        request.cancel()
         driver.delete_graph_version(new_version)
         driver.close()
         return
@@ -82,6 +92,9 @@ def edit_loop(stop_event: threading.Event, queue: PriorityQueue[GraphRequest], d
         try:
             request = queue.get(timeout=15.0) #todo make this editable in configuration
         except Empty:
+            driver = Neo4jDBClient.from_config(driver_conf_file)
+            driver.delete_unused_graph_versions()
+            driver.close()
             continue  #try getting new task again
 
         if type(request) == FinishRequest:

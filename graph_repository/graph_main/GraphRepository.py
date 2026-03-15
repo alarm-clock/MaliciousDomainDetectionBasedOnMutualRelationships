@@ -2,8 +2,9 @@ from queue import PriorityQueue
 from typing import Any
 from graph_repository.Neo4jDBClient import Neo4jDBClient
 from graph_repository.graph_main.graph_editing.EditConsumer import edit_loop, FinishType
-from threading import Event, Thread
+from threading import Event, Thread, Lock
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest, FinishRequest
+from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
 from misc.Logger import MyLogger
 from misc.PackageImporter import import_all_modules_from_package
 
@@ -28,6 +29,9 @@ class GraphRepository:
             import_all_modules_from_package("graph_repository.workers.edit_node_edge_workers")
             self._edit_worker = Thread(target=edit_loop,args=(self._worker_stop_event,self._request_q, self._neo4j_conf), daemon=True)
             self._edit_worker.start()
+
+            self._state_dict: dict[str, GraphRequest] = {}
+            self._state_dict_lock = Lock()
 
     @staticmethod
     def get_instance(neo4j_conf: str| None = None):
@@ -69,9 +73,49 @@ class GraphRepository:
 
     def add_request_to_queue(self, request):
         if self._stop_event.is_set():
-            raise RuntimeError('Graph repository is in process of stopping or it has already stopped')
-        self._request_q.put(request)
+            request.state = RequestStates.TIMEOUT
+            MyLogger.get_instance().log_warning(f"Graph repository is in process of stopping or it has already stopped - {request.id}")
+            raise RuntimeError(f'Graph repository is in process of stopping or it has already stopped - {request.id}')
 
+        with self._state_dict_lock:
+            self._state_dict[request.id] = request
+
+        request.state = RequestStates.FILTER
+        request.filter()
+
+        if request.get_n_domains() == 0:
+            MyLogger.get_instance().log(f"Request {request.id} has no domains after filtering")
+            request.state = RequestStates.DONE
+            return
+
+        MyLogger.get_instance().log_debug(f"Adding request {request.id} to queue")
+        self._request_q.put(request)
+        request.state = RequestStates.IN_QUEUE
+
+    def get_request_state(self, job_id: str) -> RequestStates | None:
+        with self._state_dict_lock:
+            if self._state_dict.get(job_id) is None:
+                return None
+
+            job = self._state_dict[job_id]
+            state = job.state
+            if state == RequestStates.DONE or state == RequestStates.TIMEOUT or state == RequestStates.CANCELED or state == RequestStates.ERROR:
+                req_for_del = self._state_dict.pop(job_id)
+                del req_for_del
+
+        return state
+
+    def delete_finished_request(self) -> None:
+        with self._state_dict_lock:
+            jobs_for_deleting = []
+            for job_id, req in self._state_dict.items():
+                state = req.state
+                if state == RequestStates.DONE or state == RequestStates.TIMEOUT or state == RequestStates.CANCELED or state == RequestStates.ERROR:
+                    jobs_for_deleting.append(job_id)
+
+            for job_id in jobs_for_deleting:
+                de = self._state_dict.pop(job_id)
+                del de
 
     def temporary_add_domain(self, domain: dict[str, Any]) -> str:
 
