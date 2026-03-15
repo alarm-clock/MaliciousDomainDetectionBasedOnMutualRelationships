@@ -29,6 +29,9 @@ class Neo4jDBClient:
     direct graph querying, it also has more complex methods for managing domain relationship graph.
     """
 
+    VERSION_CURR = -2
+    VERSION_MAX = -1
+
     def __init__(self, host: str, port: int, username: str, password: str, database: str, alt_host: str | None = None, batch_delay: float = 0.0, batch_size: int = 1000):
         """
         Class constructor that checks parameter validity and connects to database
@@ -199,6 +202,14 @@ class Neo4jDBClient:
         :return: `list[int] all graph versions
         """
         return self.execute_read(f"MATCH (v: {NodeTypes.VERSION.value}) RETURN collect(v.version) AS vers")[0]['vers']
+
+    def get_existing_versions_nodes(self) -> list[dict[str, int]]:
+        return self.execute_read(
+            f"MATCH (v: {NodeTypes.VERSION.value}) RETURN collect({{version: v.version, users: v.n_users}}) AS vers"
+        )[0]['vers']
+
+    def get_n_existing_versions(self) -> int:
+        return self.execute_read(f'MATCH (v: {NodeTypes.VERSION.value}) RETURN COUNT(v) AS cnt')[0]['cnt']
 
     def set_new_graph_version_node(self, new_version: int) -> None:
         """
@@ -493,23 +504,50 @@ class Neo4jDBClient:
         """
         current_version = self.get_current_active_graph_version()
         if current_version == version and not force:
-            MyLogger.get_instance().log_warning(f"Tried to delete current graph version which is version {version}!")
+            MyLogger.get_instance().log_warning(f"Tried to delete current graph version which is version v.{version}!")
             return False
 
-        #TODO BATCHES BABY
         labels = self.get_all_labels_in_graph()
         for label in labels:
             query = f"""
-            MATCH (n:{label} {{graph_version: {version} }})
-            DETACH DELETE n
+            CALL apoc.periodic.iterate(
+                "MATCH (n:{label} {{graph_version: {version} }}) RETURN n",
+                "DETACH DELETE n",
+                {{
+                    batchSize: {self._batch_size},
+                    parallel: true,
+                    batchMode: 'BATCH'
+                }}
+            ) YIELD batch
+            RETURN 0
             """
             self.execute_write(query)
 
         self.execute_write(f"MATCH (n: {NodeTypes.VERSION.value} {{version: {version} }} ) DELETE n")
         if force and current_version == version:
-            MyLogger.get_instance().log_warning(f"Deleted current version of graph which was version {version}! Force flag was set")
+            MyLogger.get_instance().log_warning(f"Deleted current version of graph which was version v.{version}! Force flag was set")
             self.execute_write(f"MATCH (n: {NodeTypes.CURRENT_VERSION.value} {{version: {version} }} ) DELETE n")
+        else:
+            MyLogger.get_instance().log(f"Deleted graph version v.{version}, current graph version is v.{current_version}")
         return True
+
+    def delete_unused_graph_versions(self) -> bool:
+        """
+        Method that deletes unused graph versions, e.g. graph versions with 0 users
+        :return: `bool` flag indicating if any graph version was deleted
+        """
+
+        existing_versions = self.get_existing_versions_nodes()
+        current_version = self.get_current_active_graph_version()
+        deleted = False
+        for version_dict in existing_versions:
+            if version_dict["users"] > 0 or version_dict['version'] == current_version:
+                continue
+
+            deleted = True
+            self.delete_graph_version(version_dict['version'])
+
+        return deleted
 
     def _create_node_version_index(self) -> None:
 
@@ -529,10 +567,10 @@ class Neo4jDBClient:
 
     def create_new_version_mirror_of_graph(self) -> int:
 
-        all_used_versions = self.get_existing_versions()
+        if self.get_n_existing_versions() > 3:
 
-        if len(all_used_versions) > 3:
-            raise TooManyVersions
+            if not self.delete_unused_graph_versions():
+                raise TooManyVersions
 
         self._create_indexes_for_graph_copy()
         current_version = self.get_current_active_graph_version()
@@ -618,6 +656,7 @@ class Neo4jDBClient:
         return  ",".join([str(key) + ":" + unwind_var_name + "." + str(key) for key in list(rows[0].keys())])
 
     @staticmethod
+    @deprecated
     def get_delete_nodes_edge_free_neighbours(
             var_name: str,
             as_subquery: bool,
@@ -654,40 +693,53 @@ class Neo4jDBClient:
         {Neo4jDBClient.get_node_id_return_query(
             "labels(m_del_var)[0]", 
             "m_del_var.node_id", 
-            f'{var_name}, m_del_var {with_survival}'
+            f'{var_name}, m_del_var {with_survival}',
+            True
         )}
         DETACH DELETE m_del_var
         {'}' if as_subquery else 'WITH DISTINCT ' + var_name + ' ' + with_survival}
         """
 
-    def delete_nodes(self, nodes: list[dict[str, Any]], n_t: NodeTypes, only_rels_with_domains: bool = True) -> None:
+    def delete_nodes(self, nodes: list[dict[str, Any]], n_t: NodeTypes,
+                     only_rels_with_domains: bool = True, ignore_subdomains: bool = False,
+                     version: int = VERSION_MAX ) -> None:
         """
         Method that deletes `nodes` and optionally deletes neighbors that won't have any other relation after `nodes` are deleted
         :param nodes: `list[dict]` of nodes where dictionary contains element name/s that will be matched to find node that will be deleted
         :param n_t: `NodeTypes` node type of deleted nodes
         :param only_rels_with_domains: `bool` flag indicating if only relations with domains should be counted, only used if `del_lone_neigh` is true, defaults to `True`
-        :return:
+        :param ignore_subdomains: `bool` flag indicating that subdomain relations should be ignored, defaults to `False`
+        :param version: `int` graph version on which's nodes will be deleted, defaults to `VERSION_MAX`
+        :return: None
         """
 
         items_str = Neo4jDBClient.create_item_string(nodes, "node")
+        if items_str is None:
+            return
         where_label = f":{NodeTypes.DOMAIN.value}" if only_rels_with_domains else ""
-        #do_not_match_domains = f'AND NOT node_for_del:{NodeTypes.DOMAIN.value}' if not also_del_neigh_domains else ''
+        ignore_subdomains = f'[:!{EdgeTypes.SUBDOMAIN.value}]' if ignore_subdomains else ''
+
+        if version == Neo4jDBClient.VERSION_MAX:
+            version = max(self.get_existing_versions())
+        elif version == Neo4jDBClient.VERSION_CURR:
+            version = self.get_current_active_graph_version()
 
         node_del_query= f"""
         UNWIND $nodes AS node
-        MATCH (n: {n_t.value} {{ {items_str} }})
+        MATCH (n: {n_t.value} {{ {items_str} {get_version_query(version,False)} }})
         //must put this before opt match because otherwise rows would explode and node id would be returned many many times
         {Neo4jDBClient.get_node_id_return_query(n_t,"n.node_id", 'n', False)}
-        OPTIONAL MATCH (n)--(node_for_del:!{NodeTypes.DOMAIN.value})
+        OPTIONAL MATCH (n)-{ignore_subdomains}-(node_for_del:!{NodeTypes.DOMAIN.value}  {{ {get_version_query(version, True)} }} )
         DETACH DELETE n
 
         WITH DISTINCT node_for_del WHERE node_for_del IS NOT NULL AND COUNT {{(node_for_del)--(m_other_rel{where_label})}} = 0 
         {Neo4jDBClient.get_node_id_return_query("labels(node_for_del)[0]","node_for_del.node_id", f'node_for_del', True)}
         DETACH DELETE node_for_del
         """
-        MyLogger.get_instance().log_debug("Deleting nodes and their neighbors")
+
+        MyLogger.get_instance().log_debug(f"Deleting nodes and their neighbors in graph version v.{version}")
         self.execute_write(node_del_query, nodes=nodes)
-        MyLogger.get_instance().log_debug("Deleted nodes and their neighbors")
+        MyLogger.get_instance().log_debug(f"Deleted nodes and their neighbors in graph version v.{version}")
         return
 
 
@@ -709,9 +761,15 @@ class Neo4jDBClient:
     E_NO_DUP = 'e_no_dup'
 
     def _create_edge_creation_query(self, option: EdgeCreationQueryOptions, m1: str, m2: str, e_t: EdgeTypes | str,
-                                    n_t1: NodeTypes | str, n_t2: NodeTypes | str, e_v: str | None =  None, e_vers: int = -1, e_no_dup: bool = False) -> dict[str, str]:
+                                    n_t1: NodeTypes | str, n_t2: NodeTypes | str, e_v: str | None =  None, e_vers: int = VERSION_MAX, e_no_dup: bool = False) -> dict[str, str]:
 
-        version = e_vers if e_vers != -1 else self.get_current_active_graph_version()
+        if e_vers == Neo4jDBClient.VERSION_MAX:
+            version = max(self.get_existing_versions())
+        elif e_vers == Neo4jDBClient.VERSION_CURR:
+            version = self.get_current_active_graph_version()
+        else:
+            version = e_vers
+
         query = f"""
         UNWIND $edges AS edge
         MATCH (u: {n_t1.value if type(n_t1) == NodeTypes else n_t1} {{{m1}: edge.u {get_version_query(version,False)} }}), 
@@ -781,8 +839,7 @@ class Neo4jDBClient:
         RETURN node
         {'}' if call else ''}
         """
-    #        DELETE r
-    #    DELETE r_rev
+
     def check_label_exists(self, label: NodeTypes | str) -> bool:
         label_str = label if type(label) == str else label.value
         return len(self.execute_read(f"MATCH (n:{label_str}) RETURN n LIMIT 1")) != 0
