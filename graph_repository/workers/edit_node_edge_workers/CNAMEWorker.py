@@ -13,7 +13,7 @@ class CNAMEWorker(EditWorker):
 
     worker_name = 'CNAMEWorker'
     req_callbacks = (worker_name, [EditWorker.ReqCallbacks.ALL])
-    _limit = 5000
+    _limit = 250
 
     class NdTypes(Enum):
         DOMAIN  = 0
@@ -106,7 +106,6 @@ class CNAMEWorker(EditWorker):
     def _extract_cnames(self) -> dict[str, list[str]]:
 
         cname_normal_dict: dict[str, list[str]] = {}
-
         for domain in self._domains:
 
             domain_name = str(domain['domain_name'])
@@ -115,7 +114,7 @@ class CNAMEWorker(EditWorker):
             except (KeyError,TypeError):
                 try:
                     cname_domain = domain['dns']['CNAME']
-                except KeyError:
+                except (KeyError,TypeError):
                     MyLogger.get_instance().log_debug(f'Omitting domain {domain_name} because it does not have a CNAME DNS entry')
                     continue
 

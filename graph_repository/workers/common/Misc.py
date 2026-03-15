@@ -9,6 +9,9 @@ class IPModes(Enum):
 def get_ips_from_record(doc: dict, mode: IPModes) -> list:
     ips: list = []
 
+    if doc.get('dns') is None:
+        return ips
+
     if mode == IPModes.V4 or mode == IPModes.BOTH:
         a_list = doc['dns'].get('A',[])
         if a_list is not None:

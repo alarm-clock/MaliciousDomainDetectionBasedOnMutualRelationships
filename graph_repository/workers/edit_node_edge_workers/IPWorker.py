@@ -12,7 +12,7 @@ from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 class IPWorker(EditWorker):
     worker_name = 'IPWorker'
     req_callbacks = (worker_name, [EditWorker.ReqCallbacks.NODE, EditWorker.ReqCallbacks.EDGE])
-    _limit = 2000
+    _limit = 250
 
     def __init__(self, domains: list[dict], version: int, nodes_submit_callback, edges_submit_callback):
         super().__init__(domains, version, IPWorker._limit)

@@ -11,7 +11,7 @@ class DomainWorker(EditWorker):
 
     worker_name = 'DomainWorker'
     req_callbacks = (worker_name, [EditWorker.ReqCallbacks.NODE,EditWorker.ReqCallbacks.CALLBACK])
-    _limit = 5000
+    _limit = 250
 
     def __init__(self, domains: list[dict], version: int, nodes_submit_callback, callbacks_submit_callback):
         super().__init__(domains, version, DomainWorker._limit)

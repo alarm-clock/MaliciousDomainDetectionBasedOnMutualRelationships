@@ -211,3 +211,5 @@ __marimo__/
 mongo_config*.json
 neo4j_config*.json
 *.log
+random_sraping_scripts/*
+random_sraping_scripts

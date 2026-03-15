@@ -4,7 +4,7 @@ from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.workers.common.TmpFunctions import register
 
 
-def find_cname_in_graph(cname_domain: str, version: int, driver: Neo4jDBClient) -> dict[str, Any] | None:
+def _find_cname_in_graph(cname_domain: str, version: int, driver: Neo4jDBClient) -> dict[str, Any] | None:
 
     find_cnames_in_domains = f"""
     OPTIONAL MATCH (n: {NodeTypes.DOMAIN.value} {{domain_name: $cname {get_version_query(version, False)}}})
@@ -33,7 +33,7 @@ def find_cname_in_graph(cname_domain: str, version: int, driver: Neo4jDBClient) 
         }
     return None
 
-def find_domains_that_have_domain_as_cname(domain_name: str, version: int, driver: Neo4jDBClient) -> list | None:
+def _find_domains_that_have_domain_as_cname(domain_name: str, version: int, driver: Neo4jDBClient) -> list | None:
 
     query=f"""
     MATCH (du: {NodeTypes.DUMMY_DOMAIN.value} {{ domain_name: "{domain_name}" {get_version_query(version, False)} }})
@@ -58,11 +58,11 @@ def tmp_add_cname_edge(domain: dict, version: int, driver: Neo4jDBClient) -> lis
 
     edges = []
 
-    edge_creation_dict = find_cname_in_graph(cname_domain, version, driver)
+    edge_creation_dict = _find_cname_in_graph(cname_domain, version, driver)
     if edge_creation_dict is not None:
         edges.append(([{'u': domain_name, "v": cname_domain}], edge_creation_dict))
 
-    domains_with_tmp_as_cname = find_domains_that_have_domain_as_cname(domain_name, version, driver)
+    domains_with_tmp_as_cname = _find_domains_that_have_domain_as_cname(domain_name, version, driver)
     if domains_with_tmp_as_cname is not None:
         edge_creation_dict = {
             Neo4jDBClient.E_NODE_T1: NodeTypes.TMP_DOMAIN,

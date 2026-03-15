@@ -14,7 +14,7 @@ class SubdomainWorker(EditWorker):
 
     worker_name = 'subdomain'
     req_callbacks = (worker_name, [EditWorker.ReqCallbacks.EDGE, EditWorker.ReqCallbacks.NODE])
-    _limit = 5000
+    _limit = 250
 
     _index_query = f"""
         CREATE INDEX parentDomainsIndex 
