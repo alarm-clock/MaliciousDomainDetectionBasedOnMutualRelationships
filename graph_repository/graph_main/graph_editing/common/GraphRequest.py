@@ -1,8 +1,11 @@
 import time
+import uuid
 from abc import ABC, abstractmethod
 from functools import total_ordering
 from threading import Thread
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
+from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
+from typing import Callable
 import json
 
 #TODO check and wait limited time in the main queue
@@ -12,12 +15,15 @@ import json
 @total_ordering
 class GraphRequest(ABC):
 
-    def __init__(self, priority: RequestPriority, timeout: float = 1200.0):
+    def __init__(self, domains: list[dict], priority: RequestPriority, timeout: float = 1200.0,
+                 filter_func: Callable[[list[dict]], tuple[list[dict], list[dict]] | list[dict]] | None = None):
+        self._domains = domains
         self._priority = priority
         self._canceled = False
         self._timeout = timeout
-        self.id = None  #TODO
-
+        self._filter_func = filter_func
+        self.id = str(uuid.uuid4())
+        self.state = RequestStates.SUBMITTED
 
     @staticmethod
     def _normalize_json_data(data) -> list:
@@ -53,11 +59,31 @@ class GraphRequest(ABC):
 
         return self._priority.value == other._priority.value
 
+    def get_n_domains(self) -> int:
+        return len(self._domains)
+
+    def filter(self, filter_func: Callable[[list[dict]], tuple[list[dict], list[dict]] | list[dict]] | None = None) -> None:
+        """
+        Method that filters domains using ``filter_func``. Note that filter should del old domains object
+        :param filter_func: Function that takes domains (`list[dict]`) as parameter and returns new domains
+        :return: None
+        """
+
+        if filter_func is None:
+            if self._filter_func is None:
+                return
+            filter_func = self._filter_func
+
+        self._domains = filter_func(self._domains)
+        return
+
     def _wait(self):
         time.sleep(self._timeout)
+        self.state = RequestStates.TIMEOUT
         self._canceled = True
 
     def cancel(self):
+        self.state = RequestStates.CANCELED
         self._canceled = True
 
     def is_canceled(self) -> bool:
@@ -75,8 +101,7 @@ class GraphRequest(ABC):
 class FinishRequest(GraphRequest):
 
     def __init__(self):
-        super().__init__(RequestPriority.LOW)
-
+        super().__init__([{}],RequestPriority.LOW)
 
     def edit(self, version: int) -> None:
         return

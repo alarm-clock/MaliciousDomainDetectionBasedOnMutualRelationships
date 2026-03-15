@@ -1,11 +1,13 @@
 from typing import Any
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
+from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
 from graph_repository.workers.common.GraphTypes import NodeTypes
 from graph_repository.Neo4jDBClient import Neo4jDBClient
 from graph_repository.workers.common.Enums import EditTypes, CallbackWhen
 from graph_repository.workers.common.EditWorker import EDIT_WORKER_REGISTRY, EditWorker
 from graph_repository.graph_main.GraphRepository import GraphRepository
+from graph_repository.graph_main.graph_editing.DomainFiltering import basic_filter_domains
 from misc.Pair import replace
 from misc.Logger import MyLogger
 from misc.PackageImporter import get_options_from_registry
@@ -22,9 +24,8 @@ class AddRequest(GraphRequest):
     _N_NODE_T_LOC = 0
 
     #TODO how to parse data for the graph
-    def __init__(self, domains: list[dict], priority: RequestPriority, timeout: float = 600.0):
-        super().__init__(priority, timeout)
-        self._domains = domains
+    def __init__(self, domains: list[dict], priority: RequestPriority, timeout: float = 1200.0):
+        super().__init__(domains, priority, timeout, basic_filter_domains)
 
         #               group       node_type   edit_type     rows
         self._nodes: dict[str, tuple[NodeTypes, EditTypes, list[dict]]] = {}
@@ -73,6 +74,9 @@ class AddRequest(GraphRequest):
     def _add_node_ids_to_du_domains(self) -> None:
 
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        if self._nodes.get('du_domains_group') is None:
+            return
+
         free_ids = driver.get_free_node_id(NodeTypes.DUMMY_DOMAIN,
                                            len(self._nodes['du_domains_group'][self._N_NODES_LOC]))
 
@@ -218,12 +222,16 @@ class AddRequest(GraphRequest):
 
         if self._canceled:
             MyLogger.get_instance().log_debug(
-                f"Request {self.id} is canceled before it could edit but after graph copy was created")
+                f"Add request {self.id} is canceled before it could edit but after graph copy was created")
+            if self.state != RequestStates.TIMEOUT:
+                self.state = RequestStates.CANCELED
             return False
 
         get_options_from_registry(EDIT_WORKER_REGISTRY, self._req_callbacks)
         if self._dispatch_workers(version):
+            self.state = RequestStates.ERROR
             return False
 
         self._edit_graph(version)
+        self.state = RequestStates.DONE
         return True
