@@ -2,20 +2,20 @@ import argparse
 import signal
 import sys
 import warnings
-
 from dgl.base import DGLWarning
 from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.graph_main.graph_editing.AddRequest import AddRequest
-from graph_repository.graph_main.graph_editing.DeleteRequest import DeleteRequest
-from graph_repository.graph_main.graph_editing.EditRequest import EditRequest
+from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
+from graph_repository.graph_main.graph_editing.requests.DeleteRequest import DeleteRequest
+from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.Neo4jDBClient import Neo4jDBClient, CouldNotConnect
 from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
 import dgl
+import uvicorn
 
 warnings.filterwarnings("ignore",category=DGLWarning) #it actually comes from package itself
 
@@ -68,6 +68,13 @@ def main():
     edit_parser.add_argument('-a','--add',action='store_true',help="Add domains to graph")
     edit_parser.add_argument('-d','--delete',action='store_true',help="Delete domains from graph")
     edit_parser.add_argument('-e','--edit',action="store_true",help="Edit domains in graph")
+
+    #Api go here
+    api_parser = subparsers.add_parser('server')
+    api_parser.add_argument('-p',"--port",type=int, help="Port on which server will run, defaults to 8000", default=8000)
+    api_parser.add_argument('-a','--address',type=str, help="Host on which server will run, defaults to localhost", default='localhost')
+    #api_parser.add_argument('--live_reloading',action='store_true',help="Enable live reloading")
+    #TODO ADD RUN ASYNC OPTION
 
     subparsers.add_parser('test')
 
@@ -160,7 +167,18 @@ def main():
 
         current_graph_version = driver.get_current_active_graph_version()
         driver.close()
+        request.filter()
         request.edit(current_graph_version)
+
+    elif args.mode == 'server':
+        repository = GraphRepository.get_instance(args.neo_db)
+        signal_handlers_for_graph_repo()
+
+        if repository is None:
+            print("Neo database connection config file not provided, exiting",file=sys.stderr)
+            return
+
+        uvicorn.run("graph_repository.api.server:app", host=args.address, port=args.port)
 
     elif args.mode == "test":
         client = Neo4jDBClient.from_config(args.neo_db)
