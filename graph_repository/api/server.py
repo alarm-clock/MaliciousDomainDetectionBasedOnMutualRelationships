@@ -12,14 +12,25 @@ app = FastAPI()
 
 
 class DomainDict(BaseModel):
+    """
+    `domain_name`: domain name \n
+    `label`: domain label. Domain is considered benign if label has substring "benign" \n
+    `dns`: domain's dns data in JSON format. System currently uses only A, AAAA, and CNAME
+    """
     domain_name: str
     label: str
     dns: dict | None = None
 
 
 class AddReq(BaseModel):
+    """
+    `domains`: list of JSON objects with domain data \n
+    `priority`: priority of given request. Values from 0 to 3 with lower value having bigger priority \n
+    `timeout`: time after which, if request is not finished it will fail and will be dropped
+    """
     domains: List[DomainDict]
     priority: RequestPriority | None = None
+    timeout: float | None = None
 
 @app.post("/add")
 async def add_req(req: AddReq):
@@ -31,7 +42,11 @@ async def add_req(req: AddReq):
     domains = [domain_dict.model_dump() for domain_dict in req.domains]
     if req.priority is None: req.priority = RequestPriority.LOW
 
-    add_request = AddRequest(domains, req.priority)
+    if req.timeout is None:
+        add_request = AddRequest(domains, req.priority)
+    else:
+        add_request = AddRequest(domains, req.priority, req.timeout)
+
     job_id = add_request.id
     state = add_request.state
     th = Thread(target=add_request.submit, args=(GraphRepository.get_instance(),), daemon=True)
@@ -49,7 +64,11 @@ async def update_req(req: AddReq):
     domains = [domain_dict.model_dump() for domain_dict in req.domains]
     if req.priority is None: req.priority = RequestPriority.LOW
 
-    update_request = EditRequest(domains, req.priority)
+    if req.timeout is None:
+        update_request = AddRequest(domains, req.priority)
+    else:
+        update_request = AddRequest(domains, req.priority, req.timeout)
+
     job_id = update_request.id
     state = update_request.state
     th = Thread(target=update_request.submit, args=(GraphRepository.get_instance(),), daemon=True)
@@ -58,8 +77,14 @@ async def update_req(req: AddReq):
 
 
 class DeleteReq(BaseModel):
+    """
+    `domains`: list of JSON objects with domain names for deleting in format {domain_name: "sweet.dreams.eu"}
+    `priority`: priority of given request. Values from 0 to 3 with lower value having bigger priority
+    `timeout`: time after which, if request is not finished it will fail and will be dropped
+    """
     domains: list[dict[str, str]]
     priority: RequestPriority | None = None
+    timeout: float | None = None
 
 @app.delete("/delete")
 async def delete_req(req: DeleteReq):
@@ -68,7 +93,12 @@ async def delete_req(req: DeleteReq):
     """
 
     if req.priority is None: req.priority = RequestPriority.LOW
-    delete_request = DeleteRequest(req.domains, req.priority)
+
+    if req.timeout is None:
+        delete_request = DeleteRequest(req.domains, req.priority)
+    else:
+        delete_request = DeleteRequest(req.domains, req.priority, req.timeout)
+
     job_id = delete_request.id
     state = delete_request.state
     th = Thread(target=delete_request.submit, args=(GraphRepository.get_instance(),), daemon=True)
