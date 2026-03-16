@@ -8,6 +8,7 @@ from graph_repository.graph_main.graph_editing.requests.AddRequest import AddReq
 from graph_repository.graph_main.graph_editing.requests.DeleteRequest import DeleteRequest
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
+from misc.Logger import MyLogger
 from misc.mem_monitor import enough_memory
 app = FastAPI()
 
@@ -137,6 +138,13 @@ async def rm_fin_req():
     GraphRepository.get_instance().delete_finished_request()
     return
 
+@app.get("/info")
+async def sys_info():
+    n_r, n_f, n_t, m_p, m_a, t_a, t_l = MyLogger.get_instance().log_stats()
+    return {"Requests": {"Total": n_r, "Finished": n_f, "Timeout": n_t},
+            "Memory": {"Used%": m_p, "Available": m_a},
+            "Time": {"Avg": t_a, "Last": t_l}
+            }
 
 class ReadQuery(BaseModel):
     query: str
