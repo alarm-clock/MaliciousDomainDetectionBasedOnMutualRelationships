@@ -225,13 +225,16 @@ class AddRequest(GraphRequest):
                 f"Add request {self.id} is canceled before it could edit but after graph copy was created")
             if self.state != RequestStates.TIMEOUT:
                 self.state = RequestStates.CANCELED
+            del self._domains
             return False
 
         get_options_from_registry(EDIT_WORKER_REGISTRY, self._req_callbacks)
         if self._dispatch_workers(version):
             self.state = RequestStates.ERROR
+            del self._domains
             return False
 
         self._edit_graph(version)
         self.state = RequestStates.DONE
+        del self._domains, self._nodes, self._edges, self._du_domains
         return True

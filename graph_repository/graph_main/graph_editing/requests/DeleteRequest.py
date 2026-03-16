@@ -18,10 +18,13 @@ class DeleteRequest(GraphRequest):
             MyLogger.get_instance().log_warning(f"Delete request with id {self.id} is canceled before it could edit but after graph copy was created")
             if self.state != RequestStates.TIMEOUT:
                 self.state = RequestStates.CANCELED
+
+            del self._domains
             return False
 
         driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
         driver.delete_nodes(self._domains, NodeTypes.DOMAIN, True)
         driver.close()
         self.state = RequestStates.DONE
+        del self._domains
         return True
