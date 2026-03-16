@@ -8,7 +8,7 @@ from graph_repository.graph_main.graph_editing.common.RequestStates import Reque
 from typing import Callable
 import json
 
-#TODO check and wait limited time in the main queue
+
 #todo proper init
 #todo addition of two requests together (this may not work because each type does it's own thing, or at least it will be hard to implement)
 
@@ -48,13 +48,13 @@ class GraphRequest(ABC):
         return cls(domains, priority, timeout)
 
     def __lt__(self, other):
-        if not isinstance(other, RequestPriority):
+        if not isinstance(other, GraphRequest):
             return NotImplemented
 
         return self._priority.value < other._priority.value
 
     def __eq__(self, other):
-        if not isinstance(other, RequestPriority):
+        if not isinstance(other, GraphRequest):
             return NotImplemented
 
         return self._priority.value == other._priority.value
