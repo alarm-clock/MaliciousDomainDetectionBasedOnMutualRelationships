@@ -14,6 +14,8 @@ class DeleteRequest(GraphRequest):
         super().__init__(domains,priority, timeout)
 
     def edit(self, version: int) -> bool:
+        self._stop_wait()
+
         if self._canceled:
             MyLogger.get_instance().log_warning(f"Delete request with id {self.id} is canceled before it could edit but after graph copy was created")
             if self.state != RequestStates.TIMEOUT:

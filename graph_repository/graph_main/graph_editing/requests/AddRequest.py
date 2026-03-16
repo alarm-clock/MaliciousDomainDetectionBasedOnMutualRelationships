@@ -219,6 +219,7 @@ class AddRequest(GraphRequest):
         driver.close()
 
     def edit(self, version: int) -> bool:
+        self._stop_wait()
 
         if self._canceled:
             MyLogger.get_instance().log_debug(

@@ -1,8 +1,9 @@
+import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
 from functools import total_ordering
-from threading import Thread
+from threading import Thread, Event
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
 from typing import Callable
@@ -20,6 +21,7 @@ class GraphRequest(ABC):
         self._domains = domains
         self._priority = priority
         self._canceled = False
+        self._cancel_wait_event = Event()
         self._timeout = timeout
         self._filter_func = filter_func
         self.id = str(uuid.uuid4())
@@ -77,10 +79,13 @@ class GraphRequest(ABC):
         self._domains = filter_func(self._domains)
         return
 
+    def _stop_wait(self):
+        self._cancel_wait_event.set()
+
     def _wait(self):
-        time.sleep(self._timeout)
-        self.state = RequestStates.TIMEOUT
-        self._canceled = True
+        if not self._cancel_wait_event.wait(self._timeout):
+            self.state = RequestStates.TIMEOUT
+            self._canceled = True
 
     def cancel(self):
         self.state = RequestStates.CANCELED
