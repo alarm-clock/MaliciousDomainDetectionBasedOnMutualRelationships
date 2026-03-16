@@ -8,6 +8,7 @@ from graph_repository.graph_main.graph_editing.requests.AddRequest import AddReq
 from graph_repository.graph_main.graph_editing.requests.DeleteRequest import DeleteRequest
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
+from misc.mem_monitor import enough_memory
 app = FastAPI()
 
 
@@ -38,6 +39,8 @@ async def add_req(req: AddReq):
     Endpoint for adding domains that are not in the graph, if there is high possibility that you will add domains that
     are already in graph then use `/update` endpoint instead, this endpoint drops duplicate domains
     """
+    if not enough_memory():
+        raise HTTPException(status_code=500, detail="Not enough memory")
 
     domains = [domain_dict.model_dump() for domain_dict in req.domains]
     if req.priority is None: req.priority = RequestPriority.LOW
@@ -61,13 +64,16 @@ async def update_req(req: AddReq):
     already in graph then use this endpoint (even when you have new nodes)
     """
 
+    if not enough_memory():
+        raise HTTPException(status_code=500, detail="Not enough memory")
+
     domains = [domain_dict.model_dump() for domain_dict in req.domains]
     if req.priority is None: req.priority = RequestPriority.LOW
 
     if req.timeout is None:
-        update_request = AddRequest(domains, req.priority)
+        update_request = EditRequest(domains, req.priority)
     else:
-        update_request = AddRequest(domains, req.priority, req.timeout)
+        update_request = EditRequest(domains, req.priority, req.timeout)
 
     job_id = update_request.id
     state = update_request.state
@@ -82,6 +88,10 @@ class DeleteReq(BaseModel):
     `priority`: priority of given request. Values from 0 to 3 with lower value having bigger priority
     `timeout`: time after which, if request is not finished it will fail and will be dropped
     """
+
+    if not enough_memory():
+        raise HTTPException(status_code=500, detail="Not enough memory")
+
     domains: list[dict[str, str]]
     priority: RequestPriority | None = None
     timeout: float | None = None
