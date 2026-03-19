@@ -91,6 +91,9 @@ class Neo4jDBClient:
         self._batch_delay = batch_delay
         self._batch_size = batch_size
 
+    def __del__(self):
+        self.close()
+
     @classmethod
     def from_config(cls, config: str):
         """
@@ -329,6 +332,20 @@ class Neo4jDBClient:
 
         return query
 
+    def check_and_create_node_id_cnt(self, n_t: NodeTypes | str) -> None:
+        """
+        Method that creates node_id counter for given node type if there is no such counter, otherwise does nothing
+        :param n_t: `NodeTypes | str` node type
+        :return: None
+        """
+
+        n_t_str = n_t.value if type(n_t) == NodeTypes else n_t
+        query = f"""
+        MERGE (n: {NodeTypes.ND_ID_CNT.value} {{cnt_name: '{n_t_str}'}})
+        ON CREATE SET n.val = 0 
+        """
+        self.execute_write(query)
+
     def get_free_node_id(self, n_t: NodeTypes, req_number_of_ids: int = 1) -> list[int] | int:
         """
         Method that allocates and returns specified number of node_ids for given ``n_t`` `NodeTypes`
@@ -338,6 +355,8 @@ class Neo4jDBClient:
         """
         if req_number_of_ids < 1:
             return []
+
+        self.check_and_create_node_id_cnt(n_t)
 
         res = self.execute_write(self.get_free_node_id_query(n_t, False, req_number_of_ids))
         ret_val = res[0]['free_node_id' if req_number_of_ids == 1 else 'free_node_ids']
@@ -629,6 +648,25 @@ class Neo4jDBClient:
         MyLogger.get_instance().log(f"Created new version of graph. New graph version is v.{current_version + 1}")
         return current_version + 1
 
+    def create_tmp_node(self, tmp_domain: dict[str, Any]) -> int | None:
+        """
+        Method for creating a temporary node in the graph that will hold given data
+        :param tmp_domain: `dict[str, Any]` Temporary domain data, must hold at least domain name
+        :return: Temporary node's node_id on success otherwise None (if tmp_domain doesn't have domain name)
+        """
+        if tmp_domain.get('domain_name') is None:
+            return None
+
+        allocated_id = self.get_free_node_id(NodeTypes.TMP_DOMAIN)
+        tmp_domain['node_id'] = allocated_id
+        item_str = self.create_pre_filled_item_string(tmp_domain)
+        query = f"""
+        CREATE (:{NodeTypes.TMP_DOMAIN.value} {{ {item_str} }})
+        """
+        self.execute_write(query)
+
+        return allocated_id
+
     def create_nodes(self, node_type: NodeTypes | str, rows: list[dict], edit_type: EditTypes = EditTypes.IGNORE_EXISTING) -> None:
         """
         Method for creating nodes in the graph
@@ -641,7 +679,7 @@ class Neo4jDBClient:
         if len(rows) <= 0:
             return
 
-        items_str = Neo4jDBClient.create_item_string(rows, "row")
+        items_str = Neo4jDBClient.create_unwind_item_string(rows, "row")
         create_query = "UNWIND $rows AS row "
         query = ("CREATE" if edit_type == EditTypes.IGNORE_EXISTING else 'MERGE') + f"(:{node_type if type(node_type) == str else node_type.value} {{ {items_str} }})"
         create_query += query
@@ -649,11 +687,15 @@ class Neo4jDBClient:
         self.execute_write(create_query, rows=rows)
 
     @staticmethod
-    def create_item_string(rows: list[dict], unwind_var_name: str) -> str | None:
+    def create_unwind_item_string(rows: list[dict], unwind_var_name: str) -> str | None:
         if len(rows) == 0:
             return None
 
         return  ",".join([str(key) + ":" + unwind_var_name + "." + str(key) for key in list(rows[0].keys())])
+
+    @staticmethod
+    def create_pre_filled_item_string(node: dict[str, Any]) -> str:
+        return ','.join([ str(key) + ':' + str(value) + ' ' for key, value in node.items()])
 
     @staticmethod
     @deprecated
@@ -713,7 +755,7 @@ class Neo4jDBClient:
         :return: None
         """
 
-        items_str = Neo4jDBClient.create_item_string(nodes, "node")
+        items_str = Neo4jDBClient.create_unwind_item_string(nodes, "node")
         if items_str is None:
             return
         where_label = f":{NodeTypes.DOMAIN.value}" if only_rels_with_domains else ""

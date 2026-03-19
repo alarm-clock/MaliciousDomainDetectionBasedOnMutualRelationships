@@ -5,6 +5,7 @@ from graph_repository.graph_main.graph_editing.EditConsumer import edit_loop, Fi
 from threading import Event, Thread, Lock
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest, FinishRequest
 from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
+from graph_repository.graph_main.tmp.TmpAdd import add_temporary_domain
 from misc.Logger import MyLogger
 from misc.PackageImporter import import_all_modules_from_package
 
@@ -43,6 +44,11 @@ class GraphRepository:
         return GraphRepository._repository_instance_
 
     def stop(self, finish_all_submitted_edits: FinishType = FinishType.FINISH_NONE) -> None:
+        """
+        Method that coordinates stopping of core functionality
+        :param finish_all_submitted_edits: Enum specifying how to finish unfinished requests, default is to delete all
+        :return: None
+        """
 
         MyLogger.get_instance().log("Graph repository is being shut down...")
         self._stop_event.set()
@@ -117,6 +123,14 @@ class GraphRepository:
                 de = self._state_dict.pop(job_id)
                 del de
 
-    def temporary_add_domain(self, domain: dict[str, Any]) -> str:
+    def temporary_add_domain(self, domain: dict[str, Any]) -> int:
 
-        return ""
+        if self._stop_event.is_set():
+            MyLogger.get_instance().log("Graph repository is being shut down, can not add tmp domain")
+            return -1
+
+        driver = self.get_neo4j_driver()
+        domain_id = add_temporary_domain(domain, driver)
+        driver.close()
+
+        return domain_id

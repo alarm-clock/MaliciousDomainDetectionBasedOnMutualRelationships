@@ -10,6 +10,7 @@ from graph_repository.graph_main.graph_editing.requests.EditRequest import EditR
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from misc.Logger import MyLogger
 from misc.mem_monitor import enough_memory
+from neo4j.exceptions import ClientError, TransactionError, DatabaseError, CypherSyntaxError
 app = FastAPI()
 
 
@@ -147,9 +148,12 @@ async def sys_info():
             }
 
 class ReadQuery(BaseModel):
+    """
+    `query` query string
+    `data` dictionary with variable name ($variable is in dict just variable) and value for that variable
+    """
     query: str
-    data_name: str | None = None
-    data: Any | None = None
+    data: dict[str, Any] | None = None
 
 @app.post("/read_query")
 async def query_req(query: ReadQuery):
@@ -158,9 +162,23 @@ async def query_req(query: ReadQuery):
     """
     driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
 
-    if query.data_name is None or query.data is None:
-        res = driver.execute_read(query)
-    else:
-        res = driver.execute_read(query, **{query.data_name: query.data})
+    if driver is None:
+        raise HTTPException(status_code=503, detail="Graph repository is being shut down")
+
+    try:
+        if query.data is None:
+            res = driver.execute_read(query)
+        else:
+            res = driver.execute_read(query, **query.data)
+    except TransactionError as t_e:
+        raise HTTPException(status_code=401, detail=str(t_e))
+    except CypherSyntaxError as cy_e:
+        raise HTTPException(status_code=400, detail=str(cy_e))
+    except DatabaseError as db_e:
+        raise HTTPException(status_code=500, detail=str(db_e))
+    except ClientError as ce:
+        raise HTTPException(status_code=400, detail=str(ce))
+    except Exception as ex:
+        raise HTTPException(status_code=400, detail=str(ex))
 
     return {"query_result": res}
