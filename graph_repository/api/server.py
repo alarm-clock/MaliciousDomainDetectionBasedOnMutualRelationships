@@ -167,9 +167,9 @@ async def query_req(query: ReadQuery):
 
     try:
         if query.data is None:
-            res = driver.execute_read(query)
+            res = driver.execute_read(query.query)
         else:
-            res = driver.execute_read(query, **query.data)
+            res = driver.execute_read(query.query, **query.data)
     except TransactionError as t_e:
         raise HTTPException(status_code=401, detail=str(t_e))
     except CypherSyntaxError as cy_e:
