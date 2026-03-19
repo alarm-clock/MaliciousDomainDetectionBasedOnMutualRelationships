@@ -73,8 +73,8 @@ class MyLogger:
         last_time = self._last_time
         self.log(
         f"""Tasks (Total: {self._n_req}, finished: {self._n_fin}, timeout: {self._n_timeout}) 
-        \tMem: (Used: {mem.percent}%, available: {mem.available / self._GB}GB)
-        \tJob_time: (Avg: {avg_time}, Last: {last_time})""")
+        \t\tMem: (Used: {mem.percent}%, available: {mem.available / self._GB}GB)
+        \t\tJob_time: (Avg: {avg_time}, Last: {last_time})""")
         self._stats_lock.release()
         return self._n_req, self._n_fin, self._n_timeout, mem.percent, mem.available / self._GB, avg_time, last_time
 
