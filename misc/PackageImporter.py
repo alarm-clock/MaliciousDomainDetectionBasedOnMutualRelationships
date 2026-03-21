@@ -20,9 +20,12 @@ def get_options_from_registry(register: dict, options: list) -> None:
             options.extend(opts)
         else:
             options.append(opts)
-        classes += f"{cls.worker_name},"
 
-    MyLogger.get_instance().log_debug(f"Loaded options from workers: {classes[:-1]} from module dataset_edge_workers")
+        if hasattr(cls, "worker_name"):
+            classes += f"{cls.worker_name},"
+
+    if classes != "":
+        MyLogger.get_instance().log_debug(f"Loaded options from workers: {classes[:-1]} from module")
     return
 
 

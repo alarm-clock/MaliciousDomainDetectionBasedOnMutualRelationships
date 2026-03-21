@@ -17,6 +17,8 @@ from misc.Logger import MyLogger
 import dgl
 import uvicorn
 
+from pympler import asizeof
+
 warnings.filterwarnings("ignore",category=DGLWarning) #it actually comes from package itself
 
 def signal_handlers_for_graph_repo():
@@ -181,9 +183,8 @@ def main():
         uvicorn.run("graph_repository.api.server:app", host=args.address, port=args.port)
 
     elif args.mode == "test":
-        client = Neo4jDBClient.from_config(args.neo_db)
-        #client.return_unused_node_ids(NodeTypes.IP,[4728, 4727, 4731])
-        print(client.get_free_node_id(NodeTypes.IP,2))
+        print(NodeTypes.DOMAIN.value)
+        print(NodeTypes.DOMAIN.dgl)
         return
 
 if __name__ == '__main__':

@@ -22,9 +22,9 @@ def tmp_add_subdomain_edge(domain: dict, version: int, driver: Neo4jDBClient) ->
     query = f"""
     UNWIND $parent_domains AS parent_domain
     
-    OPTIONAL MATCH (n: {NodeTypes.DOMAIN.value} {{ domain_name: parent_domain {get_version_query(version, False)}}})
+    OPTIONAL MATCH (n: {NodeTypes.DOMAIN.neo4j} {{ domain_name: parent_domain {get_version_query(version, False)}}})
     WITH n, parent_domain
-    OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.value} {{ domain_name: parent_domain {get_version_query(version, False)} }})
+    OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.neo4j} {{ domain_name: parent_domain {get_version_query(version, False)} }})
     WHERE n IS NULL
     
     WITH coalesce(n, m) AS parent_node, parent_domain
@@ -47,9 +47,9 @@ def tmp_add_subdomain_edge(domain: dict, version: int, driver: Neo4jDBClient) ->
         parent_domain = row['d']
         label = row['n_t']
         if label is not None:
-            if label == NodeTypes.DOMAIN.value:
+            if label == NodeTypes.DOMAIN.neo4j:
                 d_edges.append({'u': domain_name, 'v': parent_domain})
-            elif label == NodeTypes.DUMMY_DOMAIN.value:
+            elif label == NodeTypes.DUMMY_DOMAIN.neo4j:
                 dum_edges.append({'u': domain_name, 'v': parent_domain})
 
 

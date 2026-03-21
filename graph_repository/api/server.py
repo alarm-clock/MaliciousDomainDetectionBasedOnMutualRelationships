@@ -42,7 +42,7 @@ async def add_req(req: AddReq):
     are already in graph then use `/update` endpoint instead, this endpoint drops duplicate domains
     """
     if not enough_memory():
-        raise HTTPException(status_code=500, detail="Not enough memory")
+        raise HTTPException(status_code=503, detail="Server is temporary overloaded. Please, try again later.")
 
     domains = [domain_dict.model_dump() for domain_dict in req.domains]
     if req.priority is None: req.priority = RequestPriority.LOW
@@ -67,7 +67,7 @@ async def update_req(req: AddReq):
     """
 
     if not enough_memory():
-        raise HTTPException(status_code=500, detail="Not enough memory")
+        raise HTTPException(status_code=503, detail="Server is temporary overloaded. Please, try again later.")
 
     domains = [domain_dict.model_dump() for domain_dict in req.domains]
     if req.priority is None: req.priority = RequestPriority.LOW
@@ -92,7 +92,7 @@ class DeleteReq(BaseModel):
     """
 
     if not enough_memory():
-        raise HTTPException(status_code=500, detail="Not enough memory")
+        raise HTTPException(status_code=503, detail="Server is temporary overloaded. Please, try again later.")
 
     domains: list[dict[str, str]]
     priority: RequestPriority | None = None
@@ -158,7 +158,7 @@ class ReadQuery(BaseModel):
 @app.post("/read_query")
 async def query_req(query: ReadQuery):
     """
-    Endpoint for executing read queries in graph
+    Endpoint for executing read queries in graph, query_result is not edited in no way
     """
     driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
 
@@ -177,8 +177,12 @@ async def query_req(query: ReadQuery):
     except DatabaseError as db_e:
         raise HTTPException(status_code=500, detail=str(db_e))
     except ClientError as ce:
+        if ce.code == "Neo.ClientError.Statement.AccessMode":
+            raise HTTPException(status_code=401, detail="Writing is not allowed")
+
         raise HTTPException(status_code=400, detail=str(ce))
     except Exception as ex:
         raise HTTPException(status_code=400, detail=str(ex))
+
 
     return {"query_result": res}

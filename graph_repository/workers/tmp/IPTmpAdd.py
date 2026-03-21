@@ -18,7 +18,7 @@ def tmp_add_ip_edge(domain: dict, version: int, driver: Neo4jDBClient) -> tuple[
 
     query = f"""
     UNWIND $ip_addrs AS ip_addr
-    OPTIONAL MATCH (n:{NodeTypes.IP.value} {{ip_str: ip_addr {get_version_query(version, False)}}}
+    OPTIONAL MATCH (n:{NodeTypes.IP.neo4j} {{ip_str: ip_addr {get_version_query(version, False)}}}
     WITH ip_addr, n
     WHERE n IS NOT NULL
     RETURN ip_addr AS in_graph

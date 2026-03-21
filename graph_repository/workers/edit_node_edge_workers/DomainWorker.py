@@ -29,9 +29,9 @@ class DomainWorker(EditWorker):
 
         UNWIND $domains as d
 
-        MATCH (old: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: d {version_query}}})
-        MATCH (new: {NodeTypes.DOMAIN.value} {{domain_name: d {version_query}}})
-        {driver.get_node_replace_query('old','new', NodeTypes.DUMMY_DOMAIN.value ,False)}
+        MATCH (old: {NodeTypes.DUMMY_DOMAIN.neo4j} {{domain_name: d {version_query}}})
+        MATCH (new: {NodeTypes.DOMAIN.neo4j} {{domain_name: d {version_query}}})
+        {driver.get_node_replace_query('old','new', NodeTypes.DUMMY_DOMAIN.neo4j ,False)}
         """
 
         driver.execute_write(replace_query, domains=domains_for_replacing)
@@ -42,7 +42,7 @@ class DomainWorker(EditWorker):
 
         find_if_domain_is_dummy_in_graph = f"""
         UNWIND $domains AS domain
-        OPTIONAL MATCH(n: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: domain {get_version_query(self._version,False)}}})
+        OPTIONAL MATCH(n: {NodeTypes.DUMMY_DOMAIN.neo4j} {{domain_name: domain {get_version_query(self._version,False)}}})
         WITH n, domain
         WHERE n IS NOT NULL
         RETURN domain AS domain_name

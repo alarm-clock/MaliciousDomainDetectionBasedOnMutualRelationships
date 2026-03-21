@@ -91,7 +91,7 @@ class DatasetImporter:
 
         self._n_data_neo4j: dict[str, list[dict]] = {}
 
-        self._num_of_nodes_dict: dict[str, int] = {NodeTypes.DOMAIN.value: self._n_nodes}
+        self._num_of_nodes_dict: dict[str, int] = {NodeTypes.DOMAIN.dgl: self._n_nodes}
 
         self._submit_lock = Lock()
 
@@ -234,10 +234,10 @@ class DatasetImporter:
         :return: None
         """
 
-        if self._num_of_nodes_dict.get(t.value) is None:
-            self._num_of_nodes_dict[t.value] = n
-        elif n > self._num_of_nodes_dict[t.value]:
-            self._num_of_nodes_dict[t.value] = n
+        if self._num_of_nodes_dict.get(t.dgl) is None:
+            self._num_of_nodes_dict[t.dgl] = n
+        elif n > self._num_of_nodes_dict[t.dgl]:
+            self._num_of_nodes_dict[t.dgl] = n
 
 
     def _store_n_data_mongo(self, n_t: str, n_data: dict[str, list]) -> None:
@@ -281,16 +281,17 @@ class DatasetImporter:
                 self._n_data_neo4j[n_t][cnt] = self._n_data_neo4j[n_t][cnt] | rows[cnt]
 
 
-    def _store_n_data(self, n_t: str, n_data: dict[str, list]) -> None:
+    def _store_n_data(self, n_t: NodeTypes, n_data: dict[str, list]) -> None:
 
         if self._for_dgl:
-            self._store_n_data_mongo(n_t, n_data)
+            self._store_n_data_mongo(n_t.dgl, n_data)
         else:
-            self._store_n_data_neo4j(n_t, n_data)
+            self._store_n_data_neo4j(n_t.neo4j, n_data)
 
-    def _store_edge(self,e_type: tuple[str,str,str], u: list[int], v: list[int], e_data: tuple[str, list] | None = None) -> None:
+    def _store_edge(self,e_type: tuple[NodeTypes,EdgeTypes,NodeTypes], u: list[int], v: list[int], e_data: tuple[str, list] | None = None) -> None:
 
         if self._for_dgl:
+            e_type = (e_type[0].dgl, e_type[1].value, e_type[2].dgl)
             self._edges[e_type] = (th.Tensor(u).to(th.int), th.Tensor(v).to(th.int))
             if e_data is not None:
                 name, data = e_data
@@ -298,6 +299,7 @@ class DatasetImporter:
 
         else:
             rows = []
+            e_type = (e_type[0].neo4j, e_type[1].value, e_type[2].neo4j)
             for cnt in range(len(u)):
 
                 if e_data is None:
@@ -324,15 +326,15 @@ class DatasetImporter:
         """
 
         self._submit_lock.acquire()
-        e_type_tup = (u_t.value, e_t.value, v_t.value)
+        e_type_tup = (u_t, e_t, v_t)
         try:
-            MyLogger.get_instance().log(f"Receiving {len(u)} edges for {u_t.value}-{e_t.value}->{v_t.value}, e_data is {e_data[0] if e_data is not None else None}, u_data is {[key for key in u_data.keys()] if u_data is not None else None}, v_data is {[key for key in v_data.keys()] if v_data is not None else None}")
+            MyLogger.get_instance().log(f"Receiving {len(u)} edges for {u_t.neo4j}-{e_t.value}->{v_t.neo4j}, e_data is {e_data[0] if e_data is not None else None}, u_data is {[key for key in u_data.keys()] if u_data is not None else None}, v_data is {[key for key in v_data.keys()] if v_data is not None else None}")
             self._store_edge(e_type_tup, u, v, e_data)
 
             if u_data is not None:
-                self._store_n_data(u_t.value, u_data)
+                self._store_n_data(u_t, u_data)
             if v_data is not None:
-                self._store_n_data(v_t.value, v_data)
+                self._store_n_data(v_t, v_data)
 
             if len(u) > 0 and len(v) > 0:
                 self._store_num_nodes(u_t, max(u) + 1) #number of nodes must be larger than max id
@@ -355,7 +357,7 @@ class DatasetImporter:
 
         self._label_worker.join()
         labels = self._label_worker.result
-        self._store_n_data(NodeTypes.DOMAIN.value, labels)
+        self._store_n_data(NodeTypes.DOMAIN, labels)
 
     def _start_workers(self) -> None:
         """
@@ -431,16 +433,16 @@ class DatasetImporter:
 
         for label in dummy_labels:
             query = f"""
-            CREATE INDEX Domain_Name_Index_{label.value} 
+            CREATE INDEX Domain_Name_Index_{label.neo4j} 
             IF NOT EXISTS
-            FOR (d: {label.value})
+            FOR (d: {label.neo4j})
             ON (d.domain_name);
             """
 
             driver.execute_write(query)
 
         try:
-            driver.wait_for_index_creation(["Domain_Name_Index_"+label.value for label in dummy_labels],10.0)
+            driver.wait_for_index_creation(["Domain_Name_Index_"+label.neo4j for label in dummy_labels],10.0)
         except Exception:
             return False
 
@@ -460,13 +462,13 @@ class DatasetImporter:
 
         for label in dummy_labels: # UNWIND $ids AS id {{node_id: id}}
 
-            MyLogger.get_instance().log(f"Converting {label} domains to {NodeTypes.DUMMY_DOMAIN.value}...")
+            MyLogger.get_instance().log(f"Converting {label} domains to {NodeTypes.DUMMY_DOMAIN.neo4j}...")
 
             query = f"""
             CALL apoc.periodic.iterate(
-                "MATCH (n: {label.value}) RETURN n",
+                "MATCH (n: {label.neo4j}) RETURN n",
                 "
-                    MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: n.domain_name}})
+                    MERGE (du_match: {NodeTypes.DUMMY_DOMAIN.neo4j} {{domain_name: n.domain_name}})
                     ON CREATE
                         SET du_match.node_id = null,
                             du_match.graph_version = 1,
@@ -590,7 +592,7 @@ class DatasetImporter:
 
         for n_t in self._n_data_neo4j.keys():
             for cnt in range(len(self._n_data_neo4j[n_t])):
-                self._n_data_neo4j[n_t][cnt] = self._n_data_neo4j[n_t][cnt] | ({'graph_version': 1, 'temporary': False} if n_t == NodeTypes.DOMAIN.value else {'graph_version': 1})
+                self._n_data_neo4j[n_t][cnt] = self._n_data_neo4j[n_t][cnt] | ({'graph_version': 1, 'temporary': False} if n_t == NodeTypes.DOMAIN.neo4j else {'graph_version': 1})
 
     def create_graph_and_import_to_neo4j(self):
 

@@ -33,8 +33,8 @@ def rm_domains_with_same_ip(domains: list[dict], version: int, driver: Neo4jDBCl
 
     query = f"""
     UNWIND $domains AS domain
-    OPTIONAL MATCH (:{NodeTypes.DOMAIN.value} {{domain_name: domain.domain_name {get_version_query(version, False)}}})
-                  -[:{EdgeTypes.TRANSLATES.value}]->(m:{NodeTypes.IP.value})
+    OPTIONAL MATCH (:{NodeTypes.DOMAIN.neo4j} {{domain_name: domain.domain_name {get_version_query(version, False)}}})
+                  -[:{EdgeTypes.TRANSLATES.value}]->(m:{NodeTypes.IP.neo4j})
     WITH domain, m
     WHERE (domain.IPS IS NOT NULL AND m IS NULL) OR 
           (domain.IPS IS NULL AND m IS NOT NULL) OR
@@ -71,7 +71,7 @@ def rm_domains_with_same_cname(domains: list[dict], version: int, driver: Neo4jD
 
     query = f"""
     UNWIND $domains AS domain
-    OPTIONAL MATCH (:{NodeTypes.DOMAIN.value} {{domain_name: domain.domain_name {get_version_query(version,False)} }})
+    OPTIONAL MATCH (:{NodeTypes.DOMAIN.neo4j} {{domain_name: domain.domain_name {get_version_query(version,False)} }})
                   -[:{EdgeTypes.CNAME.value}]->(m)
     WITH domain, m
     WHERE (domain.CNAME IS NOT NULL AND m IS NULL) OR (domain.CNAME IS NULL AND m IS NOT NULL) OR domain.CNAME <> m.domain_name

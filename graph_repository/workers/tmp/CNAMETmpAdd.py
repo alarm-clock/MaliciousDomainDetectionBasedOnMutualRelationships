@@ -7,8 +7,8 @@ from graph_repository.workers.common.TmpFunctions import register
 def _find_cname_in_graph(cname_domain: str, version: int, driver: Neo4jDBClient) -> dict[str, Any] | None:
 
     find_cnames_in_domains = f"""
-    OPTIONAL MATCH (n: {NodeTypes.DOMAIN.value} {{domain_name: $cname {get_version_query(version, False)}}})
-    OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: $cname {get_version_query(version, False)}}})  
+    OPTIONAL MATCH (n: {NodeTypes.DOMAIN.neo4j} {{domain_name: $cname {get_version_query(version, False)}}})
+    OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.neo4j} {{domain_name: $cname {get_version_query(version, False)}}})  
     RETURN n AS domain, m AS dummy      
     """
     result = driver.execute_read(find_cnames_in_domains, **{'cname': cname_domain})[0]
@@ -36,8 +36,8 @@ def _find_cname_in_graph(cname_domain: str, version: int, driver: Neo4jDBClient)
 def _find_domains_that_have_domain_as_cname(domain_name: str, version: int, driver: Neo4jDBClient) -> list | None:
 
     query=f"""
-    MATCH (du: {NodeTypes.DUMMY_DOMAIN.value} {{ domain_name: "{domain_name}" {get_version_query(version, False)} }})
-    OPTIONAL MATCH (du)-[:{EdgeTypes.CNAME.value}]->(d:{NodeTypes.DOMAIN.value})
+    MATCH (du: {NodeTypes.DUMMY_DOMAIN.neo4j} {{ domain_name: "{domain_name}" {get_version_query(version, False)} }})
+    OPTIONAL MATCH (du)-[:{EdgeTypes.CNAME.value}]->(d:{NodeTypes.DOMAIN.neo4j})
     RETURN collect(d.node_id) AS domains
     """
     domains = driver.execute_read(query)[0]['domains']

@@ -76,8 +76,8 @@ class CNAMEWorker(EditWorker):
 
         find_cnames_in_domains = f"""
         UNWIND $rows AS cname
-        OPTIONAL MATCH (n: {NodeTypes.DOMAIN.value} {{domain_name: cname {get_version_query(self._version,False)}}})
-        OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.value} {{domain_name: cname {get_version_query(self._version,False)}}})  
+        OPTIONAL MATCH (n: {NodeTypes.DOMAIN.neo4j} {{domain_name: cname {get_version_query(self._version,False)}}})
+        OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.neo4j} {{domain_name: cname {get_version_query(self._version,False)}}})  
         RETURN cname, n AS domain, m AS dummy      
         """
 

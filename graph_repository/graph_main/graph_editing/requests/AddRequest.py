@@ -91,7 +91,7 @@ class AddRequest(GraphRequest):
     def submit_nodes(self, nodes: list[dict], node_type: NodeTypes, group: str, edit_type: EditTypes) -> None:
         self._nodes_lock.acquire()
 
-        MyLogger.get_instance().log_debug(f"Receiving {len(nodes)} nodes of type {node_type.value} from group {group}")
+        MyLogger.get_instance().log_debug(f"Receiving {len(nodes)} nodes of type {node_type.neo4j} from group {group}")
 
         if node_type == NodeTypes.DUMMY_DOMAIN:
             self._parse_submitted_du_domains(nodes)
@@ -172,7 +172,7 @@ class AddRequest(GraphRequest):
         for n_t, _, nodes in self._nodes.values():
             for cnt in range(len(nodes)):
                 nodes[cnt] = nodes[cnt] | (
-                    {'graph_version': version, 'temporary': False} if n_t == NodeTypes.DOMAIN.value else {
+                    {'graph_version': version, 'temporary': False} if n_t == NodeTypes.DOMAIN.neo4j else {
                         'graph_version': version})
 
     #todo add option to just create node and edge without any other calculation because why the fuck not

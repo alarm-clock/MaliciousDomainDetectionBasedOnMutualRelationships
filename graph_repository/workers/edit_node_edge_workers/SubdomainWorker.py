@@ -19,7 +19,7 @@ class SubdomainWorker(EditWorker):
     _index_query = f"""
         CREATE INDEX parentDomainsIndex 
         IF NOT EXISTS
-        FOR (d: {NodeTypes.DOMAIN.value})
+        FOR (d: {NodeTypes.DOMAIN.neo4j})
         ON EACH [d.parent_domains];
         """
 
@@ -52,15 +52,15 @@ class SubdomainWorker(EditWorker):
         for subdomain in sub_ds:
 
             if ds_from_dset:
-                sub_n_t = NodeTypes.DOMAIN.value
+                sub_n_t = NodeTypes.DOMAIN.neo4j
             else:
                 sub_n_t = self._subs[subdomain][self._NODE_TYPE_POS]
 
-            if parent_domain_n_t == NodeTypes.DOMAIN.value and sub_n_t == NodeTypes.DOMAIN.value:
+            if parent_domain_n_t == NodeTypes.DOMAIN.neo4j and sub_n_t == NodeTypes.DOMAIN.neo4j:
                 self._d_d_sub_edges.append({"u": parent_domain, "v": subdomain})
-            elif parent_domain_n_t == NodeTypes.DOMAIN.value and sub_n_t == NodeTypes.DUMMY_DOMAIN.value:
+            elif parent_domain_n_t == NodeTypes.DOMAIN.neo4j and sub_n_t == NodeTypes.DUMMY_DOMAIN.neo4j:
                 self._d_dum_sub_edges.append({"u": parent_domain, "v": subdomain})
-            elif parent_domain_n_t == NodeTypes.DUMMY_DOMAIN.value and sub_n_t == NodeTypes.DOMAIN.value:
+            elif parent_domain_n_t == NodeTypes.DUMMY_DOMAIN.neo4j and sub_n_t == NodeTypes.DOMAIN.neo4j:
                 self._d_dum_sub_edges.append({"u": subdomain, "v": parent_domain})
             else:
                 self._dum_dum_sub_edges.append({'u': parent_domain, 'v': subdomain})
@@ -105,9 +105,9 @@ class SubdomainWorker(EditWorker):
         find_related_domains_query = f"""
         UNWIND $parent_domains AS parent_domain    
         
-        OPTIONAL MATCH (n: {NodeTypes.DUMMY_DOMAIN.value} {{ domain_name: parent_domain {get_version_query(self._version, False)} }}) 
+        OPTIONAL MATCH (n: {NodeTypes.DUMMY_DOMAIN.neo4j} {{ domain_name: parent_domain {get_version_query(self._version, False)} }}) 
         WITH n, parent_domain
-        OPTIONAL MATCH (m: {NodeTypes.DOMAIN.value} {{ domain_name: parent_domain {get_version_query(self._version, False)} }})
+        OPTIONAL MATCH (m: {NodeTypes.DOMAIN.neo4j} {{ domain_name: parent_domain {get_version_query(self._version, False)} }})
         WHERE n IS NULL
         WITH coalesce(n, m) AS parent_in_graph, parent_domain
         WITH parent_domain, CASE 
@@ -129,7 +129,7 @@ class SubdomainWorker(EditWorker):
 
                 if parent_domain not in self._subs:
                     self._subs[parent_domain] = (
-                        None if parent_domain not in self._domains_in_dset else NodeTypes.DOMAIN.value,
+                        None if parent_domain not in self._domains_in_dset else NodeTypes.DOMAIN.neo4j,
                         set(parent_domains[:cnt]),
                         [domain_name]
                     )
@@ -145,7 +145,7 @@ class SubdomainWorker(EditWorker):
                 n_t = row['n_t']
 
                 if n_t is None:
-                    n_t = NodeTypes.DUMMY_DOMAIN.value
+                    n_t = NodeTypes.DUMMY_DOMAIN.neo4j
                     self._dummies_for_creation.append({
                         "domain_name": row['d'],
                         "depth": domain_depth(row['d']),
@@ -175,7 +175,7 @@ f"""
 
         CALL (domain){{
             UNWIND domain.parent_domains AS parent_domain
-            MATCH (d: {NodeTypes.DOMAIN.value})
+            MATCH (d: {NodeTypes.DOMAIN.neo4j})
             WHERE parent_domain IN d.parent_domains AND d.domain_name <> domain.domain_name AND d.graph_version = {9}
             WITH DISTINCT d
             RETURN collect({{
@@ -185,11 +185,11 @@ f"""
         }}
         CALL (domain){{
             UNWIND domain.parent_domains AS parent_domain
-            OPTIONAL MATCH (d: {NodeTypes.DOMAIN.value} {{domain_name: parent_domain {get_version_query(9, False)}}})
+            OPTIONAL MATCH (d: {NodeTypes.DOMAIN.neo4j} {{domain_name: parent_domain {get_version_query(9, False)}}})
             RETURN collect(d.domain_name) AS parent_domains_in_graph
         }}
         CALL (domain){{ 
-            MATCH (d: {NodeTypes.DOMAIN.value})
+            MATCH (d: {NodeTypes.DOMAIN.neo4j})
             WHERE domain.domain_name IN d.parent_domains AND d.graph_version = {9}
             RETURN collect(d.domain_name) AS subdomains
         }}
@@ -219,7 +219,7 @@ f"""
 
             for child in children:
                 #add parent domain for each child as domain that is in the graph
-                self._domain_data[child][domain] = NodeTypes.DOMAIN.value
+                self._domain_data[child][domain] = NodeTypes.DOMAIN.neo4j
 
         parent, _ = trie.longest_prefix(reverse_domain)
 
@@ -227,7 +227,7 @@ f"""
             if parent == reversed_domain:
                 return
 
-            self._domain_data[domain][parent] = NodeTypes.DOMAIN.value
+            self._domain_data[domain][parent] = NodeTypes.DOMAIN.neo4j
 
         trie[reversed_domain] = True
         return
@@ -261,7 +261,7 @@ f"""
 
         seen = set()
 
-        for domains in self._subs.values():
+        for domains in self._subs.neo4js():
             self._create_edges_between_domains(domains, seen, sub_of_edges)
 
         del seen

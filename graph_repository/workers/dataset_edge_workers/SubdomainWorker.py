@@ -50,26 +50,6 @@ class SubdomainWorker(DatasetWorker):
         #self._classes: dict = {}
         #self._subs_of: dict = {}
 
-    """
-    def _remove_duplicities_in_sub_of(self):
-        seen = set()
-        of_v = []
-        of_u = []
-        of_jacc = []
-
-        for cnt in range(len(self._of_u)):
-
-            edge = (self._of_u[cnt], self._of_v[cnt])
-            if edge not in seen:
-                of_u.append(self._of_u[cnt])
-                of_v.append(self._of_v[cnt])
-                of_jacc.append(self._of_jacc[cnt])
-                seen.add(edge)
-
-        self._of_u = of_u
-        self._of_v = of_v
-        self._of_jacc = of_jacc
-    """
 
     def _submit_edges(self):
 
@@ -86,18 +66,6 @@ class SubdomainWorker(DatasetWorker):
         self._submit_callback_method(self._du_d_v,self._du_d_u,self._nd_type1, self._e_type, self._nd_type2)
         MyLogger.get_instance().log("Submitted all subdomain edges")
 
-        """
-        if self._mode == self.Modes.SUBDOMAIN or self._mode == self.Modes.BOTH:
-            self._submit_callback_method(self._u, self._v, self._nd_type, self._e_type1, self._nd_type)
-            MyLogger.get_instance().log("Submitted all subdomain edges")
-
-        if self._mode == self.Modes.SUBDOMAIN_OF or self._mode == self.Modes.BOTH:
-
-            self._remove_duplicities_in_sub_of()
-            e_data = ('sub_of_weight', self._of_jacc)
-            self._submit_callback_method(self._of_u, self._of_v, self._nd_type, self._e_type2, self._nd_type, e_data=e_data)
-            MyLogger.get_instance().log("Submitted all subdomain_of edges")
-        """
         del self._u, self._v, self._subs, self._du_d_u, self._du_d_v, self._du_du_u, self._du_du_v
 
     def _reverse(self,d) -> tuple[int, str]:
@@ -134,54 +102,11 @@ class SubdomainWorker(DatasetWorker):
 
         self._add_reverse_edges()
 
-    """
-    def _create_edges_between_subdomains(self, values: list[int]) -> tuple[list[int],list[int],list[float]]:
-        u = []
-        v = []
-        jacc = []
-
-        for id_u in range(len(values)):
-            u.extend([values[id_u]] * (len(values) - 1))
-            for id_v in range(len(values)):
-                if id_u != id_v:
-                    v.append(values[id_v])
-                    jacc.append(calc_jaccard(self._classes[values[id_v]],self._classes[values[id_u]]))
-
-        return u, v, jacc
-
-    
-    def _create_subdomain_of_edges(self) -> None:
-
-        with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [ executor.submit(self._create_edges_between_subdomains, values) for values in self._subs.values() ]
-
-            for future in futures:
-                result = future.result()
-                if result:
-                    u, v, jacc = result
-                    self._of_v.extend(v)
-                    self._of_u.extend(u)
-                    self._of_jacc.extend(jacc)
-
-                    del u, v, jacc
-    """
-
     def _create_edges(self) -> None:
         MyLogger.get_instance().log("Creating subdomain edges...")
         self._create_subdomain_edges()
         MyLogger.get_instance().log("Created subdomain edges")
 
-
-        """
-        if self._mode == self.Modes.SUBDOMAIN or self._mode == self.Modes.BOTH:
-            MyLogger.get_instance().log("Creating subdomain edges...")
-            self._create_subdomain_edges()
-            MyLogger.get_instance().log("Created subdomain edges")
-        if self._mode == self.Modes.SUBDOMAIN_OF or self._mode == self.Modes.BOTH:
-            MyLogger.get_instance().log("Creating subdomain_of edges...")
-            self._create_subdomain_of_edges()
-            MyLogger.get_instance().log("Created subdomain_of edges")
-        """
     def _check_domain_and_put_it_in_dict(self, trie: pygtrie.StringTrie, domain: tuple[int, str], domain_id_dict: dict):
 
         if trie.has_subtrie(domain[1]):
@@ -195,14 +120,6 @@ class SubdomainWorker(DatasetWorker):
 
             self._subs[domain[0]] = children_ids
 
-            #for child in children_ids:
-            #    if self._classes.get(child) is not None:
-            #        if domain[0] not in self._classes[child]:
-            #            self._classes[child].append(domain[0])
-            #    else:
-            #        self._classes[child] = [domain[0]]
-
-
         parent = trie.longest_prefix(domain[1])
 
         if parent:
@@ -215,12 +132,6 @@ class SubdomainWorker(DatasetWorker):
                     self._subs[parent_id] = [domain[0]]
                 else:
                     self._subs[parent_id].append(domain[0])
-
-
-               # if domain[0] not in self._classes:
-               #     self._classes[domain[0]] = [parent_id]
-               # else:
-               #     self._classes[domain[0]].append(parent_id)
 
     def _create_domain_tree(self, domains: list[tuple[int,str]], domain_id_dict: dict[str, int]) -> None:
         trie = pygtrie.StringTrie(separator='.')

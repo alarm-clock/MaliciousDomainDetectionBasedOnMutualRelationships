@@ -42,13 +42,13 @@ class IPWorker(EditWorker):
     def _create_index_on_ip_str(self, driver: Neo4jDBClient) -> None:
 
         driver.execute_write(f"""
-        CREATE INDEX {NodeTypes.IP.value}_ip_str_idx
+        CREATE INDEX {NodeTypes.IP.neo4j}_ip_str_idx
         IF NOT EXISTS
-        FOR (n: {NodeTypes.IP.value})
+        FOR (n: {NodeTypes.IP.neo4j})
         ON (n.ip_str);
         """)
 
-        driver.wait_for_index_creation([f'{NodeTypes.IP.value}_ip_str_idx'])
+        driver.wait_for_index_creation([f'{NodeTypes.IP.neo4j}_ip_str_idx'])
 
     def _append_ip_new_ip_addr(self, ip, node_id: int) -> None:
         ip_address = self._ip_dict[str(ip)]
@@ -62,7 +62,7 @@ class IPWorker(EditWorker):
 
         query = f"""
         UNWIND $rows AS ip
-        OPTIONAL MATCH (n:{NodeTypes.IP.value} {{ip_str: ip {get_version_query(self._version,False)}}})
+        OPTIONAL MATCH (n:{NodeTypes.IP.neo4j} {{ip_str: ip {get_version_query(self._version,False)}}})
         WITH ip, n
         WHERE n IS NULL
         RETURN collect(ip) AS missing

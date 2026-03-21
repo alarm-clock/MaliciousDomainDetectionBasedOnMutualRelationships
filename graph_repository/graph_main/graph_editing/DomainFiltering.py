@@ -66,7 +66,7 @@ def _get_add_update_sets(domains: list[dict], driver: Neo4jDBClient, get_just_ad
     del domains
     query = f"""
     UNWIND $domains AS domain
-    OPTIONAL MATCH (n:{NodeTypes.DOMAIN.value} {{domain_name: domain}})
+    OPTIONAL MATCH (n:{NodeTypes.DOMAIN.neo4j} {{domain_name: domain}})
     RETURN collect({{
         d_n: domain,
         is_in: n IS NOT NULL 
