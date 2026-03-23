@@ -19,7 +19,7 @@ def _find_cname_in_graph(cname_domain: str, version: int, driver: Neo4jDBClient)
             Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
             Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
             Neo4jDBClient.E_EDGE_T: EdgeTypes.CNAME,
-            Neo4jDBClient.E_MATCH1: "domain_name",
+            Neo4jDBClient.E_MATCH1: "node_id",
             Neo4jDBClient.E_MATCH2: "domain_name"
         }
     elif result['dummy'] is not None:
@@ -28,7 +28,7 @@ def _find_cname_in_graph(cname_domain: str, version: int, driver: Neo4jDBClient)
             Neo4jDBClient.E_NODE_T2: NodeTypes.DUMMY_DOMAIN,
             Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
             Neo4jDBClient.E_EDGE_T: EdgeTypes.CNAME,
-            Neo4jDBClient.E_MATCH1: "domain_name",
+            Neo4jDBClient.E_MATCH1: "node_id",
             Neo4jDBClient.E_MATCH2: "domain_name"
         }
     return None
@@ -44,11 +44,24 @@ def _find_domains_that_have_domain_as_cname(domain_name: str, version: int, driv
     #for now, I will ignore the fact that there is dummy domain and same tmp domain, system will work regardless
     return domains if len(domains) > 0 else None
 
-def tmp_add_cname_edge(domain: dict, version: int, driver: Neo4jDBClient) -> list[tuple[list[dict],dict[str,Any]]]| None:
+def tmp_add_cname_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBClient) -> list[tuple[list[dict],dict[str,Any]]]| None:
+    """
+    Function for creating cname edges between `domain` and its alias in graph
+    :param domain: `dict` that contains domain data
+    :param version: `int` graph version that is used to find cname domains
+    :param tmp_node_id: `int` node_id of tmp domain
+    :param driver: `Neo4jDBClient` open driver for interacting with Neo4j
+    :return: `list[(` edges `,` edge_creation_options `)]` if there is at least one cname node in graph, otherwise `None`
+    """
 
     try:
         cname_domain = domain['dns']['CNAME']['value']
     except KeyError:
+        try:
+            cname_domain = domain['dns']['CNAME']
+        except KeyError:
+            return None
+    except TypeError:
         try:
             cname_domain = domain['dns']['CNAME']
         except KeyError:
@@ -60,7 +73,7 @@ def tmp_add_cname_edge(domain: dict, version: int, driver: Neo4jDBClient) -> lis
 
     edge_creation_dict = _find_cname_in_graph(cname_domain, version, driver)
     if edge_creation_dict is not None:
-        edges.append(([{'u': domain_name, "v": cname_domain}], edge_creation_dict))
+        edges.append(([{'u': tmp_node_id, "v": cname_domain}], edge_creation_dict))
 
     domains_with_tmp_as_cname = _find_domains_that_have_domain_as_cname(domain_name, version, driver)
     if domains_with_tmp_as_cname is not None:
@@ -69,12 +82,12 @@ def tmp_add_cname_edge(domain: dict, version: int, driver: Neo4jDBClient) -> lis
             Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
             Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
             Neo4jDBClient.E_EDGE_T: EdgeTypes.CNAME,
-            Neo4jDBClient.E_MATCH1: "domain_name",
+            Neo4jDBClient.E_MATCH1: "node_id",
             Neo4jDBClient.E_MATCH2: "node_id"
         }
         d_tmp_edges = []
         for domain in domains_with_tmp_as_cname:
-            d_tmp_edges.append({'u': domain_name,'v': domain})
+            d_tmp_edges.append({'u': tmp_node_id,'v': domain})
 
         edges.append((d_tmp_edges, edge_creation_dict))
 

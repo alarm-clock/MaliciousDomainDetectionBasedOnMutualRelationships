@@ -1,14 +1,13 @@
+from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
-from misc.PackageImporter import get_options_from_registry
-from graph_repository.workers.common.EditWorker import EDIT_WORKER_REGISTRY
+from misc.PackageImporter import get_functions_from_registry
+from graph_repository.workers.common.TmpFunctions import TMP_REGISTRY, TMP_FUNC_T, EDGES_T
 from graph_repository.Neo4jDBClient import Neo4jDBClient
-from typing import Callable, Any
+from typing import Any
 
-#TODO unused tmp domains will be removed in bulks, maintained by graph repo
 
-def _get_edges(available_options: list[
-    Callable[[dict, int, Neo4jDBClient], tuple[list[dict], dict[str, Any]] | list[tuple[list[dict], dict[str,Any]]] | None]
-], domain: dict[str, Any], driver: Neo4jDBClient) -> list[tuple[list[dict], dict[str,Any]]] | None:
+
+def _get_edges(available_options: list[TMP_FUNC_T], domain: dict[str, Any], driver: Neo4jDBClient, version: int, tmp_node_id) -> EDGES_T | None:
     """
     Function that calls edge creation function for all registered edge relationship functions
     :param available_options: `list[function]` that contains all available edge relationship functions
@@ -17,11 +16,9 @@ def _get_edges(available_options: list[
     :return: list[tuple[ List of edges, edge creation options]] if there are any relationships otherwise None
     """
 
-    version = driver.get_current_active_graph_version()
-
     edges = []
     for tmp_func in available_options:
-        tmp_edges = tmp_func(domain, version, driver)
+        tmp_edges = tmp_func(domain, version, tmp_node_id, driver)
 
         if tmp_edges is not None:
             if type(tmp_edges) is list:
@@ -32,7 +29,7 @@ def _get_edges(available_options: list[
     return edges if len(edges) > 0 else None
 
 
-def _create_edges(domain: dict[str, Any], edges: list[tuple[list[dict], dict[str,Any]]], driver: Neo4jDBClient) -> int:
+def _create_edges(domain: dict[str, Any], edges: EDGES_T, driver: Neo4jDBClient, version: int, tmp_node_id) -> None:
     """
     Function that creates temporary edges
     :param domain: `dict[str|Any] that holds temporary domain data
@@ -41,12 +38,15 @@ def _create_edges(domain: dict[str, Any], edges: list[tuple[list[dict], dict[str
     :return: Allocated temporary edge id
     """
 
+    domain.pop('dns','')
+    domain['graph_version'] = version
+    domain['node_id'] = tmp_node_id
     tmp_node_id = driver.create_tmp_node(domain)
 
     for edges, edge_options_dict in edges:
         driver.create_edges(edge_options_dict, edges)
 
-    return tmp_node_id
+    return
 
 
 def add_temporary_domain(domain: dict[str, Any],  driver: Neo4jDBClient) -> int | None:
@@ -62,12 +62,16 @@ def add_temporary_domain(domain: dict[str, Any],  driver: Neo4jDBClient) -> int 
         return None
 
     available_options = []
-    get_options_from_registry(EDIT_WORKER_REGISTRY, available_options)
-    edges = _get_edges(available_options, domain, driver)
+    get_functions_from_registry(TMP_REGISTRY, available_options)
+
+    version =  driver.get_current_active_graph_version()
+    tmp_node_id = driver.get_free_node_id(NodeTypes.TMP_DOMAIN)
+    edges = _get_edges(available_options, domain, driver, version, tmp_node_id)
     if edges is None:
         MyLogger.get_instance().log(f"Temporary domain {domain['domain_name']} has no neighbors in graph!")
+        driver.return_unused_node_ids(NodeTypes.TMP_DOMAIN, tmp_node_id)
         return None
-    tmp_node_id = _create_edges(domain, edges, driver)
+    _create_edges(domain, edges, driver, version, tmp_node_id)
 
     MyLogger.get_instance().log(f"Temporary domain {domain['domain_name']} has been added to graph with node_id {tmp_node_id}")
     return tmp_node_id

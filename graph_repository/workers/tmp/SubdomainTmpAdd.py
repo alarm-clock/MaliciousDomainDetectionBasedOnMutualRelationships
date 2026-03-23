@@ -6,11 +6,12 @@ from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.workers.common.TmpFunctions import register
 from typing import Any
 
-def tmp_add_subdomain_edge(domain: dict, version: int, driver: Neo4jDBClient) -> list[tuple[list[dict], dict[str,Any]]] | None:
+def tmp_add_subdomain_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBClient) -> list[tuple[list[dict], dict[str,Any]]] | None:
     """
     Function for creating subdomain edges between `domain` and its parent domains in graph
     :param domain: `dict` that contains domain data
     :param version: `int` graph version that is used to find parent domains
+    :param tmp_node_id: `int` node_id of tmp domain
     :param driver: `Neo4jDBClient` open driver for interacting with Neo4j
     :return: `list[(` edges `,` edge_creation_options `)]` if there is at least one parent node in graph, otherwise `None`
     """
@@ -48,9 +49,9 @@ def tmp_add_subdomain_edge(domain: dict, version: int, driver: Neo4jDBClient) ->
         label = row['n_t']
         if label is not None:
             if label == NodeTypes.DOMAIN.neo4j:
-                d_edges.append({'u': domain_name, 'v': parent_domain})
+                d_edges.append({'u': tmp_node_id, 'v': parent_domain})
             elif label == NodeTypes.DUMMY_DOMAIN.neo4j:
-                dum_edges.append({'u': domain_name, 'v': parent_domain})
+                dum_edges.append({'u': tmp_node_id, 'v': parent_domain})
 
 
     if len(d_edges) == len(dum_edges) == 0:
@@ -61,7 +62,7 @@ def tmp_add_subdomain_edge(domain: dict, version: int, driver: Neo4jDBClient) ->
         Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
         Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
         Neo4jDBClient.E_EDGE_T: EdgeTypes.SUBDOMAIN,
-        Neo4jDBClient.E_MATCH1: "domain_name",
+        Neo4jDBClient.E_MATCH1: "node_id",
         Neo4jDBClient.E_MATCH2: "domain_name"
     }
 
