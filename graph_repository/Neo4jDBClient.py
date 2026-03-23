@@ -374,8 +374,7 @@ class Neo4jDBClient:
         """
 
         return f"""
-        WITH {'"'+ n_t.neo4j + '"' if type(n_t) == NodeTypes else n_t} || "{Neo4jDBClient._FREE_NODE_ID_POSTFIX}" AS del_q_n_t, 
-             {with_survival} 
+        WITH {'"'+ (n_t.neo4j if type(n_t) == NodeTypes else n_t) + '"'} || "{Neo4jDBClient._FREE_NODE_ID_POSTFIX}" AS del_q_n_t, {with_survival} 
         CREATE (:$(del_q_n_t) {{node_id: {id_var_name} }})
         """ + ('' if last else 'WITH ' + with_survival )
 
@@ -657,11 +656,14 @@ class Neo4jDBClient:
         if tmp_domain.get('domain_name') is None:
             return None
 
-        allocated_id = self.get_free_node_id(NodeTypes.TMP_DOMAIN)
-        tmp_domain['node_id'] = allocated_id
+        if tmp_domain.get('node_id') is None:
+            allocated_id = self.get_free_node_id(NodeTypes.TMP_DOMAIN)
+            tmp_domain['node_id'] = allocated_id
+        else:
+            allocated_id = tmp_domain['node_id']
         item_str = self.create_pre_filled_item_string(tmp_domain)
         query = f"""
-        CREATE (:{NodeTypes.MAINTENANCE.neo4j} {{ {item_str} }})
+        CREATE (:{NodeTypes.TMP_DOMAIN.neo4j} {{ {item_str} }})
         """
         self.execute_write(query)
 
@@ -695,7 +697,7 @@ class Neo4jDBClient:
 
     @staticmethod
     def create_pre_filled_item_string(node: dict[str, Any]) -> str:
-        return ','.join([ str(key) + ':' + str(value) + ' ' for key, value in node.items()])
+        return ','.join([ str(key) + ':'+ ('"' if type(value) == str else '') + str(value) + ('"' if type(value) == str else '') +' ' for key, value in node.items()])
 
     @staticmethod
     @deprecated
@@ -784,6 +786,43 @@ class Neo4jDBClient:
         MyLogger.get_instance().log_debug(f"Deleted nodes and their neighbors in graph version v.{version}")
         return
 
+
+    def delete_node(self, node: dict[str, Any], n_t: NodeTypes | str | None = None) -> None:
+        """
+        Method for deleting one node that matches label and properties
+        :param node: `dict[str, Any]` with properties that will be used to find node for deletion, node that ``n_t``
+            can also be passed as item with key `label` and either `NodeTypes` or `str` as value. If both `n_t` and
+            `label` are passed, the `n_t` will be used and `label` ignored.
+        :param n_t: `NodeTypes | str | None` node type of returned node, defaults to None. Node type must be passed as
+            either `n_t` method parameter or as item with key `label` in ``node``
+        :return: None
+        """
+
+        if n_t is None:
+            if node.get("label") is None:
+                MyLogger.get_instance().log_warning("Can not delete node without any label!")
+                return
+            n_t = node.pop('label')
+            if n_t is None:
+                MyLogger.get_instance().log_warning("Can not delete node without any label!")
+                return
+
+        if n_t is NodeTypes:
+            n_t = n_t.neo4j
+
+        node.pop('label', "")
+        item_str = Neo4jDBClient.create_pre_filled_item_string(node)
+
+        query = f"""
+        MATCH (n: {n_t}  {{ {item_str} }})
+        CALL (n) {{
+            WITH n
+            WHERE n.node_id IS NOT NULL
+            {Neo4jDBClient.get_node_id_return_query(n_t,'n.node_id','n', True)}
+        }}
+        DETACH DELETE n 
+        """
+        self.execute_write(query)
 
     class EdgeCreationQueryOptions(Enum):
 
@@ -959,12 +998,18 @@ class Neo4jDBClient:
         #TODO also add edge values, now it is not required but who knows what future holds
         query = f"""
         CALL mapoc.sampling.bfs($match, {max_depth}, {max_sample_size}, {get_back_edges}) YIELD relId
-        MATCH ()-[r]-()
+        MATCH ()-[r]->()
         WHERE elementId(r) = relId
         WITH startNode(r) AS from, endNode(r) AS to, r
-        RETURN {{node_id: from.node_id, label: labels(from)[0]}} AS u,
-               type(r) AS e_t,
-               {{node_id: to.node_id, label: labels(to)[0]}}  AS v
+        RETURN CASE WHEN labels(from)[0] = "Domain" THEN 
+                    {{nid: from.node_id, nt: labels(from)[0], l: from.label}} 
+               ELSE {{nid: from.node_id, nt: labels(from)[0]}}
+               END AS u,
+               type(r) AS et,
+               CASE WHEN labels(to)[0] = "Domain" THEN 
+                    {{nid: to.node_id, nt: labels(to)[0], l: to.label}}  
+               ELSE {{nid: to.node_id, nt: labels(to)[0]}}     
+               END AS v
         """
         return self.execute_read(query, match=match)
 
@@ -975,13 +1020,19 @@ class Neo4jDBClient:
         # TODO also add edge values, now it is not required but who knows what future holds
         query = f"""
         CALL mapoc.sampling.bfs_nd_id({n_t}, {node_id}, {max_depth}, {max_sample_size}, {get_back_edges}) YIELD relId
-        MATCH ()-[r]-()
+        MATCH ()-[r]->()
         WHERE elementId(r) = relId
         WITH startNode(r) AS from, endNode(r) AS to, r
         //not using _ to save memory
-        RETURN {{nid: from.node_id, nt: labels(from)[0], l: from.label}} AS u,  
+        RETURN CASE WHEN labels(from)[0] = "Domain" THEN 
+                    {{nid: from.node_id, nt: labels(from)[0], l: from.label}} 
+               ELSE {{nid: from.node_id, nt: labels(from)[0]}}
+               END AS u,
                type(r) AS et,
-               {{nid: to.node_id, nt: labels(to)[0], l: to.label}}  AS v
+               CASE WHEN labels(to)[0] = "Domain" THEN 
+                    {{nid: to.node_id, nt: labels(to)[0], l: to.label}}  
+               ELSE {{nid: to.node_id, nt: labels(to)[0]}}     
+               END AS v
         """
 
         return self.execute_read(query)

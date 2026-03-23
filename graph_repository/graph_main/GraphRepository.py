@@ -28,6 +28,7 @@ class GraphRepository:
             self._worker_stop_event = Event()
             self._stop_event = Event()
             import_all_modules_from_package("graph_repository.workers.edit_node_edge_workers")
+            import_all_modules_from_package("graph_repository.workers.tmp")
             self._edit_worker = Thread(target=edit_loop,args=(self._worker_stop_event,self._request_q, self._neo4j_conf), daemon=True)
             self._edit_worker.start()
 

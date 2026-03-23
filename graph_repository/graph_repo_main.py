@@ -1,4 +1,5 @@
 import argparse
+import json
 import signal
 import sys
 import warnings
@@ -12,6 +13,7 @@ from graph_repository.graph_main.graph_editing.requests.DeleteRequest import Del
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.Neo4jDBClient import Neo4jDBClient, CouldNotConnect
+from graph_repository.graph_main.conversion.FormatConverting import convert_form_neo4j_to_dgl, prepare_dgl_g_for_ml
 from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
 import dgl
@@ -70,6 +72,13 @@ def main():
     edit_parser.add_argument('-a','--add',action='store_true',help="Add domains to graph")
     edit_parser.add_argument('-d','--delete',action='store_true',help="Delete domains from graph")
     edit_parser.add_argument('-e','--edit',action="store_true",help="Edit domains in graph")
+
+    #tmp edit here
+    tmp_edit_parser = subparsers.add_parser('tmp')
+    tmp_edit_parser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
+    tmp_edit_parser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
+    tmp_edit_parser.add_argument('-a','--add',action='store_true',help="Add tmp domain to graph")
+    tmp_edit_parser.add_argument('-d','--delete',action='store_true',help="Delete tmp domain from graph")
 
     #Api go here
     api_parser = subparsers.add_parser('server')
@@ -172,6 +181,33 @@ def main():
         request.filter()
         request.edit(current_graph_version)
 
+    elif args.mode == "tmp":
+
+        repository: GraphRepository = GraphRepository.get_instance(args.neo_db)
+
+        if repository is None:
+            print("Neo database connection config file not provided, exiting",file=sys.stderr)
+            return
+
+        if args.json is not None:
+            data = json.loads(args.json)
+        elif args.json_file is not None:
+            with open(args.json_file,'r') as f:
+                data = json.load(f)
+        else:
+            return
+
+        data = data[0] if type(data) is list else data
+
+        if args.add:
+            repository.temporary_add_domain(data)
+        elif args.delete:
+            driver = repository.get_neo4j_driver()
+            driver.delete_node(data)
+
+        else:
+            return
+
     elif args.mode == 'server':
         repository = GraphRepository.get_instance(args.neo_db)
         signal_handlers_for_graph_repo()
@@ -183,8 +219,27 @@ def main():
         uvicorn.run("graph_repository.api.server:app", host=args.address, port=args.port)
 
     elif args.mode == "test":
-        print(NodeTypes.DOMAIN.value)
-        print(NodeTypes.DOMAIN.dgl)
+        client = Neo4jDBClient.from_config(args.neo_db)
+        res = client.get_k_hop_neighborhood_universal({"label":NodeTypes.TMP_DOMAIN.neo4j, "domain_name": "pipinka.A.C.at"},3,100,False)
+        graph = convert_form_neo4j_to_dgl(res, True)
+
+        #for etype in graph.canonical_etypes:
+        #    print(etype)
+        #    print(graph.edges(etype=etype))
+
+        print(graph.ndata)
+
+        print(graph.nodes(ntype=NodeTypes.TMP_DOMAIN.dgl))
+        graph = prepare_dgl_g_for_ml(graph)
+
+        print('*'*260)
+
+        print(graph.ndata)
+        #for etype in graph.canonical_etypes:
+        #    print(etype)
+        #    print(graph.edges(etype=etype))
+
+
         return
 
 if __name__ == '__main__':
