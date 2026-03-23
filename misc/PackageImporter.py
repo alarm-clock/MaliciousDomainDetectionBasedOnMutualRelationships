@@ -1,9 +1,15 @@
 import importlib
 import pkgutil
-from typing import Iterable
+from typing import Iterable, Callable
 
 from misc.Logger import MyLogger
 
+def get_functions_from_registry(register: dict, funcs: list) -> None:
+
+    for func in register.values():
+        funcs.append(func)
+
+    return
 
 def get_options_from_registry(register: dict, options: list) -> None:
     """
@@ -51,7 +57,12 @@ def import_all_modules_from_package(package_path: str, register: dict | None = N
         importlib.import_module(module_path)
 
     if register is not None and options is not None:
-        get_options_from_registry(register, options)
+
+        if len(register) > 0:
+            if type(list(register.values())[0]) != Callable:
+                get_options_from_registry(register, options)
+            else:
+                get_functions_from_registry(register, options)
 
     MyLogger.get_instance().log_debug(f"Imported all modules from {package_path}")
     return True
