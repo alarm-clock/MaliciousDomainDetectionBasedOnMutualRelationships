@@ -8,4 +8,4 @@ if [[ ! "$pwd" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     exit 1
 fi
 
-cypher-shell -u neo4j -p "$pwd" "CALL apoc.periodic.iterate(\"MATCH (n)\",\"DETACH DELETE n\",{ batchSize: 10000, parallel: true }) YIELD batch RETURN 0"
+cypher-shell -u neo4j -p "$pwd" "CALL apoc.periodic.iterate(\"MATCH (n) RETURN n\",\"DETACH DELETE n\",{ batchSize: 10000, parallel: false }) YIELD batch RETURN batch"
