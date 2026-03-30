@@ -3,7 +3,7 @@ from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphR
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
 from graph_repository.workers.common.GraphTypes import NodeTypes
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from graph_repository.workers.common.Enums import EditTypes, CallbackWhen
 from graph_repository.workers.common.EditWorker import EDIT_WORKER_REGISTRY, EditWorker
 from graph_repository.graph_main.GraphRepository import GraphRepository
@@ -73,7 +73,7 @@ class AddRequest(GraphRequest):
 
     def _add_node_ids_to_du_domains(self) -> None:
 
-        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
         if self._nodes.get('du_domains_group') is None:
             return
 
@@ -176,7 +176,7 @@ class AddRequest(GraphRequest):
                         'graph_version': version})
 
     #todo add option to just create node and edge without any other calculation because why the fuck not
-    def _create_nodes(self, driver: Neo4jDBClient, version: int) -> None:
+    def _create_nodes(self, driver: Neo4jDBDriver, version: int) -> None:
 
         self._add_node_ids_to_du_domains()
         self._add_maintenance_values_to_nodes(version)
@@ -189,7 +189,7 @@ class AddRequest(GraphRequest):
         MyLogger.get_instance().log_debug(f"Created all {len(self._nodes.keys())} nodes")
         return
 
-    def _create_edges(self, driver: Neo4jDBClient) -> None:
+    def _create_edges(self, driver: Neo4jDBDriver) -> None:
 
         for group, edges in self._edges.items():
             #print(group, edges)

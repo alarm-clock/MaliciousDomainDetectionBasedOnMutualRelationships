@@ -2,12 +2,12 @@ from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
 from misc.PackageImporter import get_functions_from_registry
 from graph_repository.workers.common.TmpFunctions import TMP_REGISTRY, TMP_FUNC_T, EDGES_T
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from typing import Any
 
 
 
-def _get_edges(available_options: list[TMP_FUNC_T], domain: dict[str, Any], driver: Neo4jDBClient, version: int, tmp_node_id) -> EDGES_T | None:
+def _get_edges(available_options: list[TMP_FUNC_T], domain: dict[str, Any], driver: Neo4jDBDriver, version: int, tmp_node_id) -> EDGES_T | None:
     """
     Function that calls edge creation function for all registered edge relationship functions
     :param available_options: `list[function]` that contains all available edge relationship functions
@@ -29,7 +29,7 @@ def _get_edges(available_options: list[TMP_FUNC_T], domain: dict[str, Any], driv
     return edges if len(edges) > 0 else None
 
 
-def _create_edges(domain: dict[str, Any], edges: EDGES_T, driver: Neo4jDBClient, version: int, tmp_node_id) -> None:
+def _create_edges(domain: dict[str, Any], edges: EDGES_T, driver: Neo4jDBDriver, version: int, tmp_node_id) -> None:
     """
     Function that creates temporary edges
     :param domain: `dict[str|Any] that holds temporary domain data
@@ -49,7 +49,7 @@ def _create_edges(domain: dict[str, Any], edges: EDGES_T, driver: Neo4jDBClient,
     return
 
 
-def add_temporary_domain(domain: dict[str, Any],  driver: Neo4jDBClient) -> int | None:
+def add_temporary_domain(domain: dict[str, Any], driver: Neo4jDBDriver) -> int | None:
     """
     Function that creates a temporary domain and it's relationships with ground truth domains
     :param domain: `dict[str|Any` that holds temporary domain data, mut at least hold domain name otherwise function fails

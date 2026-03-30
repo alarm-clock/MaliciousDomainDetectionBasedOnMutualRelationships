@@ -2,7 +2,7 @@ from misc.Logger import MyLogger
 import graph_repository.graph_main.graph_editing.DomainFiltersOnGraphData as filters
 from graph_repository.workers.common.GraphTypes import NodeTypes
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 import inspect
 
 
@@ -33,7 +33,7 @@ def _rm_duplicates_and_no_basic_info(domains: list[dict]) -> list[dict]:
     return filtered_domains
 
 
-def _rm_domains_that_are_in_graph(domains: list[dict], driver: Neo4jDBClient) -> list[dict]:
+def _rm_domains_that_are_in_graph(domains: list[dict], driver: Neo4jDBDriver) -> list[dict]:
 
     filtered_domains = []
     current_version = driver.get_current_active_graph_version()
@@ -58,7 +58,7 @@ def _rm_domains_that_are_in_graph(domains: list[dict], driver: Neo4jDBClient) ->
     return filtered_domains
 
 
-def _get_add_update_sets(domains: list[dict], driver: Neo4jDBClient, get_just_add: bool) -> tuple[list[dict], list[dict]] | list[dict]:
+def _get_add_update_sets(domains: list[dict], driver: Neo4jDBDriver, get_just_add: bool) -> tuple[list[dict], list[dict]] | list[dict]:
     domains_dict = {}
     for domain in domains:
         domains_dict[domain['domain_name']] = domain
@@ -91,7 +91,7 @@ def _get_add_update_sets(domains: list[dict], driver: Neo4jDBClient, get_just_ad
 
 def update_filter_domains(domains: list[dict]) -> tuple[list[dict], list[dict]]:
     filtered_domains = _rm_duplicates_and_no_basic_info(domains)
-    driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+    driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
     add_domains, update_domains = _get_add_update_sets(filtered_domains, driver, False)
     update_domains = _rm_domains_that_are_in_graph(update_domains, driver)
 
@@ -106,7 +106,7 @@ def basic_filter_domains(domains: list[dict]) -> list[dict]:
     MyLogger.get_instance().log_debug(
         f" basic_filter_domains - Removed duplicate domains or domains without basic data")
 
-    driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+    driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
     filtered_domains = _get_add_update_sets(filtered_domains, driver, True)
     MyLogger.get_instance().log_debug(f" basic_filter_domains - removed domains that are already in graph")
     driver.close()

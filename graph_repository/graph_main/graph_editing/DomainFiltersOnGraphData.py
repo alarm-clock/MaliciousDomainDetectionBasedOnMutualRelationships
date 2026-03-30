@@ -7,10 +7,10 @@
     "rm_" so that they can be differentiated from the other functions. Also, all main functions
     must have same parameters and all main function must return set with domains that should stay.
 """
-from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 
-def rm_domains_with_same_ip(domains: list[dict], version: int, driver: Neo4jDBClient) -> set[str]:
+def rm_domains_with_same_ip(domains: list[dict], version: int, driver: Neo4jDBDriver) -> set[str]:
     """
     Function that filters out domains that have the same IP addresses as their graph counterparts
     :param domains: `list[dict]` with domain data which may or may not hold A and AAAA records
@@ -49,7 +49,7 @@ def rm_domains_with_same_ip(domains: list[dict], version: int, driver: Neo4jDBCl
     return diff_domains
 
 
-def rm_domains_with_same_cname(domains: list[dict], version: int, driver: Neo4jDBClient) -> set[str]:
+def rm_domains_with_same_cname(domains: list[dict], version: int, driver: Neo4jDBDriver) -> set[str]:
     """
     Function that filters out domains that have the same CNAME as their graph counterparts
     :param domains: `list[dict]` with domain data which may or may not hold A and AAAA records

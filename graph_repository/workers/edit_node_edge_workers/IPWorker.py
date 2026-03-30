@@ -1,7 +1,7 @@
 from typing import Any
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.workers.common.Misc import IPModes, get_ips_from_record
 from graph_repository.workers.common.Enums import EditTypes
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
@@ -26,12 +26,12 @@ class IPWorker(EditWorker):
         self._submit_nodes_callback(self._ips, NodeTypes.IP, self.worker_name, EditTypes.IGNORE_NEW)
 
         query_params = {
-            Neo4jDBClient.E_EDGE_T: EdgeTypes.TRANSLATES,
-            Neo4jDBClient.E_NODE_T1: NodeTypes.IP,
-            Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
-            Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
-            Neo4jDBClient.E_MATCH1: "ip_str",
-            Neo4jDBClient.E_MATCH2: "domain_name"
+            Neo4jDBDriver.E_EDGE_T: EdgeTypes.TRANSLATES,
+            Neo4jDBDriver.E_NODE_T1: NodeTypes.IP,
+            Neo4jDBDriver.E_NODE_T2: NodeTypes.DOMAIN,
+            Neo4jDBDriver.E_OPTION: Neo4jDBDriver.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
+            Neo4jDBDriver.E_MATCH1: "ip_str",
+            Neo4jDBDriver.E_MATCH2: "domain_name"
         }
         self._submit_edges_callback(self._edges, query_params, self.worker_name)
 
@@ -39,7 +39,7 @@ class IPWorker(EditWorker):
         for ip in ips:
             self._edges.append({'u': str(ip), 'v': domain_name})
 
-    def _create_index_on_ip_str(self, driver: Neo4jDBClient) -> None:
+    def _create_index_on_ip_str(self, driver: Neo4jDBDriver) -> None:
 
         driver.execute_write(f"""
         CREATE INDEX {NodeTypes.IP.neo4j}_ip_str_idx
@@ -56,7 +56,7 @@ class IPWorker(EditWorker):
         return
 
     def _create_ip_nodes(self) -> None:
-        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
 
         self._create_index_on_ip_str(driver)
 

@@ -2,7 +2,7 @@ import copy
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
 from misc.Logger import MyLogger
 from functools import partial
@@ -37,19 +37,19 @@ class CNAMEWorker(EditWorker):
         self._nodes_submit_callback(self._dummy_nodes, NodeTypes.DUMMY_DOMAIN, self.worker_name, EditTypes.IGNORE_NEW)
 
         query_option = {
-            Neo4jDBClient.E_NODE_T1: NodeTypes.DOMAIN,
-            Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
-            Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.WEIGHT_REVERSE,
-            Neo4jDBClient.E_EDGE_T: EdgeTypes.CNAME,
-            Neo4jDBClient.E_MATCH1: "domain_name",
-            Neo4jDBClient.E_MATCH2: "domain_name",
-            Neo4jDBClient.E_EDGE_VALUE_NAME: "owner"
+            Neo4jDBDriver.E_NODE_T1: NodeTypes.DOMAIN,
+            Neo4jDBDriver.E_NODE_T2: NodeTypes.DOMAIN,
+            Neo4jDBDriver.E_OPTION: Neo4jDBDriver.EdgeCreationQueryOptions.WEIGHT_REVERSE,
+            Neo4jDBDriver.E_EDGE_T: EdgeTypes.CNAME,
+            Neo4jDBDriver.E_MATCH1: "domain_name",
+            Neo4jDBDriver.E_MATCH2: "domain_name",
+            Neo4jDBDriver.E_EDGE_VALUE_NAME: "owner"
         }
 
         self._edges_submit_callback(self._d_d_edges, query_option, self.worker_name)
 
         query_option2 = copy.deepcopy(query_option)
-        query_option2[Neo4jDBClient.E_NODE_T1] = NodeTypes.DUMMY_DOMAIN
+        query_option2[Neo4jDBDriver.E_NODE_T1] = NodeTypes.DUMMY_DOMAIN
 
         self._edges_submit_callback(self._du_d_edges, query_option2, self.worker_name+"_du")
 
@@ -72,7 +72,7 @@ class CNAMEWorker(EditWorker):
 
     def _find_cnames_in_graph(self, cname_normal_dict: dict[str, list[str]]) -> None:
 
-        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
 
         find_cnames_in_domains = f"""
         UNWIND $rows AS cname

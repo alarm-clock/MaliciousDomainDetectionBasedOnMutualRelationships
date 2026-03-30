@@ -5,7 +5,7 @@ from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphR
 from graph_repository.graph_main.graph_editing.DomainFiltering import update_filter_domains, basic_filter_domains
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from graph_repository.workers.common.GraphTypes import NodeTypes
 from typing import Callable
 
@@ -56,7 +56,7 @@ class EditRequest(GraphRequest):
             return False
 
         #self._delete_req.edit(version)
-        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
 
         driver.delete_nodes(self._update, NodeTypes.DOMAIN, True, True)
         #TODO find a way how to not delete subdodomains

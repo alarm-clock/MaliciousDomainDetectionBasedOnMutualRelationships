@@ -1,6 +1,6 @@
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.workers.common.GraphTypes import NodeTypes
 from graph_repository.workers.common.Enums import EditTypes, CallbackWhen
 from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
@@ -24,7 +24,7 @@ class DomainWorker(EditWorker):
         # this will run after normal nodes equivalents of dummies exists
         # they will have same domain name but node_id in parameter is for the du_domains
 
-        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
         replace_query = f"""
 
         UNWIND $domains as d
@@ -38,7 +38,7 @@ class DomainWorker(EditWorker):
         driver.close()
         return
 
-    def _find_du_domains(self, domain_names: list[str], driver: Neo4jDBClient) -> None:
+    def _find_du_domains(self, domain_names: list[str], driver: Neo4jDBDriver) -> None:
 
         find_if_domain_is_dummy_in_graph = f"""
         UNWIND $domains AS domain
@@ -61,7 +61,7 @@ class DomainWorker(EditWorker):
 
     def _compute(self):
 
-        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
         available_ids = driver.get_free_node_id(NodeTypes.DOMAIN, len(self._domains))
         available_ids = available_ids if type(available_ids) == list else [available_ids]
 

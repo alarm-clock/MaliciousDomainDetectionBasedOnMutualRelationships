@@ -1,11 +1,14 @@
 from queue import PriorityQueue
 from typing import Any
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+import dgl
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
+from graph_repository.graph_main.conversion.FormatConverting import convert_form_neo4j_to_dgl, prepare_dgl_g_for_ml
 from graph_repository.graph_main.graph_editing.EditConsumer import edit_loop, FinishType
 from threading import Event, Thread, Lock
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest, FinishRequest
 from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
 from graph_repository.graph_main.tmp.TmpAdd import add_temporary_domain
+from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
 from misc.PackageImporter import import_all_modules_from_package
 
@@ -73,10 +76,10 @@ class GraphRepository:
         #add option to wait on all active evaluations or just fuck em
         return
 
-    def get_neo4j_driver(self) -> Neo4jDBClient | None:
+    def get_neo4j_driver(self) -> Neo4jDBDriver | None:
         #maybe I should add check that if graph repo is stopping then it should not give any client
         #on the other hand if edits are to be finished then they need client.
-        return Neo4jDBClient.from_config(self._neo4j_conf)
+        return Neo4jDBDriver.from_config(self._neo4j_conf)
 
     def add_request_to_queue(self, request):
         if self._stop_event.is_set():
@@ -135,3 +138,15 @@ class GraphRepository:
         driver.close()
 
         return domain_id
+
+    def delete_temporary_domain(self, tmp_nd_id: int) -> None:
+        self.get_neo4j_driver().delete_node({'node_id': tmp_nd_id},NodeTypes.TMP_DOMAIN.neo4j)
+
+
+    def get_k_hop_neighborhood_dgl(self, tmp_node_id: int, for_ml: bool = False) -> dgl.DGLHeteroGraph:
+
+        graph = self.get_neo4j_driver().get_k_hop_neighborhood_universal(
+            {"label": NodeTypes.TMP_DOMAIN.neo4j, "node_id": tmp_node_id}, 4, 1000, False)
+
+        graph = convert_form_neo4j_to_dgl(True, graph)
+        return prepare_dgl_g_for_ml(graph) if for_ml else graph

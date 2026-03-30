@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Any
 from threading import Thread
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
 from graph_repository.graph_main.graph_editing.requests.DeleteRequest import DeleteRequest
@@ -160,7 +160,7 @@ async def query_req(query: ReadQuery):
     """
     Endpoint for executing read queries in graph, query_result is not edited in no way
     """
-    driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+    driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
 
     if driver is None:
         raise HTTPException(status_code=503, detail="Graph repository is being shut down")

@@ -1,17 +1,14 @@
 import time
-
+import json
+import sys
 from neo4j import GraphDatabase
 from enum import Enum
-
 from sklearn.utils import deprecated
-
 from misc.Logger import MyLogger
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.workers.common.Enums import EditTypes
 from neo4j.exceptions import ServiceUnavailable, AuthError
 from graph_repository.graph_main.graph_editing.common.Exceptions import TooManyVersions, Neo4jIndexError
-import json
-import sys
 from typing import Any
 
 
@@ -23,7 +20,7 @@ class CouldNotConnect(Exception):
         super().__init__(f'Could not connect to Neo4j with url: {url}, port: {port}, username: {username}')
 
 
-class Neo4jDBClient:
+class Neo4jDBDriver:
     """
     Class that represents Neo4j domain relationship graph database driver. While it provides simple functions for
     direct graph querying, it also has more complex methods for managing domain relationship graph.
@@ -141,7 +138,7 @@ class Neo4jDBClient:
             except KeyError:
                 pass
 
-        return Neo4jDBClient(host, port, user, pwd, db, alt_host, batch_delay, batch_size)
+        return Neo4jDBDriver(host, port, user, pwd, db, alt_host, batch_delay, batch_size)
 
     def close(self) -> None:
         """
@@ -159,6 +156,16 @@ class Neo4jDBClient:
         """
         with self.driver.session(database=self.database) as s:
             return s.execute_write(lambda tx: tx.run(query, **params).data())
+
+    def test(self, query, callback, **params) -> Any:
+        with self.driver.session(database=self.database) as s:
+            def work(tx):
+                res = tx.run(query, **params)
+                return callback(res)
+
+            data = s.execute_read(work)
+
+        return data
 
     def execute_read(self, query, **params) -> Any:
         """
@@ -193,7 +200,7 @@ class Neo4jDBClient:
         Method that returns current graph version that should be used for computation
         :return: `int` current version
         """
-        active_version = self.execute_read(f"MATCH (v: {NodeTypes.MAINTENANCE.neo4j}) RETURN v.version AS vers")
+        active_version = self.execute_read(f"MATCH (v: {NodeTypes.CURRENT_VERSION.neo4j}) RETURN v.version AS vers")
         if len(active_version) == 0:
             return -1
 
@@ -204,15 +211,15 @@ class Neo4jDBClient:
         Method that returns all existing version of graph
         :return: `list[int] all graph versions
         """
-        return self.execute_read(f"MATCH (v: {NodeTypes.MAINTENANCE.neo4j}) RETURN collect(v.version) AS vers")[0]['vers']
+        return self.execute_read(f"MATCH (v: {NodeTypes.VERSION.neo4j}) RETURN collect(v.version) AS vers")[0]['vers']
 
     def get_existing_versions_nodes(self) -> list[dict[str, int]]:
         return self.execute_read(
-            f"MATCH (v: {NodeTypes.MAINTENANCE.neo4j}) RETURN collect({{version: v.version, users: v.n_users}}) AS vers"
+            f"MATCH (v: {NodeTypes.VERSION.neo4j}) RETURN collect({{version: v.version, users: v.n_users}}) AS vers"
         )[0]['vers']
 
     def get_n_existing_versions(self) -> int:
-        return self.execute_read(f'MATCH (v: {NodeTypes.MAINTENANCE.neo4j}) RETURN COUNT(v) AS cnt')[0]['cnt']
+        return self.execute_read(f'MATCH (v: {NodeTypes.VERSION.neo4j}) RETURN COUNT(v) AS cnt')[0]['cnt']
 
     def set_new_graph_version_node(self, new_version: int) -> None:
         """
@@ -221,7 +228,7 @@ class Neo4jDBClient:
         :return: None
         """
         query = f"""
-        MERGE (: {NodeTypes.MAINTENANCE.neo4j} {{version: {new_version}, n_users: 0}})
+        MERGE (: {NodeTypes.VERSION.neo4j} {{version: {new_version}, n_users: 0}})
         """
         self.execute_write(query)
 
@@ -233,7 +240,7 @@ class Neo4jDBClient:
         :return: None
         """
         n_t_str = n_t.neo4j if type(n_t) == NodeTypes else n_t
-        self.execute_write(f"MERGE (:{NodeTypes.MAINTENANCE.neo4j} {{ cnt_name: \"{n_t_str}\", val: {start_value} }}) ")
+        self.execute_write(f"MERGE (:{NodeTypes.ND_ID_CNT.neo4j} {{ cnt_name: \"{n_t_str}\", val: {start_value} }}) ")
 
     _FREE_NODE_ID_POSTFIX = "_free_node_id"
 
@@ -252,7 +259,7 @@ class Neo4jDBClient:
 
         if req_number_of_ids != 1:
             query = f"""
-            MATCH (free_id: {n_t.neo4j}{Neo4jDBClient._FREE_NODE_ID_POSTFIX})
+            MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
             WITH free_id
             LIMIT {req_number_of_ids}
             WITH collect(free_id) AS free_nodes
@@ -265,7 +272,7 @@ class Neo4jDBClient:
             CALL(rem_cnt){{
                 WITH rem_cnt
                 WHERE rem_cnt > 0
-                MATCH (counter: {NodeTypes.MAINTENANCE.neo4j} {{cnt_name: '{n_t.neo4j}' }})
+                MATCH (counter: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t.neo4j}' }})
                 SET counter.val = counter.val + rem_cnt
                 RETURN range(counter.val - rem_cnt, counter.val - 1) AS allocated_ids 
                 
@@ -280,7 +287,7 @@ class Neo4jDBClient:
         else:
 
             query = f"""
-            OPTIONAL MATCH (free_id: {n_t.neo4j}{Neo4jDBClient._FREE_NODE_ID_POSTFIX})
+            OPTIONAL MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
             WITH free_id
             LIMIT 1
             
@@ -295,7 +302,7 @@ class Neo4jDBClient:
                 
                 WITH free_id
                 WHERE free_id IS NULL
-                MATCH (counter: {NodeTypes.MAINTENANCE.neo4j} {{cnt_name: '{n_t.neo4j}' }})
+                MATCH (counter: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t.neo4j}' }})
                 SET counter.val = counter.val + 1
                 RETURN counter.val - 1 AS free_node_id
             }}
@@ -305,11 +312,11 @@ class Neo4jDBClient:
 
 
             f"""
-            OPTIONAL MATCH (free_id: {n_t.neo4j}{Neo4jDBClient._FREE_NODE_ID_POSTFIX})
+            OPTIONAL MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
             WITH free_id
             LIMIT 1
             
-            MATCH (counter: {NodeTypes.MAINTENANCE.neo4j} {{cnt_name: '{n_t.neo4j}' }})
+            MATCH (counter: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t.neo4j}' }})
 
             WITH free_id, counter, 
                 CASE WHEN free_id IS NOT NULL
@@ -341,7 +348,7 @@ class Neo4jDBClient:
 
         n_t_str = n_t.neo4j if type(n_t) == NodeTypes else n_t
         query = f"""
-        MERGE (n: {NodeTypes.MAINTENANCE.neo4j} {{cnt_name: '{n_t_str}'}})
+        MERGE (n: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t_str}'}})
         ON CREATE SET n.val = 0 
         """
         self.execute_write(query)
@@ -374,7 +381,7 @@ class Neo4jDBClient:
         """
 
         return f"""
-        WITH {'"'+ (n_t.neo4j if type(n_t) == NodeTypes else n_t) + '"'} || "{Neo4jDBClient._FREE_NODE_ID_POSTFIX}" AS del_q_n_t, {with_survival} 
+        WITH {'"'+ (n_t.neo4j if type(n_t) == NodeTypes else n_t) + '"'} || "{Neo4jDBDriver._FREE_NODE_ID_POSTFIX}" AS del_q_n_t, {with_survival} 
         CREATE (:$(del_q_n_t) {{node_id: {id_var_name} }})
         """ + ('' if last else 'WITH ' + with_survival )
 
@@ -389,7 +396,7 @@ class Neo4jDBClient:
 
         query = f"""
         UNWIND $ids AS returned_id
-        {Neo4jDBClient.get_node_id_return_query(n_t, 'returned_id', "returned_id", True)}
+        {Neo4jDBDriver.get_node_id_return_query(n_t, 'returned_id', "returned_id", True)}
         """
 
         ids = [node_ids] if type(id) == int else node_ids
@@ -414,10 +421,11 @@ class Neo4jDBClient:
             MyLogger.get_instance().log(f"Version {new_current_version} is already set as current graph version")
             return True
 
+        #TODO SET NEW VERSION INSTEAD OF DELETING WHEN UPDATING NEW CURRENT GRAPH VERSION
         query = f"""
-        OPTIONAL MATCH (old_version: {NodeTypes.MAINTENANCE.neo4j})
+        OPTIONAL MATCH (old_version: {NodeTypes.CURRENT_VERSION.neo4j})
         DETACH DELETE old_version
-        CREATE (: {NodeTypes.MAINTENANCE.neo4j} {{version: {new_current_version}}})
+        CREATE (: {NodeTypes.CURRENT_VERSION.neo4j} {{version: {new_current_version}}})
         """
         self.execute_write(query)
         return True
@@ -488,14 +496,15 @@ class Neo4jDBClient:
         :return: `list[str]` With all node types that are in the graph
         """
 
-        node_label_q = "\" AND label <> \"".join([ n_t_str+Neo4jDBClient._FREE_NODE_ID_POSTFIX for n_t_str in NodeTypes.get_data_n_t_str()])
+        node_label_q = "\" AND label <> \"".join([n_t_str + Neo4jDBDriver._FREE_NODE_ID_POSTFIX for n_t_str in NodeTypes.get_data_n_t_str()])
 
         return self.execute_read(f"""
         CALL db.labels() 
         YIELD label 
-        WHERE label <> "{NodeTypes.MAINTENANCE.neo4j}" AND 
-              label <> "{NodeTypes.MAINTENANCE.neo4j}" AND 
-              label <> "{NodeTypes.MAINTENANCE.neo4j}" AND
+        WHERE label <> "{NodeTypes.VERSION.neo4j}" AND 
+              label <> "{NodeTypes.CURRENT_VERSION.neo4j}" AND 
+              label <> "{NodeTypes.TMP_DOMAIN.neo4j}" AND
+              label <> "{NodeTypes.ND_ID_CNT.neo4j}" AND
               label <> "{NodeTypes.MAINTENANCE.neo4j}" AND
               label <> "{node_label_q}"
         RETURN collect(label) AS lab
@@ -541,10 +550,10 @@ class Neo4jDBClient:
             """
             self.execute_write(query)
 
-        self.execute_write(f"MATCH (n: {NodeTypes.MAINTENANCE.neo4j} {{version: {version} }} ) DELETE n")
+        self.execute_write(f"MATCH (n: {NodeTypes.VERSION.neo4j} {{version: {version} }} ) DELETE n")
         if force and current_version == version:
             MyLogger.get_instance().log_warning(f"Deleted current version of graph which was version v.{version}! Force flag was set")
-            self.execute_write(f"MATCH (n: {NodeTypes.MAINTENANCE.neo4j} {{version: {version} }} ) DELETE n")
+            self.execute_write(f"MATCH (n: {NodeTypes.CURRENT_VERSION.neo4j} {{version: {version} }} ) DELETE n")
         else:
             MyLogger.get_instance().log(f"Deleted graph version v.{version}, current graph version is v.{current_version}")
         return True
@@ -681,7 +690,7 @@ class Neo4jDBClient:
         if len(rows) <= 0:
             return
 
-        items_str = Neo4jDBClient.create_unwind_item_string(rows, "row")
+        items_str = Neo4jDBDriver.create_unwind_item_string(rows, "row")
         create_query = "UNWIND $rows AS row "
         query = ("CREATE" if edit_type == EditTypes.IGNORE_EXISTING else 'MERGE') + f"(:{n_t if type(n_t) == str else n_t.neo4j} {{ {items_str} }})"
         create_query += query
@@ -720,8 +729,8 @@ class Neo4jDBClient:
         if as_subquery and with_survival.lstrip() != "":
             return ""
 
-        where_label = f":{NodeTypes.MAINTENANCE.neo4j}" if only_rels_with_domains else ""
-        do_not_match_domains = f'AND NOT m_del_var:{NodeTypes.MAINTENANCE.neo4j}' if not also_delete_domains else ''
+        where_label = f":{NodeTypes.DOMAIN.neo4j}" if only_rels_with_domains else ""
+        do_not_match_domains = f'AND NOT m_del_var:{NodeTypes.DOMAIN.neo4j}' if not also_delete_domains else ''
 
         if with_survival != "":
             removed_white_space = with_survival.lstrip()
@@ -734,7 +743,7 @@ class Neo4jDBClient:
         OPTIONAL MATCH ({var_name})-->(m_del_var)
         WITH {var_name}, m_del_var {with_survival}
         WHERE m_del_var IS NOT NULL AND COUNT {{(m_del_var)--(m_other_rel{where_label} WHERE m_other_rel <> {var_name})}} = 0 {do_not_match_domains}
-        {Neo4jDBClient.get_node_id_return_query(
+        {Neo4jDBDriver.get_node_id_return_query(
             "labels(m_del_var)[0]", 
             "m_del_var.node_id", 
             f'{var_name}, m_del_var {with_survival}',
@@ -757,27 +766,27 @@ class Neo4jDBClient:
         :return: None
         """
 
-        items_str = Neo4jDBClient.create_unwind_item_string(nodes, "node")
+        items_str = Neo4jDBDriver.create_unwind_item_string(nodes, "node")
         if items_str is None:
             return
-        where_label = f":{NodeTypes.MAINTENANCE.neo4j}" if only_rels_with_domains else ""
+        where_label = f":{NodeTypes.DOMAIN.neo4j}" if only_rels_with_domains else ""
         ignore_subdomains = f'[:!{EdgeTypes.SUBDOMAIN.value}]' if ignore_subdomains else ''
 
-        if version == Neo4jDBClient.VERSION_MAX:
+        if version == Neo4jDBDriver.VERSION_MAX:
             version = max(self.get_existing_versions())
-        elif version == Neo4jDBClient.VERSION_CURR:
+        elif version == Neo4jDBDriver.VERSION_CURR:
             version = self.get_current_active_graph_version()
 
         node_del_query= f"""
         UNWIND $nodes AS node
         MATCH (n: {n_t.neo4j} {{ {items_str} {get_version_query(version,False)} }})
         //must put this before opt match because otherwise rows would explode and node id would be returned many many times
-        {Neo4jDBClient.get_node_id_return_query(n_t,"n.node_id", 'n', False)}
-        OPTIONAL MATCH (n)-{ignore_subdomains}-(node_for_del:!{NodeTypes.MAINTENANCE.neo4j}  {{ {get_version_query(version, True)} }} )
+        {Neo4jDBDriver.get_node_id_return_query(n_t, "n.node_id", 'n', False)}
+        OPTIONAL MATCH (n)-{ignore_subdomains}-(node_for_del:!{NodeTypes.DOMAIN.neo4j}  {{ {get_version_query(version, True)} }} )
         DETACH DELETE n
 
         WITH DISTINCT node_for_del WHERE node_for_del IS NOT NULL AND COUNT {{(node_for_del)--(m_other_rel{where_label})}} = 0 
-        {Neo4jDBClient.get_node_id_return_query("labels(node_for_del)[0]","node_for_del.node_id", f'node_for_del', True)}
+        {Neo4jDBDriver.get_node_id_return_query("labels(node_for_del)[0]", "node_for_del.node_id", f'node_for_del', True)}
         DETACH DELETE node_for_del
         """
 
@@ -811,14 +820,14 @@ class Neo4jDBClient:
             n_t = n_t.neo4j
 
         node.pop('label', "")
-        item_str = Neo4jDBClient.create_pre_filled_item_string(node)
+        item_str = Neo4jDBDriver.create_pre_filled_item_string(node)
 
         query = f"""
         MATCH (n: {n_t}  {{ {item_str} }})
         CALL (n) {{
             WITH n
             WHERE n.node_id IS NOT NULL
-            {Neo4jDBClient.get_node_id_return_query(n_t,'n.node_id','n', True)}
+            {Neo4jDBDriver.get_node_id_return_query(n_t, 'n.node_id', 'n', True)}
         }}
         DETACH DELETE n 
         """
@@ -844,9 +853,9 @@ class Neo4jDBClient:
     def _create_edge_creation_query(self, option: EdgeCreationQueryOptions, m1: str, m2: str, e_t: EdgeTypes | str,
                                     n_t1: NodeTypes | str, n_t2: NodeTypes | str, e_v: str | None =  None, e_vers: int = VERSION_MAX, e_no_dup: bool = False) -> dict[str, str]:
 
-        if e_vers == Neo4jDBClient.VERSION_MAX:
+        if e_vers == Neo4jDBDriver.VERSION_MAX:
             version = max(self.get_existing_versions())
-        elif e_vers == Neo4jDBClient.VERSION_CURR:
+        elif e_vers == Neo4jDBDriver.VERSION_CURR:
             version = self.get_current_active_graph_version()
         else:
             version = e_vers
@@ -997,7 +1006,7 @@ class Neo4jDBClient:
 
         #TODO also add edge values, now it is not required but who knows what future holds
         query = f"""
-        CALL mapoc.sampling.bfs($match, {max_depth}, {max_sample_size}, {get_back_edges}) YIELD relId
+        CALL mapoc.sampling.bfsStream($match, {max_depth}, {max_sample_size}, {get_back_edges}) YIELD relId
         MATCH ()-[r]->()
         WHERE elementId(r) = relId
         WITH startNode(r) AS from, endNode(r) AS to, r

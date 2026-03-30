@@ -2,7 +2,7 @@ import threading
 import time
 from queue import PriorityQueue, Empty
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest, FinishRequest
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from graph_repository.graph_main.graph_editing.common.Exceptions import TooManyVersions, Neo4jIndexError
 from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
 from misc.Logger import MyLogger
@@ -32,7 +32,7 @@ def _handle_request(request: GraphRequest, stop_event: threading.Event, driver_c
         request.state = RequestStates.DONE
         return
 
-    driver: Neo4jDBClient = Neo4jDBClient.from_config(driver_conf_file)
+    driver: Neo4jDBDriver = Neo4jDBDriver.from_config(driver_conf_file)
     cnt = 0
     waiting_on_copy = True
     new_version = -1
@@ -92,7 +92,7 @@ def edit_loop(stop_event: threading.Event, queue: PriorityQueue[GraphRequest], d
         try:
             request = queue.get(timeout=15.0) #todo make this editable in configuration
         except Empty:
-            driver = Neo4jDBClient.from_config(driver_conf_file)
+            driver = Neo4jDBDriver.from_config(driver_conf_file)
             driver.delete_unused_graph_versions()
             driver.close()
             continue  #try getting new task again

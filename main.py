@@ -1,46 +1,26 @@
-import argparse
 import json
-import signal
-import sys
-import time
-import warnings
-from dgl.base import DGLWarning
-from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
+import dgl
+import uvicorn
+from domain_evaluation.Metapath2vec.Learning import classify_domain
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
 from graph_repository.graph_main.GraphRepository import GraphRepository
+from graph_repository.graph_main.conversion.FormatConverting import convert_form_neo4j_to_dgl, prepare_dgl_g_for_ml
+from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
+from graph_repository.graph_repo_main import signal_handlers_for_graph_repo
+from graph_repository.workers.common.GraphTypes import NodeTypes
+from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
+from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
 from graph_repository.graph_main.graph_editing.requests.DeleteRequest import DeleteRequest
-from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
-from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
-from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
-from graph_repository.graph_main.conversion.FormatConverting import convert_form_neo4j_to_dgl, prepare_dgl_g_for_ml
-from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
-import dgl
-import uvicorn
-from functools import partial
-
-warnings.filterwarnings("ignore", category=DGLWarning)  #it actually comes from package itself
-
-
-def signal_handlers_for_graph_repo():
-    def _graceful_exit(signum, frame):
-        MyLogger.get_instance().log(f"Received signal {signum}, gracefully exiting...")
-        repo_instance = GraphRepository.get_instance()
-        if repo_instance is not None:
-            repo_instance.stop()
-
-        exit(0)
-
-    signal.signal(signal.SIGINT, _graceful_exit)
-    signal.signal(signal.SIGTERM, _graceful_exit)
-
+import sys
+import argparse
 
 def main():
     parser = argparse.ArgumentParser()
 
-    #Global args go here
     parser.add_argument("--mongo_db", metavar='MONGO_CONF_FILE', type=str,
                         help="Path to MongoDB database connection config file")
     parser.add_argument("--neo_db", metavar='NEO_DB_CONF_FILE', type=str,
@@ -77,23 +57,18 @@ def main():
     edit_parser.add_argument('-d', '--delete', action='store_true', help="Delete domains from graph")
     edit_parser.add_argument('-e', '--edit', action="store_true", help="Edit domains in graph")
 
-    #tmp edit here
+    # tmp edit here
     tmp_edit_parser = subparsers.add_parser('tmp')
-    tmp_edit_parser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
-    tmp_edit_parser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
+    tmp_edit_parser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be temporary added/deleted")
+    tmp_edit_parser.add_argument('-j', '--json', type=str, help="Json string that will be used to temporary add or delete domain")
     tmp_edit_parser.add_argument('-a', '--add', action='store_true', help="Add tmp domain to graph")
     tmp_edit_parser.add_argument('-d', '--delete', action='store_true', help="Delete tmp domain from graph")
 
-    #Api go here
-    api_parser = subparsers.add_parser('server')
-    api_parser.add_argument('-p', "--port", type=int, help="Port on which server will run, defaults to 8000",
-                            default=8000)
-    api_parser.add_argument('-a', '--address', type=str, help="Host on which server will run, defaults to localhost",
-                            default='localhost')
-    #api_parser.add_argument('--live_reloading',action='store_true',help="Enable live reloading")
-    #TODO ADD RUN ASYNC OPTION
+    classify_parser = subparsers.add_parser('classify')
+    classify_parser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
+    classify_parser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
+    classify_parser.add_argument('-e','--exists',action='store_true',help="Flag that indicates that tmp domain is already in graph")
 
-    subparsers.add_parser('test')
 
     args = parser.parse_args()
 
@@ -180,7 +155,7 @@ def main():
             return
         # todo add graph copying here
         driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
-        #driver.create_new_version_mirror_of_graph()
+        # driver.create_new_version_mirror_of_graph()
 
         current_graph_version = driver.get_current_active_graph_version()
         driver.close()
@@ -224,38 +199,20 @@ def main():
 
         uvicorn.run("graph_repository.api.server:app", host=args.address, port=args.port)
 
-    elif args.mode == "test":
-        client = Neo4jDBDriver.from_config(args.neo_db) #tmp.test.microsoft.com
+    elif args.mode == 'classify':
+        if args.json is not None:
+            data = json.loads(args.json)
+        elif args.json_file is not None:
+            with open(args.json_file, 'r') as f:
+                data = json.load(f)
+        else:
+            return
 
-        start = time.time()
-        res = client.get_k_hop_neighborhood_universal(
-            {"label": NodeTypes.TMP_DOMAIN.neo4j, "domain_name": "pipinka.A.C.at"}, 2, 5000, False)
-
-        graph = convert_form_neo4j_to_dgl(True, res)
-        end = time.time()
-
-        print(end - start)
-        #print(graph.num_nodes(ntype='d'))
-        #print(graph.ndata)
-
-        for et in graph.canonical_etypes:
-            print(et)
-            print(graph.edges(etype=et))
-
-        #print(graph.nodes(ntype=NodeTypes.TMP_DOMAIN.dgl))
-        start = time.time()
-        graph = prepare_dgl_g_for_ml(graph)
-        end = time.time()
-        print(end - start)
-        print('*' * 260)
-
-        for et in graph.canonical_etypes:
-            print(et)
-            print(graph.edges(etype=et))
-
-        print(graph.ndata)
-        return
+        GraphRepository.get_instance(args.neo_db)
 
 
-if __name__ == '__main__':
+
+
+
+if __name__ == "__main__":
     main()

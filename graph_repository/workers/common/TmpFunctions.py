@@ -1,8 +1,8 @@
 from typing import Any, Callable
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 
 EDGES_T = list[tuple[list[dict], dict[str,Any]]]
-TMP_FUNC_T = Callable[[dict, int, int, Neo4jDBClient], tuple[list[dict], dict[str, Any]] | EDGES_T | None]
+TMP_FUNC_T = Callable[[dict, int, int, Neo4jDBDriver], tuple[list[dict], dict[str, Any]] | EDGES_T | None]
 
 TMP_REGISTRY: dict[str, TMP_FUNC_T] = {}
 

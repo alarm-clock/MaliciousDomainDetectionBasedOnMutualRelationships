@@ -13,7 +13,7 @@ from graph_repository.dataset_creator.DGLImporter import export_dgl_graph
 from misc.Logger import MyLogger
 from misc.PackageImporter import import_all_modules_from_package
 from graph_repository.graph_repo_misc import parse_ranges
-from graph_repository.Neo4jDBClient import Neo4jDBClient, CouldNotConnect
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
 import torch as th
 from threading import Lock
 import sys
@@ -425,7 +425,7 @@ class DatasetImporter:
         return
 
     @staticmethod
-    def _create_domain_name_indexes(driver: Neo4jDBClient) -> bool:
+    def _create_domain_name_indexes(driver: Neo4jDBDriver) -> bool:
 
         dummy_labels = NodeTypes.get_supporting_dummies_n_t()
         dummy_labels.append(NodeTypes.DOMAIN)
@@ -449,7 +449,7 @@ class DatasetImporter:
         return True
 
     @staticmethod
-    def replace_other_dummies_with_default_dummy_domain(driver: Neo4jDBClient) -> None:
+    def replace_other_dummies_with_default_dummy_domain(driver: Neo4jDBDriver) -> None:
 
         dummy_labels =  NodeTypes.get_supporting_dummies_n_t()
         if not driver.check_label_exists(NodeTypes.DUMMY_DOMAIN):
@@ -480,12 +480,12 @@ class DatasetImporter:
                         WITH du_match
                         WHERE du_match.node_id IS NULL
                 
-                        {Neo4jDBClient.get_free_node_id_query(NodeTypes.DUMMY_DOMAIN,True)}
+                        {Neo4jDBDriver.get_free_node_id_query(NodeTypes.DUMMY_DOMAIN, True)}
                     
                         SET du_match.node_id = free_node_id        
                     }}
                 
-                {Neo4jDBClient.get_node_replace_query('n','du_match', label)} 
+                {Neo4jDBDriver.get_node_replace_query('n', 'du_match', label)} 
                 ",
                 {{
                     batchsize: 1,
@@ -514,7 +514,7 @@ class DatasetImporter:
             return
 
         try:
-            client = Neo4jDBClient.from_config(self._neo4j_conf)
+            client = Neo4jDBDriver.from_config(self._neo4j_conf)
         except CouldNotConnect:
             return
 
@@ -567,17 +567,17 @@ class DatasetImporter:
             for key in edges[0].keys():
                 if key != "u_id" and key != "v_id": param_name = key
 
-            weight_option = Neo4jDBClient.EdgeCreationQueryOptions.WEIGHT_NO_REVERSE if param_name != "" else Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_NO_REVERSE
+            weight_option = Neo4jDBDriver.EdgeCreationQueryOptions.WEIGHT_NO_REVERSE if param_name != "" else Neo4jDBDriver.EdgeCreationQueryOptions.NO_WEIGHT_NO_REVERSE
             edge_creation_option = {
-                Neo4jDBClient.E_NODE_T1: u_t,
-                Neo4jDBClient.E_NODE_T2: v_t,
-                Neo4jDBClient.E_OPTION: weight_option,
-                Neo4jDBClient.E_EDGE_VALUE_NAME: param_name,
-                Neo4jDBClient.E_EDGE_T: e_t,
-                Neo4jDBClient.E_MATCH1: "node_id",
-                Neo4jDBClient.E_MATCH2: "node_id",
-                Neo4jDBClient.E_VERSION: 1,
-                Neo4jDBClient.E_NO_DUP: True
+                Neo4jDBDriver.E_NODE_T1: u_t,
+                Neo4jDBDriver.E_NODE_T2: v_t,
+                Neo4jDBDriver.E_OPTION: weight_option,
+                Neo4jDBDriver.E_EDGE_VALUE_NAME: param_name,
+                Neo4jDBDriver.E_EDGE_T: e_t,
+                Neo4jDBDriver.E_MATCH1: "node_id",
+                Neo4jDBDriver.E_MATCH2: "node_id",
+                Neo4jDBDriver.E_VERSION: 1,
+                Neo4jDBDriver.E_NO_DUP: True
             }
 
             pre_filled = partial(client.create_edges,edge_creation_option)

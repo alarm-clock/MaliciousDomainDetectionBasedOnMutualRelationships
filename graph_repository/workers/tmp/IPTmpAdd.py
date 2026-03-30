@@ -1,10 +1,10 @@
 from typing import Any
 from graph_repository.workers.common.Misc import IPModes, get_ips_from_record
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
-from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.workers.common.TmpFunctions import register
 
-def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBClient) -> tuple[list[dict], dict[str, Any]] | None:
+def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBDriver) -> tuple[list[dict], dict[str, Any]] | None:
     """
     Function for creating edges between `domain` and it's IP addresses that are in the graph
     :param domain: `dict` with domain information
@@ -36,12 +36,12 @@ def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jD
         edges.append({'u': tmp_node_id, 'v': ip})
 
     query_params = {
-        Neo4jDBClient.E_EDGE_T: EdgeTypes.TRANSLATES,
-        Neo4jDBClient.E_NODE_T1: NodeTypes.TMP_DOMAIN,
-        Neo4jDBClient.E_NODE_T2: NodeTypes.IP,
-        Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
-        Neo4jDBClient.E_MATCH1: "node_id",
-        Neo4jDBClient.E_MATCH2: "ip_str"
+        Neo4jDBDriver.E_EDGE_T: EdgeTypes.TRANSLATES,
+        Neo4jDBDriver.E_NODE_T1: NodeTypes.TMP_DOMAIN,
+        Neo4jDBDriver.E_NODE_T2: NodeTypes.IP,
+        Neo4jDBDriver.E_OPTION: Neo4jDBDriver.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
+        Neo4jDBDriver.E_MATCH1: "node_id",
+        Neo4jDBDriver.E_MATCH2: "ip_str"
     }
 
     return edges, query_params

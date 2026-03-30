@@ -3,7 +3,7 @@ import copy
 import pygtrie
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
-from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
 from graph_repository.workers.common.Enums import EditTypes
@@ -78,21 +78,21 @@ class SubdomainWorker(EditWorker):
 
 
         query_option = {
-            Neo4jDBClient.E_NODE_T1: NodeTypes.DOMAIN,
-            Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
-            Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
-            Neo4jDBClient.E_EDGE_T: EdgeTypes.SUBDOMAIN,
-            Neo4jDBClient.E_MATCH1: "domain_name",
-            Neo4jDBClient.E_MATCH2: "domain_name",
+            Neo4jDBDriver.E_NODE_T1: NodeTypes.DOMAIN,
+            Neo4jDBDriver.E_NODE_T2: NodeTypes.DOMAIN,
+            Neo4jDBDriver.E_OPTION: Neo4jDBDriver.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
+            Neo4jDBDriver.E_EDGE_T: EdgeTypes.SUBDOMAIN,
+            Neo4jDBDriver.E_MATCH1: "domain_name",
+            Neo4jDBDriver.E_MATCH2: "domain_name",
         }
         self._edge_submit_callback(self._d_d_sub_edges, query_option, self.worker_name + "_d_d")
 
         query_option_du_d = copy.deepcopy(query_option)
-        query_option_du_d[Neo4jDBClient.E_NODE_T2] = NodeTypes.DUMMY_DOMAIN
+        query_option_du_d[Neo4jDBDriver.E_NODE_T2] = NodeTypes.DUMMY_DOMAIN
         self._edge_submit_callback(self._d_dum_sub_edges, query_option_du_d, self.worker_name + "_d_dum")
 
         query_option_du_du = copy.deepcopy(query_option_du_d)
-        query_option_du_du[Neo4jDBClient.E_NODE_T1] = NodeTypes.DUMMY_DOMAIN
+        query_option_du_du[Neo4jDBDriver.E_NODE_T1] = NodeTypes.DUMMY_DOMAIN
         self._edge_submit_callback(self._dum_dum_sub_edges, query_option_du_du, self.worker_name + "_dum_dum")
         return
 
@@ -159,7 +159,7 @@ class SubdomainWorker(EditWorker):
         driver.close()
         return
 
-    def _create_index(self, driver: Neo4jDBClient):
+    def _create_index(self, driver: Neo4jDBDriver):
         driver.execute_write(self._index_query)
 
     def _compute(self):

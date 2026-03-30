@@ -2,7 +2,7 @@ from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphR
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
 from graph_repository.workers.common.GraphTypes import NodeTypes
-from graph_repository.Neo4jDBClient import Neo4jDBClient
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from misc.Logger import MyLogger
 
@@ -24,7 +24,7 @@ class DeleteRequest(GraphRequest):
             del self._domains
             return False
 
-        driver: Neo4jDBClient = GraphRepository.get_instance().get_neo4j_driver()
+        driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
         driver.delete_nodes(self._domains, NodeTypes.DOMAIN, True)
         driver.close()
         self.state = RequestStates.DONE

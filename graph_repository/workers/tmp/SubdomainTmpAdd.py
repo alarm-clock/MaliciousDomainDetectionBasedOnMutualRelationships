@@ -1,12 +1,12 @@
 import copy
 
-from graph_repository.Neo4jDBClient import Neo4jDBClient, get_version_query
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.graph_repo_misc import get_domains_parent_domains
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.workers.common.TmpFunctions import register
 from typing import Any
 
-def tmp_add_subdomain_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBClient) -> list[tuple[list[dict], dict[str,Any]]] | None:
+def tmp_add_subdomain_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBDriver) -> list[tuple[list[dict], dict[str,Any]]] | None:
     """
     Function for creating subdomain edges between `domain` and its parent domains in graph
     :param domain: `dict` that contains domain data
@@ -58,16 +58,16 @@ def tmp_add_subdomain_edge(domain: dict, version: int, tmp_node_id: int, driver:
         return None
 
     query_option_d = {
-        Neo4jDBClient.E_NODE_T1: NodeTypes.TMP_DOMAIN,
-        Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
-        Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
-        Neo4jDBClient.E_EDGE_T: EdgeTypes.SUBDOMAIN,
-        Neo4jDBClient.E_MATCH1: "node_id",
-        Neo4jDBClient.E_MATCH2: "domain_name"
+        Neo4jDBDriver.E_NODE_T1: NodeTypes.TMP_DOMAIN,
+        Neo4jDBDriver.E_NODE_T2: NodeTypes.DOMAIN,
+        Neo4jDBDriver.E_OPTION: Neo4jDBDriver.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
+        Neo4jDBDriver.E_EDGE_T: EdgeTypes.SUBDOMAIN,
+        Neo4jDBDriver.E_MATCH1: "node_id",
+        Neo4jDBDriver.E_MATCH2: "domain_name"
     }
 
     query_option_dum = copy.deepcopy(query_option_d)
-    query_option_dum[Neo4jDBClient.E_NODE_T2] = NodeTypes.DUMMY_DOMAIN
+    query_option_dum[Neo4jDBDriver.E_NODE_T2] = NodeTypes.DUMMY_DOMAIN
 
     edges.append((d_edges, query_option_d))
     edges.append((dum_edges, query_option_dum))
