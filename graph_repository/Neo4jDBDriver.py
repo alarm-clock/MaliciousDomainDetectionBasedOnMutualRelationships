@@ -48,7 +48,7 @@ class Neo4jDBDriver:
             self._err = True
             raise ValueError("Invalid batch options")
 
-        MyLogger.get_instance().log(f"Trying to connect to Neo4j db at {host}:{port} with user {username}...")
+        MyLogger.get_instance().log_debug(f"Connecting to Neo4j db at {host}:{port} with user {username}...")
         try:
             driver = GraphDatabase.driver(f'bolt://{host}:{port}', auth=(username, password))
         except ServiceUnavailable as err:

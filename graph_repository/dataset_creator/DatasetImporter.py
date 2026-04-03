@@ -1,7 +1,5 @@
 import copy
 import json
-import time
-
 from dgl import DGLHeteroGraph
 from pymongo import MongoClient
 from functools import partial
@@ -28,7 +26,7 @@ class DatasetImporter:
 
     _for_dgl = True
 
-    def __init__(self, edge_types: str | None = None, ranges: str | None = None, no_lone_nd: bool = False,
+    def __init__(self, edge_types: str | None = None, ranges: str  | None = None, no_lone_nd: bool = False,
                  client: str = 'localhost',
                  port: int = 27017, db: str = "datasets", collection: str = "domains", pwd: str = None,
                  user: str = None, neo4j_conf: str | None = None):
@@ -66,7 +64,7 @@ class DatasetImporter:
         )
 
         self._err = False
-        self._ranges, max_id = self._create_or_conditions(ranges)
+        self._ranges, max_id = self.create_or_conditions(ranges)
 
         if self._ranges is None:
             self._err = True
@@ -184,7 +182,7 @@ class DatasetImporter:
         return edges_with_kwargs
 
     @staticmethod
-    def _create_or_conditions(ranges: str | None) -> tuple[list | None, int]:
+    def create_or_conditions(ranges: str | None) -> tuple[list | None, int]:
         """
         Method that creates or conditions (node_id filter) for mongodb aggregation pipeline
         :param ranges: `str` with domain `node_id` ranges that will be used to create graph in format `\"bottom1,top1,bottom1,top2,...\"`
@@ -291,15 +289,15 @@ class DatasetImporter:
     def _store_edge(self,e_type: tuple[NodeTypes,EdgeTypes,NodeTypes], u: list[int], v: list[int], e_data: tuple[str, list] | None = None) -> None:
 
         if self._for_dgl:
-            e_type = (e_type[0].dgl, e_type[1].value, e_type[2].dgl)
-            self._edges[e_type] = (th.Tensor(u).to(th.int), th.Tensor(v).to(th.int))
+            e_type_dgl = (e_type[0].dgl, e_type[1].value, e_type[2].dgl)
+            self._edges[e_type_dgl] = (th.Tensor(u).to(th.int), th.Tensor(v).to(th.int))
             if e_data is not None:
                 name, data = e_data
-                self._e_data[name] = {e_type: th.Tensor(data)}
+                self._e_data[name] = {e_type_dgl: th.Tensor(data)}
 
         else:
             rows = []
-            e_type = (e_type[0].neo4j, e_type[1].value, e_type[2].neo4j)
+            e_type_neo4j = (e_type[0].neo4j, e_type[1].value, e_type[2].neo4j)
             for cnt in range(len(u)):
 
                 if e_data is None:
@@ -307,7 +305,7 @@ class DatasetImporter:
                 else:
                     rows.append({"u": u[cnt], "v": v[cnt], e_data[0]: e_data[1][cnt]})
 
-            self._edges_neo4j[e_type] = rows
+            self._edges_neo4j[e_type_neo4j] = rows
 
     def submit_edges(self, u: list[int], v: list[int], u_t: NodeTypes, e_t: EdgeTypes, v_t: NodeTypes,
                      u_data: dict[str, list] | None = None, e_data: tuple[str, list] | None = None,

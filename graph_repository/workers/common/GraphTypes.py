@@ -26,15 +26,15 @@ class NodeTypes(Enum):
         self._dgl_code = dgl_code
 
     @property
-    def neo4j(self):
+    def neo4j(self) -> str:
         return self._neo4j
 
     @property
-    def dgl(self):
+    def dgl(self) -> str:
         return self._dgl
 
     @property
-    def dgl_code(self):
+    def dgl_code(self) -> int:
         return self._dgl_code
 
     @staticmethod

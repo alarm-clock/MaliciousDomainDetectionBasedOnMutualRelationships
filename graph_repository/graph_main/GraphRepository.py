@@ -127,13 +127,17 @@ class GraphRepository:
                 de = self._state_dict.pop(job_id)
                 del de
 
-    def temporary_add_domain(self, domain: dict[str, Any]) -> int:
+    def temporary_add_domain(self, domain: dict[str, Any]) -> int | None:
 
         if self._stop_event.is_set():
             MyLogger.get_instance().log("Graph repository is being shut down, can not add tmp domain")
             return -1
 
         driver = self.get_neo4j_driver()
+
+        if driver is None:
+            return -1
+
         domain_id = add_temporary_domain(domain, driver)
         driver.close()
 

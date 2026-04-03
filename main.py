@@ -1,15 +1,13 @@
 import json
 import dgl
 import uvicorn
-from domain_evaluation.Metapath2vec.Learning import classify_domain
+from domain_evaluation.Evaluate import evaluate_domain_meta_path2vec, evaluate_domain_metapath2vec_mult, test, test_from_collection
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.graph_main.conversion.FormatConverting import convert_form_neo4j_to_dgl, prepare_dgl_g_for_ml
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.graph_repo_main import signal_handlers_for_graph_repo
-from graph_repository.workers.common.GraphTypes import NodeTypes
 from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
@@ -17,6 +15,7 @@ from graph_repository.graph_main.graph_editing.requests.DeleteRequest import Del
 from misc.Logger import MyLogger
 import sys
 import argparse
+import torch.multiprocessing as mp
 
 def main():
     parser = argparse.ArgumentParser()
@@ -67,7 +66,9 @@ def main():
     classify_parser = subparsers.add_parser('classify')
     classify_parser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
     classify_parser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
+    classify_parser.add_argument('-m','--mongo',action='store_true',help="Use MongoDB database to get domains")
     classify_parser.add_argument('-e','--exists',action='store_true',help="Flag that indicates that tmp domain is already in graph")
+    classify_parser.add_argument('--test',type=str, metavar='OUT_FILE_CSV' ,help="Test metapath2vec model")
 
 
     args = parser.parse_args()
@@ -205,14 +206,26 @@ def main():
         elif args.json_file is not None:
             with open(args.json_file, 'r') as f:
                 data = json.load(f)
+        elif args.mongo:
+            data = args.mongo_db
         else:
             return
 
         GraphRepository.get_instance(args.neo_db)
+        mp.set_start_method("spawn")
 
+        if args.test is not None:
 
+            if args.mongo:
+                test_from_collection(data,args.test)
+            else:
+                test(data, args.test)
+            return
 
-
+        if type(data) == dict:
+            evaluate_domain_meta_path2vec(data)
+        else:
+            evaluate_domain_metapath2vec_mult(data)
 
 if __name__ == "__main__":
     main()

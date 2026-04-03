@@ -336,8 +336,10 @@ def prepare_dgl_g_for_ml(graph: DGLHeteroGraph) -> dgl.DGLHeteroGraph:
     """
 
     du_domain_d_start_id = graph.num_nodes(ntype=NodeTypes.DOMAIN.dgl)
-    du_domain_data = {key: val for key, val in graph.nodes[NodeTypes.DUMMY_DOMAIN.dgl].data.items()}
-    graph.add_nodes(graph.num_nodes(NodeTypes.DUMMY_DOMAIN.dgl),data=du_domain_data,ntype=NodeTypes.DOMAIN.dgl)
+
+    if graph.num_nodes(NodeTypes.DUMMY_DOMAIN.dgl) != 0:
+        du_domain_data = {key: val for key, val in graph.nodes[NodeTypes.DUMMY_DOMAIN.dgl].data.items()}
+        graph.add_nodes(graph.num_nodes(NodeTypes.DUMMY_DOMAIN.dgl),data=du_domain_data,ntype=NodeTypes.DOMAIN.dgl)
 
 
     tmp_domain_data = {key: th.Tensor([val[0]]).to(val.dtype) for key, val in
