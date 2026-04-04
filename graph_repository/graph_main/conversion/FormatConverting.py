@@ -122,7 +122,6 @@ def _map_data_types_to_torch(d_type: type) -> th._C.dtype:
 
 def _create_graph(edges: _EDGES_T, n_data: _N_DATA_T) -> DGLHeteroGraph:
     edges_dgl: EDGES_T_DGL = {}
-
     for e_t, e_tup in edges.items():
         edges_dgl[e_t] = (th.Tensor(e_tup[_U_POS]).to(th.int32),th.Tensor(e_tup[_V_POS]).to(th.int32))
 
@@ -171,72 +170,10 @@ def convert_form_neo4j_to_dgl(gen_rev_edges: bool, graph: list[dict]) -> DGLHete
         _store_n_data(n_data, u, u_c_id)
         _store_n_data(n_data, v, v_c_id)
 
-    #print(id_map)
+
     return _create_graph(edges, n_data)
 
-"""
-def _replace_tmp_for_d(graph: DGLHeteroGraph, e_t: E_T_DGL, from_pos: bool, tmp_domain_d_id: int, e_not_sch: dict) -> None:
 
-    e_t_arr = e_t[_ET_E_T].split('_')
-    u_t = NodeTypes.DOMAIN.dgl if from_pos else e_t_arr[1]
-    v_t = NodeTypes.DOMAIN.dgl if not from_pos else e_t_arr[2]
-    new_e_t = f'{e_t_arr[0]}_{u_t}_{v_t}'
-
-    print(e_t, new_e_t, u_t, v_t)
-    d_e_t = (u_t, new_e_t, v_t)
-
-    tmp_u: th.Tensor
-    tmp_v: th.Tensor
-    tmp_u, tmp_v = graph.edges(etype=e_t)
-
-
-    if from_pos:
-        new_u = th.Tensor([tmp_domain_d_id] * len(tmp_u)).to(th.int32)
-        try:
-            graph.add_edges(new_u, tmp_v, etype=d_e_t)
-        except Exception:
-            e_not_sch[d_e_t] = (new_u, tmp_v)
-    else:
-        new_v = th.Tensor([tmp_domain_d_id] * len(tmp_v)).to(th.int32)
-        try:
-            graph.add_edges(tmp_u, new_v, etype=d_e_t)
-        except Exception:
-            e_not_sch[d_e_t] = (tmp_u, new_v)
-
-    return
-
-def _replace_du_for_d(graph: DGLHeteroGraph, e_t: E_T_DGL, start_id: int, e_not_sch: dict) -> None:
-
-    d_e_t = copy.deepcopy(e_t)
-    tmp_u: th.Tensor
-    tmp_v: th.Tensor
-    tmp_u, tmp_v = graph.edges(etype=e_t)
-
-    if e_t[_ET_U_T] == NodeTypes.DUMMY_DOMAIN.dgl:
-        new_u = tmp_u.clone()
-        new_u += start_id
-        e_t_arr = d_e_t[_ET_E_T].split('_')
-        d_e_t = (NodeTypes.DOMAIN.dgl, f'{e_t_arr[0]}_{NodeTypes.DOMAIN.dgl}_{e_t_arr[2]}', e_t_arr[2])
-
-    else:
-        new_u = tmp_u
-
-    if e_t[_ET_V_T] == NodeTypes.DUMMY_DOMAIN.dgl:
-        new_v = tmp_v.clone()
-        new_v += start_id
-        e_t_arr = d_e_t[_ET_E_T].split('_')
-        d_e_t = (e_t_arr[1], f'{e_t_arr[0]}_{e_t_arr[1]}_{NodeTypes.DOMAIN.dgl}', NodeTypes.DOMAIN.dgl)
-    else:
-        new_v = tmp_v
-
-
-    try:
-        graph.add_edges(new_u, new_v, etype=d_e_t)
-    except Exception:
-        e_not_sch[d_e_t] = (new_u, new_v)
-
-    return
-"""
 def _new_e_t(old_e_t: E_T_DGL, from_pos: bool, new_t: NodeTypes) -> E_T_DGL:
 
     u_t = new_t if from_pos else old_e_t[_ET_U_T]

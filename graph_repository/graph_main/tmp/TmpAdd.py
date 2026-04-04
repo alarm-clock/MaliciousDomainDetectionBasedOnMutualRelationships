@@ -31,8 +31,8 @@ def _prepare_domain_for_adding(domain: dict[str, Any], version: int, tmp_node_id
 
     keys_for_keeping: set[str] = {"domain_name"}
     domain_for_adding = {key: val for key, val in domain.items() if key in keys_for_keeping}
-    domain['graph_version'] = version
-    domain['node_id'] = tmp_node_id
+    domain_for_adding['graph_version'] = version
+    domain_for_adding['node_id'] = tmp_node_id
     return domain_for_adding
 
 def _create_edges(domain: dict[str, Any], edges: EDGES_T, driver: Neo4jDBDriver, version: int, tmp_node_id) -> None:
@@ -74,6 +74,7 @@ def add_temporary_domain(domain: dict[str, Any], driver: Neo4jDBDriver) -> int |
         MyLogger.get_instance().log(f"Temporary domain {domain['domain_name']} has no neighbors in graph!")
         driver.return_unused_node_ids(NodeTypes.TMP_DOMAIN, tmp_node_id)
         return None
+
     _create_edges(domain, edges, driver, version, tmp_node_id)
 
     MyLogger.get_instance().log(f"Temporary domain {domain['domain_name']} has been added to graph with node_id {tmp_node_id}")
