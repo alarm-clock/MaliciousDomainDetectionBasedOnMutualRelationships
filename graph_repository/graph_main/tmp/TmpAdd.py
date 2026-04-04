@@ -5,8 +5,6 @@ from graph_repository.workers.common.TmpFunctions import TMP_REGISTRY, TMP_FUNC_
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from typing import Any
 
-
-
 def _get_edges(available_options: list[TMP_FUNC_T], domain: dict[str, Any], driver: Neo4jDBDriver, version: int, tmp_node_id) -> EDGES_T | None:
     """
     Function that calls edge creation function for all registered edge relationship functions
@@ -29,6 +27,14 @@ def _get_edges(available_options: list[TMP_FUNC_T], domain: dict[str, Any], driv
     return edges if len(edges) > 0 else None
 
 
+def _prepare_domain_for_adding(domain: dict[str, Any], version: int, tmp_node_id: int) -> dict[str, Any]:
+
+    keys_for_keeping: set[str] = {"domain_name"}
+    domain_for_adding = {key: val for key, val in domain.items() if key in keys_for_keeping}
+    domain['graph_version'] = version
+    domain['node_id'] = tmp_node_id
+    return domain_for_adding
+
 def _create_edges(domain: dict[str, Any], edges: EDGES_T, driver: Neo4jDBDriver, version: int, tmp_node_id) -> None:
     """
     Function that creates temporary edges
@@ -37,14 +43,11 @@ def _create_edges(domain: dict[str, Any], edges: EDGES_T, driver: Neo4jDBDriver,
     :param driver: `Neo4jDBClient` db driver
     :return: Allocated temporary edge id
     """
+    domain_for_adding = _prepare_domain_for_adding(domain, version, tmp_node_id)
+    driver.create_tmp_node(domain_for_adding)
 
-    domain.pop('dns','')
-    domain['graph_version'] = version
-    domain['node_id'] = tmp_node_id
-    tmp_node_id = driver.create_tmp_node(domain)
-
-    for edges, edge_options_dict in edges:
-        driver.create_edges(edge_options_dict, edges)
+    for edges_data, edge_options_dict in edges:
+        driver.create_edges(edge_options_dict, edges_data)
 
     return
 

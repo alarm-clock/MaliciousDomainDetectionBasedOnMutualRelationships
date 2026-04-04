@@ -16,14 +16,13 @@ else
 	echo "Could not establish connection with router server!"
 	exit 1
 fi
+mongod --dbpath $MONGO_DBPATH --bind_ip 127.0.0.1 --port 27017 > /dev/null 2>&1 &
 
 RANGES="$(python3 -m evaluation.graph_repository.setTrainTestDomians  $PROJECT_DIR/mongo_config.json)"
 
-proxychains python3 -m graph_repository.graph_repo_main --mongo_db  $PROJECT_DIR/mongo_config.json --neo_db $PROJECT_DIR/neo4j_config.json -l $LOG_DIR/graph_to_neo4j.log -ll "DEBUG"  import_db --neo -e all -r $RANGES
-echo $RANGES > $RESULT_EXPORT_PATH/used_ranges.txt
+proxychains python3 -m graph_repository.graph_repo_main --mongo_db  $PROJECT_DIR/mongo_config.json --neo_db $PROJECT_DIR/neo4j_config.json -l $LOG_DIR/graph_to_neo4j.log -ll "DEBUG"  import_db --neo -e all -r "$RANGES"
+echo $RANGES >> $RESULT_EXPORT_PATH/used_ranges.txt
 proxychains python3 -m main --mongo_db  $PROJECT_DIR/mongo_config.json --neo_db $PROJECT_DIR/neo4j_config.json -l $LOG_DIR/eval.log -ll "DEBUG" classify -m --test $RESULT_EXPORT_PATH/result.csv
-
-mongod --dbpath $MONGO_DBPATH --bind_ip 127.0.0.1 --port 27017 > /dev/null 2>&1 &
 
 mongod --dbpath $MONGO_DBPATH --port 27017 --shutdown
 pkill -f "ssh .* -D 1080"

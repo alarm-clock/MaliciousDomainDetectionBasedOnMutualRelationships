@@ -115,6 +115,6 @@ def test_from_collection(path_to_config: str, class_out_f_name: str) -> None:
     db = client[conf["db"]]
     collection = db[conf["collection"]]
 
-    cursor = collection.find({"train": True}, batchSize=1000)
+    cursor = collection.find([{"$match" :{"train": True}}], batchSize=1000)
 
     test(cursor, class_out_f_name)
