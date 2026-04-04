@@ -29,6 +29,7 @@ def evaluate_domain_meta_path2vec(domain: dict[str, Any]) -> tuple |None:
     try:
         graph = repository.get_k_hop_neighborhood_dgl(tmp_node_id,True)
     except Exception as e:
+        MyLogger.get_instance().log_error(f"Exception occured while gettign k hop neighborhood dgl: {e}")
         return None
     finally:
         repository.delete_temporary_domain(tmp_node_id)
