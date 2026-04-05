@@ -1,3 +1,4 @@
+import threading
 import time
 import json
 import sys
@@ -18,6 +19,10 @@ class CouldNotConnect(Exception):
         self.port = port
         self.username = username
         super().__init__(f'Could not connect to Neo4j with url: {url}, port: {port}, username: {username}')
+
+
+#I know this is cheap as f**k but at this moment it will work and I can deal with this later
+__NODE_ID_LOCKS__ = {n_t: threading.Lock() for n_t in NodeTypes}
 
 
 class Neo4jDBDriver:
@@ -310,30 +315,6 @@ class Neo4jDBDriver:
             RETURN free_node_id
             """
 
-
-            f"""
-            OPTIONAL MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
-            WITH free_id
-            LIMIT 1
-            
-            MATCH (counter: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t.neo4j}' }})
-
-            WITH free_id, counter, 
-                CASE WHEN free_id IS NOT NULL
-                    THEN free_id.node_id 
-                    ELSE counter.val
-                END AS free_node_id
-            
-            SET counter.val = CASE WHEN free_id IS NOT NULL
-                                  THEN counter.val
-                                  ELSE counter.val + 1
-                              END 
-                              
-            FOREACH(_ IN CASE WHEN free_id IS NOT NULL THEN [1] ELSE [] END | DELETE free_id)
-            
-            RETURN free_node_id
-            """
-
         if as_subquery:
             query = f"CALL () {{ {query} }}"
 
@@ -363,9 +344,11 @@ class Neo4jDBDriver:
         if req_number_of_ids < 1:
             return []
 
+        __NODE_ID_LOCKS__[n_t].acquire_lock()
         self.check_and_create_node_id_cnt(n_t)
-
         res = self.execute_write(self.get_free_node_id_query(n_t, False, req_number_of_ids))
+        __NODE_ID_LOCKS__[n_t].release_lock()
+
         ret_val = res[0]['free_node_id' if req_number_of_ids == 1 else 'free_node_ids']
         return ret_val
 

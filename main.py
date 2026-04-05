@@ -1,7 +1,8 @@
 import json
 import dgl
 import uvicorn
-from domain_evaluation.Evaluate import evaluate_domain_meta_path2vec, evaluate_domain_metapath2vec_mult, test, test_from_collection
+from domain_evaluation.Evaluate import evaluate_domain_metapath2vec_mult, test, test_from_collection, \
+    evaluate_domain_metapath2vec
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
@@ -67,6 +68,8 @@ def main():
     classify_parser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
     classify_parser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
     classify_parser.add_argument('-m','--mongo',action='store_true',help="Use MongoDB database to get domains")
+    classify_parser.add_argument('-p',"--parallel", action='store_true', help="Parallel test domains")
+    classify_parser.add_argument('-t','--trained',action='store_true', help="Flag indicating that some domains in mongo were train/test separated")
     classify_parser.add_argument('-e','--exists',action='store_true',help="Flag that indicates that tmp domain is already in graph")
     classify_parser.add_argument('--test',type=str, metavar='OUT_FILE_CSV' ,help="Test metapath2vec model")
 
@@ -211,19 +214,23 @@ def main():
         else:
             return
 
-        GraphRepository.get_instance(args.neo_db)
+        repo  = GraphRepository.get_instance(args.neo_db)
+        if repo is None:
+            print("Neo database connection config file not provided, exiting", file=sys.stderr)
+            return
+
         mp.set_start_method("spawn")
 
         if args.test is not None:
 
             if args.mongo:
-                test_from_collection(data,args.test)
+                test_from_collection(data,args.test,args.parallel,args.trained)
             else:
-                test(data, args.test)
+                test(data, args.test,False)
             return
 
         if type(data) == dict:
-            evaluate_domain_meta_path2vec(data)
+            evaluate_domain_metapath2vec(data,None)
         else:
             evaluate_domain_metapath2vec_mult(data)
 

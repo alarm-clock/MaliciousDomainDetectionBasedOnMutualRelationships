@@ -162,19 +162,38 @@ def _create_models_for_meta_paths(
     return models, paths
 
 
-def classify_domain(g: dgl.DGLHeteroGraph, mode: int = STANDALONE_CONCAT) -> Any | None:
+def get_class_counts(g: dgl.DGLHeteroGraph):
+    labels = g.ndata['l']['d']
+    return np.unique(labels[g.ndata['train_mask']['d']].numpy(), return_counts=True)
+
+
+def check_for_duplicity(g: dgl.DGLHeteroGraph) -> bool | tuple:
     if len(g.nodes(ntype='d')) < 2:
         MyLogger.get_instance().log_warning("Need at least 2 domain nodes")
-        return None
+        return False
 
-    labels = g.ndata['l']['d']
-    unique_labels, counts = np.unique(labels[g.ndata['train_mask']['d']].numpy(), return_counts=True)
+    unique_labels, counts = get_class_counts(g)
 
     if len(unique_labels) < 2:
         MyLogger.get_instance().log(
             f"All neighboring nodes in sampled neighborhood are of class: {'benign' if unique_labels[0] == 1 else 'malicious'}"
         )
-        return {"cname":(float(unique_labels[0] == 0), float(unique_labels[0] == 1))}, [], int(unique_labels[0] == 0), int(unique_labels[0] == 1), []
+        return {"cname": (float(unique_labels[0] == 0), float(unique_labels[0] == 1))}, [], int(
+            unique_labels[0] == 0), int(unique_labels[0] == 1), []
+
+    return True
+
+def classify_domain(g: dgl.DGLHeteroGraph, mode: int = STANDALONE_CONCAT, no_need_for_correct_check: bool = False) -> Any | None:
+
+    if not no_need_for_correct_check:
+        check_result = check_for_duplicity(g)
+        if type(check_result) == tuple:
+            return check_result
+        else:
+            if not check_result:
+                return None
+
+    _, counts = get_class_counts(g)
 
     device = th.device('cuda' if th.cuda.is_available() else 'cpu')
     MyLogger.get_instance().log(
