@@ -151,7 +151,8 @@ def _create_models_for_meta_paths(
 
         try:
             model = MetaPath2Vec(g, path, window_size=w_size, emb_dim=emb_dim, negative_size=neg_size)
-        except Exception:
+        except Exception as e:
+            MyLogger.get_instance().log_error(str(e))
             MyLogger.get_instance().log_warning(f"Ommiting metapath {path} because there are no edges of given type")
             continue
         model.to(device)
