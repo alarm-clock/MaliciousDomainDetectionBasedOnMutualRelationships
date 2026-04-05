@@ -274,7 +274,9 @@ def prepare_dgl_g_for_ml(graph: DGLHeteroGraph) -> dgl.DGLHeteroGraph:
 
     du_domain_d_start_id = graph.num_nodes(ntype=NodeTypes.DOMAIN.dgl)
 
-    if graph.num_nodes(NodeTypes.DUMMY_DOMAIN.dgl) != 0:
+    dummy_in_graph = NodeTypes.DUMMY_DOMAIN.dgl in graph.ntypes
+
+    if dummy_in_graph:
         du_domain_data = {key: val for key, val in graph.nodes[NodeTypes.DUMMY_DOMAIN.dgl].data.items()}
         graph.add_nodes(graph.num_nodes(NodeTypes.DUMMY_DOMAIN.dgl),data=du_domain_data,ntype=NodeTypes.DOMAIN.dgl)
 
@@ -296,6 +298,8 @@ def prepare_dgl_g_for_ml(graph: DGLHeteroGraph) -> dgl.DGLHeteroGraph:
 
 
     graph.remove_nodes(0, ntype=NodeTypes.TMP_DOMAIN.dgl)
-    graph.remove_nodes(list(range(graph.num_nodes(ntype=NodeTypes.DUMMY_DOMAIN.dgl))), ntype=NodeTypes.DUMMY_DOMAIN.dgl)
+
+    if dummy_in_graph:
+        graph.remove_nodes(list(range(graph.num_nodes(ntype=NodeTypes.DUMMY_DOMAIN.dgl))), ntype=NodeTypes.DUMMY_DOMAIN.dgl)
 
     return _create_new_updated_graph(graph, edges_not_in_sch, du_domain_d_start_id, tmp_domain_d_id)

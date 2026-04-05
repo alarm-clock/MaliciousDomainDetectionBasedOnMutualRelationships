@@ -2,7 +2,7 @@ import csv
 import json
 import os
 import threading
-from concurrent.futures.thread import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 import dgl
 from pymongo import MongoClient
@@ -146,7 +146,7 @@ def parallel_test(provider, class_out_f_name: str, provider_has_node_id: bool) -
             futures = [executor.submit(evaluate_domain_metapath2vec, domain, eval_lock) for domain in provider]
 
             cnt = 0
-            for future in futures:
+            for future in as_completed(futures):
                 res = future.result()
                 if not provider_has_node_id:
                     res[1]['node_id'] = cnt
