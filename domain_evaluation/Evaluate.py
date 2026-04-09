@@ -2,6 +2,7 @@ import csv
 import json
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 import dgl
@@ -39,41 +40,55 @@ def get_graph(domain: dict[str, Any]) -> dgl.DGLHeteroGraph | None:
 
     return graph
 
-def evaluate_domain_metapath2vec(domain: dict[str, Any], lock: threading.Semaphore | None) -> tuple[tuple |None, dict[str, Any]]:
+def evaluate_domain_metapath2vec(domain: dict[str, Any], lock: threading.Semaphore | None) -> tuple[tuple |None, dict[str, Any], float, float, float, float]:
 
+    start_t = time.time()
     g = get_graph(domain)
+    got_graph_t = time.time() - start_t
 
     if g is None:
-        return None, domain
+        return None, domain, got_graph_t, got_graph_t, 0, 0
 
     res = check_for_duplicity(g)
 
     if type(res) is tuple:
-        return res, domain
+        end_t = time.time() - start_t
+        return res, domain, end_t, got_graph_t, 0, 0
     if not res:
-        return None, domain
+        end_t = time.time() - start_t
+        return None, domain, end_t, got_graph_t, 0 ,0
 
     if lock is not None:
         MyLogger.get_instance().log(f"Domain {domain['domain_name']} is waiting on GPU")
+        wait_start = time.time()
         lock.acquire()
+        wait_t = time.time() - wait_start
+    else:
+        wait_start = 0
+        wait_t = 0
     MyLogger.get_instance().log(f"Starting to classify domain {domain['domain_name']}...")
 
     try:
+        class_start = time.time()
         res_tup = classify_domain(g, 4, True) #all
+        class_t = time.time() - class_start
 
     except Exception:
         MyLogger.get_instance().log_error(f"Exception occurred while classifying domain {domain['domain_name']}...")
-        return None, domain
+        end_t = time.time() - start_t
+        return None, domain, end_t, got_graph_t, wait_t, 0
     finally:
         if lock is not None:
             lock.release()
 
+    end_t = time.time() - start_t
     if res_tup is None:
-        return None, domain
+        return None, domain,  end_t, got_graph_t, wait_t, class_t
 
     res, loss_arr, cnt_bad, cnt_good, used_paths = res_tup
     MyLogger.get_instance().log(f"Domain {domain['domain_name']}: \n\t{res}")
-    return (res, loss_arr, cnt_bad, cnt_good, used_paths), domain
+
+    return (res, loss_arr, cnt_bad, cnt_good, used_paths), domain, end_t, got_graph_t, wait_t, class_t
 
 
 def evaluate_domain_metapath2vec_mult(domains: list[dict[str, Any]]) -> None:
@@ -82,9 +97,9 @@ def evaluate_domain_metapath2vec_mult(domains: list[dict[str, Any]]) -> None:
         res = evaluate_domain_metapath2vec(domain,None)
         print(res)
 
-def parse_evaluation_result(eval_result: tuple[tuple | None, dict[str, Any]], csv_writer) -> None:
+def parse_evaluation_result(eval_result: tuple[tuple | None, dict[str, Any], float, float, float, float], csv_writer) -> None:
 
-    res, domain = eval_result
+    res, domain, end_t, got_graph_t, wait_t, class_t = eval_result
     domain_name = domain['domain_name']
     label_str: str = domain['label']
     label = int(label_str.find('benign') != -1)
@@ -93,7 +108,7 @@ def parse_evaluation_result(eval_result: tuple[tuple | None, dict[str, Any]], cs
     if res is None:
         # -1 for prediction and correct means that there was no classification therefore no result
         csv_writer.writerow(
-            [cnt, domain_name, label, 0, 0, 0, 0.0, 0.0, -1, -1, 0.0, 0.0, -1, -1, 0.0, 0.0, -1, -1, 0.0, 0.0, -1, -1, 0.0, 0.0, -1, -1]
+            [cnt, domain_name, label, 0, 0, 0, 0.0, 0.0, -1, -1, 0.0, 0.0, -1, -1, 0.0, 0.0, -1, -1, 0.0, 0.0, -1, -1, 0.0, 0.0, -1, -1, end_t, got_graph_t, wait_t, class_t]
         )
         return
 
@@ -124,13 +139,15 @@ def parse_evaluation_result(eval_result: tuple[tuple | None, dict[str, Any]], cs
         cnt2 += 1
         cnt_providers += 1
 
+    write_list.extend([end_t, got_graph_t, wait_t, class_t])
     csv_writer.writerow(write_list)
 
 def _write_csv_header(csv_writer) -> None:
     csv_writer.writerow(
         ["id", "domain_name", "label", "n_good", "n_bad", "n_total", 'm_p_CNAME', 'b_p_CNAME', 'CNAME_pred',
          'CNAME_c', 'm_p_SUBD', "b_p_SUBD", "SUBD_pred", "SUBD_c", "m_p_IP", "b_p_IP", 'IP_pred', "IP_c",
-         'm_p_AVG', 'b_p_AVG', "AVG_pred", "AVG_c", 'm_p_CAT', 'b_p_CAT', 'CAT_pred', 'CAT_c']
+         'm_p_AVG', 'b_p_AVG', "AVG_pred", "AVG_c", 'm_p_CAT', 'b_p_CAT', 'CAT_pred', 'CAT_c',
+         'end_t', 'got_graph_t', 'wait_t', 'class_t']
     )
 
 
@@ -142,7 +159,7 @@ def parallel_test(provider, class_out_f_name: str, provider_has_node_id: bool) -
         csv_writer = csv.writer(f)
         _write_csv_header(csv_writer)
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=12) as executor:
             futures = [executor.submit(evaluate_domain_metapath2vec, domain, eval_lock) for domain in provider]
 
             cnt = 0
@@ -168,12 +185,12 @@ def test(provider, class_out_f_name: str, provider_has_node_id: bool) -> None:
 
         for cnt, domain in enumerate(provider):
 
-            res, _ = evaluate_domain_metapath2vec(domain, None)
+            res, _, e_t, g_t, w_t, c_t = evaluate_domain_metapath2vec(domain, None)
 
             if not provider_has_node_id:
                 domain['node_id'] = cnt
 
-            parse_evaluation_result((res, domain), csv_writer)
+            parse_evaluation_result((res, domain, e_t, g_t, w_t , c_t), csv_writer)
 
             if cnt % 50 == 0:
                 f.flush()
@@ -188,6 +205,7 @@ def test_from_collection(path_to_config: str, class_out_f_name: str, parallel: b
     db = client[conf["db"]]
     collection = db[conf["collection"]]
 
+    # pick domains that are malicious [{"$match": {"train": False, "label": { "$not": {"$regex": "benign", "$options": "i"}}}}]
     agg_filt = [{"$match": {"train": False}}] if filter_train else []
     cursor = collection.aggregate(agg_filt, batchSize=1000)
 

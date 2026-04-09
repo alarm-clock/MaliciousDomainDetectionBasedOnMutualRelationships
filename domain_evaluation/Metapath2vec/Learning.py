@@ -142,7 +142,7 @@ def _create_models_for_meta_paths(
         m_paths: list[list[str]],
         g: dgl.DGLHeteroGraph,
         device: th.device,
-        w_size: int = 2,
+        w_size: int = 1,
         emb_dim: int = 64,
         neg_size: int = 5) -> tuple[list[tuple[MetaPath2Vec, DataLoader]], list[str]]:
     models = []
@@ -201,8 +201,8 @@ def classify_domain(g: dgl.DGLHeteroGraph, mode: int = STANDALONE_CONCAT, no_nee
         f"This device does {'' if th.cuda.is_available() else 'not'} have GPU, chosen device is {device}")
     g = g.to(device)
 
-    paths = [[f"{EdgeTypes.CNAME.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.DOMAIN.dgl}"] * 8,
-             [f"{EdgeTypes.SUBDOMAIN.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.DOMAIN.dgl}"] * 8,
+    paths = [[f"{EdgeTypes.CNAME.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.DOMAIN.dgl}"] * 6,
+             [f"{EdgeTypes.SUBDOMAIN.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.DOMAIN.dgl}"] * 6,
              [f"{EdgeTypes.TRANSLATES.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.IP.dgl}",
               f"{EdgeTypes.TRANSLATES.value}_{NodeTypes.IP.dgl}_{NodeTypes.DOMAIN.dgl}"] * 4,
              ]

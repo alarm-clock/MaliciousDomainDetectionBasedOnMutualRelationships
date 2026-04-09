@@ -150,7 +150,6 @@ class GraphRepository:
     def get_k_hop_neighborhood_dgl(self, tmp_node_id: int, for_ml: bool = False) -> dgl.DGLHeteroGraph:
 
         graph = self.get_neo4j_driver().get_k_hop_neighborhood_universal(
-            {"label": NodeTypes.TMP_DOMAIN.neo4j, "node_id": tmp_node_id}, 4, 1000, False)
-
+            {"label": NodeTypes.TMP_DOMAIN.neo4j, "node_id": tmp_node_id}, 3, 1500, False)
         graph = convert_form_neo4j_to_dgl(True, graph)
         return prepare_dgl_g_for_ml(graph) if for_ml else graph
