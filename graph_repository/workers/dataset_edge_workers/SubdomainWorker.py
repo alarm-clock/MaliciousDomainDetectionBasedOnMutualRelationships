@@ -35,10 +35,6 @@ class SubdomainWorker(DatasetWorker):
     def __init__(self, submit_callback_method, collection: pymongo.collection.Collection, ranges: list):
         super().__init__(submit_callback_method, collection, ranges, self._project)
 
-        #self._mode: SubdomainWorker.Modes = mode
-        #self._of_u: list[int] = []
-        #self._of_v: list[int] = []
-        #self._of_jacc: list[float] = []
         self._subs: dict = {}
         self._du_d_u: list = []
         self._du_d_v: list = []
@@ -46,9 +42,6 @@ class SubdomainWorker(DatasetWorker):
         self._du_du_v: list = []
         self._dummy_name: list = []
         self._dummy_depth: list = []
-
-        #self._classes: dict = {}
-        #self._subs_of: dict = {}
 
 
     def _submit_edges(self):
@@ -136,8 +129,8 @@ class SubdomainWorker(DatasetWorker):
     def _create_domain_tree(self, domains: list[tuple[int,str]], domain_id_dict: dict[str, int]) -> None:
         trie = pygtrie.StringTrie(separator='.')
         non_dset_id = -1
-        for domain in domains:
 
+        for domain in domains:
             self._check_domain_and_put_it_in_dict(trie, domain, domain_id_dict)
 
             trie[domain[1]] = True
@@ -146,9 +139,9 @@ class SubdomainWorker(DatasetWorker):
             for cnt in range(2, len(domain_parts)):  # add every parent domain except the whole domain (-1)
                 domain = '.'.join(domain_parts[:cnt])
 
-                if domain_id_dict.get(domain):  # unique id for non dataset domains
-                    domain_id = domain_id_dict[domain]
-                else:
+                domain_id = domain_id_dict.get(domain)
+
+                if domain_id is None:
                     domain_id = non_dset_id
                     domain_id_dict[domain] = domain_id
                     non_dset_id -= 1            # "nedavaju sa ziadne zaporne body, oni si ich len zarobili zaporne" cca Hlineny

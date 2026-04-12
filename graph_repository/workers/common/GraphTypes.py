@@ -110,6 +110,7 @@ class EdgeTypes(Enum):
     SUBDOMAIN = 'subdomain'
     SUBDOMAIN_OF = 'subdomain_of'
     CNAME = 'cname'
+    NULL = 'null'
 
     @staticmethod
     def from_str(e_t: str):

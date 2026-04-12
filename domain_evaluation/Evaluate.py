@@ -20,7 +20,7 @@ def get_graph(domain: dict[str, Any]) -> dgl.DGLHeteroGraph | None:
     if repository is None:
         return None
 
-    print("Temporary adding domain into graph...")
+    #print("Temporary adding domain into graph...")
     MyLogger.get_instance().log(f"Temporary adding domain {domain['domain_name']} into graph...")
     tmp_node_id = repository.temporary_add_domain(domain)
 
@@ -64,7 +64,6 @@ def evaluate_domain_metapath2vec(domain: dict[str, Any], lock: threading.Semapho
         lock.acquire()
         wait_t = time.time() - wait_start
     else:
-        wait_start = 0
         wait_t = 0
     MyLogger.get_instance().log(f"Starting to classify domain {domain['domain_name']}...")
 
@@ -73,8 +72,8 @@ def evaluate_domain_metapath2vec(domain: dict[str, Any], lock: threading.Semapho
         res_tup = classify_domain(g, 4, True) #all
         class_t = time.time() - class_start
 
-    except Exception:
-        MyLogger.get_instance().log_error(f"Exception occurred while classifying domain {domain['domain_name']}...")
+    except Exception as e:
+        MyLogger.get_instance().log_error(f"Exception occurred while classifying domain {domain['domain_name']}: {e}...")
         end_t = time.time() - start_t
         return None, domain, end_t, got_graph_t, wait_t, 0
     finally:
