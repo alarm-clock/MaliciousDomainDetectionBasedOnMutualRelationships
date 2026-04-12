@@ -2,7 +2,7 @@ import copy
 from typing import Any
 import dgl
 from graph_repository.dataset_creator.common.Graph import create_dgl_graph, generate_train_mask_classification, \
-    EDGES_T_DGL, N_DATA_T_DGL, E_T_DGL
+    EDGES_T_DGL, N_DATA_T_DGL, E_T_DGL, check_if_g_is_hetero, add_diff_n_t_to_g
 from dgl import DGLHeteroGraph
 import torch as th
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
@@ -252,6 +252,10 @@ def _create_new_updated_graph(
     n_data = graph.ndata
 
     del graph
+
+    if not check_if_g_is_hetero(new_edges):
+        add_diff_n_t_to_g(new_edges)
+
     new_graph = dgl.heterograph(new_edges)
 
     for key, val in n_data.items():

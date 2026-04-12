@@ -1,4 +1,4 @@
-from graph_repository.workers.common.GraphTypes import NodeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 import torch as th
 import dgl
 
@@ -37,6 +37,37 @@ def generate_train_mask_classification(g: dgl.DGLHeteroGraph, classified_nd_id: 
     g.ndata['train_mask'] = {NodeTypes.DOMAIN.dgl: train_mask} if len(g.ntypes) > 1 else train_mask
     g.ndata['test_mask'] = {NodeTypes.DOMAIN.dgl: classification_mask} if len(g.ntypes) > 1 else classification_mask
 
+def check_if_g_is_hetero(edges: EDGES_T_DGL) -> bool:
+    """
+    Function that checks if created graph is homogenous or heterogeneous
+    :param edges: Edges from which graph will be created
+    :return: True if graph is heterogeneous otherwise false
+    """
+
+    seen_n_t: set[str] = set()
+
+    for u_t, _, v_t in edges.keys():
+
+        if u_t not in seen_n_t:
+            seen_n_t.add(u_t)
+
+        if v_t not in seen_n_t:
+            seen_n_t.add(v_t)
+
+    return len(seen_n_t) > 1
+
+def add_diff_n_t_to_g(edges: EDGES_T_DGL) -> None:
+    """
+    Function which adds 2 nodes of type maintenance so that graph will be "heterogeneous" in libraries eyes. This function
+    Exists solely because it is easier to ass two not used nodes then rewriting a lot of system logic to call DGl's methods
+    differently based on if graph is heterogeneous or homogeneous. Heterogeneous graph is generalization of homogeneous
+    graphs so only reason that they do it like this must be optimization. But for me, it adds no time for me to be noticeable
+    enough to rewrite whole logic (I mean there is no time difference whatsoever).
+    :param edges: Edge from which graph will be added
+    :return: None
+    """
+
+    edges[(NodeTypes.MAINTENANCE.dgl, EdgeTypes.TRANSLATES.value, NodeTypes.MAINTENANCE.dgl)] = (th.Tensor([0]).to(th.int32), th.Tensor([1]).to(th.int32))
 
 def create_dgl_graph(
         edges: EDGES_T_DGL,
@@ -54,6 +85,9 @@ def create_dgl_graph(
     :param generate_train_mask: flag indicating if train/test masks should be generated, defaults to False
     :return: dgl heterograph
     """
+
+    if not check_if_g_is_hetero(edges):
+        add_diff_n_t_to_g(edges)
 
     if num_nodes is None:
         g = dgl.heterograph(edges)
