@@ -1,14 +1,15 @@
 import json
 import dgl
 import uvicorn
-from domain_evaluation.Evaluate import evaluate_domain_metapath2vec_mult, test, test_from_collection, \
-    evaluate_domain_metapath2vec
+import signal
+from api.app_api import ApiOptions, create_app
+from domain_evaluation.Evaluate import  test_from_collection
+from domain_evaluation.EvaluationApp import EvaluationApp
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
-from graph_repository.graph_repo_main import signal_handlers_for_graph_repo
 from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
@@ -16,15 +17,30 @@ from graph_repository.graph_main.graph_editing.requests.DeleteRequest import Del
 from misc.Logger import MyLogger
 import sys
 import argparse
-import torch.multiprocessing as mp
+import multiprocessing as mp
+
+def add_signal_handlers():
+    def _graceful_exit(signum, frame):
+        MyLogger.get_instance().log(f"Received signal {signum}, gracefully exiting...")
+
+        eval_app = EvaluationApp.get_instance()
+        if eval_app is not None:
+            eval_app.stop()
+
+        repo_instance = GraphRepository.get_instance()
+        if repo_instance is not None:
+            repo_instance.stop()
+
+        exit(0)
+
+    signal.signal(signal.SIGINT, _graceful_exit)
+    signal.signal(signal.SIGTERM, _graceful_exit)
 
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--mongo_db", metavar='MONGO_CONF_FILE', type=str,
-                        help="Path to MongoDB database connection config file")
-    parser.add_argument("--neo_db", metavar='NEO_DB_CONF_FILE', type=str,
-                        help="Path to Neo database connection config file")
+    parser.add_argument("--mongo_db", metavar='MONGO_CONF_FILE', type=str, help="Path to MongoDB database connection config file")
+    parser.add_argument("--neo_db", metavar='NEO_DB_CONF_FILE', type=str, help="Path to Neo database connection config file")
     parser.add_argument("-l", "--log", metavar='LOG_FILE', type=str, help="Path where log file will be stored")
     parser.add_argument('-ll', '--log_level', metavar='LEVEL', type=str, help="Logging level", default='INFO')
 
@@ -35,12 +51,9 @@ def main():
     import_parser.add_argument('--dgl', action='store_true', help="Import from mongodb and create dgl graph")
     import_parser.add_argument('--neo', action='store_true', help="Import from mongodb and create neo4j graph")
     import_parser.add_argument('--dgl_exp', type=str, help="Path where created dgl graph will be stored")
-    import_parser.add_argument('-e', '--etypes', type=str,
-                               help="Edge types that will be created, specified in format \"etype1,etype2,...\"")
-    import_parser.add_argument("-r", "--ranges", type=str,
-                               help="Ranges specified in format \"start1,end1,start2,end2,...\"")
-    import_parser.add_argument('--convert_supporting', '-c', action='store_true',
-                               help="Convert supporting dummy domains into normal dummy domains")
+    import_parser.add_argument('-e', '--etypes', type=str, help="Edge types that will be created, specified in format \"etype1,etype2,...\"")
+    import_parser.add_argument("-r", "--ranges", type=str, help="Ranges specified in format \"start1,end1,start2,end2,...\"")
+    import_parser.add_argument('--convert_supporting', '-c', action='store_true', help="Convert supporting dummy domains into normal dummy domains")
     import_parser.add_argument('-t', '--test_connection', type=str, help="Test connection to Neo4j server")
 
     # Dgl import go here
@@ -64,6 +77,7 @@ def main():
     tmp_edit_parser.add_argument('-a', '--add', action='store_true', help="Add tmp domain to graph")
     tmp_edit_parser.add_argument('-d', '--delete', action='store_true', help="Delete tmp domain from graph")
 
+    """
     classify_parser = subparsers.add_parser('classify')
     classify_parser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be stored")
     classify_parser.add_argument('-j', '--json', type=str, help="Json string that will be used to update graph")
@@ -72,6 +86,17 @@ def main():
     classify_parser.add_argument('-t','--trained',action='store_true', help="Flag indicating that some domains in mongo were train/test separated")
     classify_parser.add_argument('-e','--exists',action='store_true',help="Flag that indicates that tmp domain is already in graph")
     classify_parser.add_argument('--test',type=str, metavar='OUT_FILE_CSV' ,help="Test metapath2vec model")
+    """
+
+    test_parser = subparsers.add_parser('test')
+    test_parser.add_argument('output', type=str, help="Path where output will be stored")
+
+    server_parser = subparsers.add_parser('server')
+    server_parser.add_argument('available_endpoints', type=str, help=f"Endpoints that will available, available options are: {', '.join([opt.value for opt in ApiOptions])}")
+    server_parser.add_argument('-a','--address',metavar='HOST', type=str, help="Host to which will server bind", default='localhost')
+    server_parser.add_argument('-p','--port', metavar='PORT', type= int, help="Port to which will server bind", default=8000)
+    server_parser.add_argument('--max_eval',type=int, help="Maximum number of concurrent evaluations", default=16)
+    server_parser.add_argument('--max_concurent_gpu',type=int, help="Maximum number of concurrent evaluations on gpu", default=4)
 
 
     args = parser.parse_args()
@@ -128,14 +153,14 @@ def main():
     elif args.mode == "import_dgl":
         g = import_dgl_graph(args.path_to_graph)
 
-        if args.r is not None:
+        if args.r is not None and g is not None:
             regenerate_train_test_mask(g)
 
-        if args.exp is not None:
+        if args.exp is not None and g is not None:
             export_dgl_graph(g, args.exp)
 
     elif args.mode == "edit":
-        repository = GraphRepository.get_instance(args.neo_db)
+        repository = GraphRepository.init(GraphRepository.ABI, args.neo_db)
 
         if repository is None:
             print("Neo database connection config file not provided, exiting", file=sys.stderr)
@@ -168,7 +193,7 @@ def main():
 
     elif args.mode == "tmp":
 
-        repository: GraphRepository = GraphRepository.get_instance(args.neo_db)
+        repository: GraphRepository = GraphRepository.init(GraphRepository.ABI, args.neo_db)
 
         if repository is None:
             print("Neo database connection config file not provided, exiting", file=sys.stderr)
@@ -185,7 +210,7 @@ def main():
         data = data[0] if type(data) is list else data
 
         if args.add:
-            repository.temporary_add_domain(data)
+            repository.temporary_add_domain(data, None)
         elif args.delete:
             driver = repository.get_neo4j_driver()
             driver.delete_node(data)
@@ -194,15 +219,61 @@ def main():
             return
 
     elif args.mode == 'server':
-        repository = GraphRepository.get_instance(args.neo_db)
-        signal_handlers_for_graph_repo()
 
-        if repository is None:
-            print("Neo database connection config file not provided, exiting", file=sys.stderr)
+        mode = ApiOptions.from_str(args.available_endpoints)
+        if mode is None:
             return
 
-        uvicorn.run("graph_repository.api.server:app", host=args.address, port=args.port)
+        graph_repo_init = False
 
+        if mode == ApiOptions.GRAPH_REPOSITORY or mode == ApiOptions.WHOLE_APP:
+
+            try:
+                repository = GraphRepository.init(GraphRepository.ABI, args.neo_db)
+            except Exception as e:
+                print("Neo database connection config file not provided, exiting", file=sys.stderr)
+                return
+
+            graph_repo_init = True
+
+            if repository is None:
+                print("Neo database connection config file not provided, exiting", file=sys.stderr)
+                return
+
+
+        if mode == ApiOptions.WHOLE_APP or mode == ApiOptions.EVALUATION:
+
+            if graph_repo_init:
+                repo = GraphRepository.get_instance()
+            else:
+                try:
+                    repo = GraphRepository.init(GraphRepository.ABI, args.neo_db)
+                except Exception as e:
+                    print("Neo database connection config file not provided, exiting", file=sys.stderr)
+                    return
+
+            if repo is None:
+                print("there is no instance of graph repository, exiting", file=sys.stderr)
+                return
+
+            mp.set_start_method("spawn")
+            EvaluationApp(repo,args.max_eval, args.max_concurent_gpu)
+
+
+        add_signal_handlers()
+        app = create_app(mode)
+        uvicorn.run(app, host=args.address, port=args.port)
+
+
+    if args.mode == "test":
+        mp.set_start_method("spawn")
+        r = GraphRepository.init(GraphRepository.ABI, args.neo_db)
+        if r is None:
+            print("picka")
+            return
+
+        test_from_collection(args.mongo_db,args.output,True)
+    """
     elif args.mode == 'classify':
         if args.json is not None:
             data = json.loads(args.json)
@@ -214,7 +285,7 @@ def main():
         else:
             return
 
-        repo  = GraphRepository.get_instance(args.neo_db)
+        repo  = GraphRepository.init(GraphRepository.ABI, args.neo_db)
         if repo is None:
             print("Neo database connection config file not provided, exiting", file=sys.stderr)
             return
@@ -230,9 +301,12 @@ def main():
             return
 
         if type(data) == dict:
-            evaluate_domain_metapath2vec(data,None)
+            test_evaluate_domain_metapath2vec(data, None)
         else:
             evaluate_domain_metapath2vec_mult(data)
+    """
+
+
 
 if __name__ == "__main__":
     main()

@@ -90,10 +90,6 @@ class DeleteReq(BaseModel):
     `priority`: priority of given request. Values from 0 to 3 with lower value having bigger priority
     `timeout`: time after which, if request is not finished it will fail and will be dropped
     """
-
-    if not enough_memory():
-        raise HTTPException(status_code=503, detail="Server is temporary overloaded. Please, try again later.")
-
     domains: list[dict[str, str]]
     priority: RequestPriority | None = None
     timeout: float | None = None
@@ -186,3 +182,21 @@ async def query_req(query: ReadQuery):
 
 
     return {"query_result": res}
+
+class PutTmpDomainsModel(BaseModel):
+    domains: list[str]
+
+"""
+@router.post("/put_tmp_domians")
+async def put_tmp_domains(domains_obj: PutTmpDomainsModel):
+
+    domains = domains_obj.domains
+
+    driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
+
+    if driver is None:
+        raise HTTPException(status_code=503, detail="Graph repository is being shut down")
+
+    job_id =
+
+"""
