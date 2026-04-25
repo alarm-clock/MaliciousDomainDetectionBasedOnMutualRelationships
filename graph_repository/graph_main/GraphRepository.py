@@ -1,155 +1,78 @@
-from queue import PriorityQueue
 from typing import Any
 import dgl
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver
-from graph_repository.graph_main.conversion.FormatConverting import convert_form_neo4j_to_dgl, prepare_dgl_g_for_ml
-from graph_repository.graph_main.graph_editing.EditConsumer import edit_loop, FinishType
-from threading import Event, Thread, Lock
-from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest, FinishRequest
+from graph_repository.graph_main.graph_editing.EditConsumer import FinishType
 from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
-from graph_repository.graph_main.tmp.TmpAdd import add_temporary_domain
-from graph_repository.workers.common.GraphTypes import NodeTypes
-from misc.Logger import MyLogger
-from misc.PackageImporter import import_all_modules_from_package
+from abc import ABC, abstractmethod
 
-class GraphRepository:
+class GraphRepository(ABC):
 
-    _repository_instance_ = None
+    _repository_instance_: 'GraphRepository | None' = None
+    API = "api"
+    ABI = "abi"
+    TMP_ADD_STOP = -1
+    TMP_ADD_NO_DB_ERR = -2
 
-    def __new__(cls, *args, **kwargs):
-        if GraphRepository._repository_instance_ is None:
-            cls._repository_instance_ = super().__new__(cls)
-            cls._repository_instance_._initialized = False
+    _implementations = {
+        "abi": "graph_repository.graph_main.graph_repo.GraphRepositoryABI.GraphRepositoryABI",
+        "api": "graph_repository.graph_main.graph_repo.GraphRepositoryAPI.GraphRepositoryAPI"
+    }
+
+    @classmethod
+    def init(cls, implementation: str, config: str) -> 'GraphRepository':
+        if cls._repository_instance_ is None:
+            path_to_impl = cls._implementations.get(implementation)
+            if path_to_impl is None:
+                raise ValueError(f"Unknown implementation: {implementation}")
+
+            mod_p, class_name = path_to_impl.rsplit(".", 1)
+            module = __import__(mod_p, fromlist=[class_name])
+            impl_class = getattr(module, class_name)
+            cls._repository_instance_ = impl_class(config)
 
         return cls._repository_instance_
 
-    def __init__(self, neo4j_conf: str):
-        if not self._initialized:
-            self._initialized = True
-            self._request_q: PriorityQueue[GraphRequest | None] = PriorityQueue()
-            self._neo4j_conf = neo4j_conf
-            self._worker_stop_event = Event()
-            self._stop_event = Event()
-            import_all_modules_from_package("graph_repository.workers.edit_node_edge_workers")
-            import_all_modules_from_package("graph_repository.workers.tmp")
-            self._edit_worker = Thread(target=edit_loop,args=(self._worker_stop_event,self._request_q, self._neo4j_conf), daemon=True)
-            self._edit_worker.start()
+    @classmethod
+    def get_instance(cls):
+        return cls._repository_instance_
 
-            self._state_dict: dict[str, GraphRequest] = {}
-            self._state_dict_lock = Lock()
-
-    @staticmethod
-    def get_instance(neo4j_conf: str| None = None):
-        if GraphRepository._repository_instance_ is None:
-            if neo4j_conf is not None:
-                GraphRepository(neo4j_conf)
-            else:
-                return None
-        return GraphRepository._repository_instance_
-
+    @abstractmethod
     def stop(self, finish_all_submitted_edits: FinishType = FinishType.FINISH_NONE) -> None:
-        """
-        Method that coordinates stopping of core functionality
-        :param finish_all_submitted_edits: Enum specifying how to finish unfinished requests, default is to delete all
-        :return: None
-        """
+        pass
 
-        MyLogger.get_instance().log("Graph repository is being shut down...")
-        self._stop_event.set()
 
-        if finish_all_submitted_edits == FinishType.FINISH_NONE:
-            MyLogger.get_instance().log("No currently working edit will be finished")
-            self._worker_stop_event.set()
-        elif finish_all_submitted_edits == FinishType.FINISH_CURRENT:
-            MyLogger.get_instance().log("Currently working edit will be finished")
-            while not self._request_q.empty():
-                self._request_q.get_nowait()
-                self._request_q.task_done()
-        else:
-            MyLogger.get_instance().log("All edits that are in queue will be finished before shut down")
-
-        self._request_q.put(FinishRequest())
-        self._edit_worker.join() #no timeout because I need to wait if worker is wrapping up and potentially finishing all work
-                                 #maybe I will give it some time limit just in case
-
-        #TODO add removal of temporary nodes, add optional cleaning of all other graph versions
-        #add option to wait on all active evaluations or just fuck em
-        return
-
+    @abstractmethod
     def get_neo4j_driver(self) -> Neo4jDBDriver | None:
-        #maybe I should add check that if graph repo is stopping then it should not give any client
-        #on the other hand if edits are to be finished then they need client.
-        return Neo4jDBDriver.from_config(self._neo4j_conf)
+        pass
 
+    @abstractmethod
     def add_request_to_queue(self, request):
-        if self._stop_event.is_set():
-            request.state = RequestStates.TIMEOUT
-            MyLogger.get_instance().log_warning(f"Graph repository is in process of stopping or it has already stopped - {request.id}")
-            raise RuntimeError(f'Graph repository is in process of stopping or it has already stopped - {request.id}')
+        pass
 
-        with self._state_dict_lock:
-            self._state_dict[request.id] = request
-
-        request.state = RequestStates.FILTER
-        request.filter()
-
-        if request.get_n_domains() == 0:
-            MyLogger.get_instance().log(f"Request {request.id} has no domains after filtering")
-            request.state = RequestStates.DONE
-            return
-
-        MyLogger.get_instance().log_debug(f"Adding request {request.id} to queue")
-        self._request_q.put(request)
-        request.state = RequestStates.IN_QUEUE
-
+    @abstractmethod
     def get_request_state(self, job_id: str) -> RequestStates | None:
-        with self._state_dict_lock:
-            if self._state_dict.get(job_id) is None:
-                return None
+        pass
 
-            job = self._state_dict[job_id]
-            state = job.state
-            if state == RequestStates.DONE or state == RequestStates.TIMEOUT or state == RequestStates.CANCELED or state == RequestStates.ERROR:
-                req_for_del = self._state_dict.pop(job_id)
-                del req_for_del
-
-        return state
-
+    @abstractmethod
     def delete_finished_request(self) -> None:
-        with self._state_dict_lock:
-            jobs_for_deleting = []
-            for job_id, req in self._state_dict.items():
-                state = req.state
-                if state == RequestStates.DONE or state == RequestStates.TIMEOUT or state == RequestStates.CANCELED or state == RequestStates.ERROR:
-                    jobs_for_deleting.append(job_id)
+        pass
 
-            for job_id in jobs_for_deleting:
-                de = self._state_dict.pop(job_id)
-                del de
+    @abstractmethod
+    def temporary_add_domain(self, domain: dict[str, Any], job_id: str | None) -> int | None:
+        pass
 
-    def temporary_add_domain(self, domain: dict[str, Any]) -> int | None:
+    @abstractmethod
+    def delete_temporary_domain(self, tmp_nd_id: int, job_id: str) -> None:
+        pass
 
-        if self._stop_event.is_set():
-            MyLogger.get_instance().log("Graph repository is being shut down, can not add tmp domain")
-            return -1
-
-        driver = self.get_neo4j_driver()
-
-        if driver is None:
-            return -1
-
-        domain_id = add_temporary_domain(domain, driver)
-        driver.close()
-
-        return domain_id
-
-    def delete_temporary_domain(self, tmp_nd_id: int) -> None:
-        self.get_neo4j_driver().delete_node({'node_id': tmp_nd_id},NodeTypes.TMP_DOMAIN.neo4j)
-
-
+    @abstractmethod
     def get_k_hop_neighborhood_dgl(self, tmp_node_id: int, for_ml: bool = False) -> dgl.DGLHeteroGraph:
+        pass
 
-        graph = self.get_neo4j_driver().get_k_hop_neighborhood_universal(
-            {"label": NodeTypes.TMP_DOMAIN.neo4j, "node_id": tmp_node_id}, 3, 1500, False)
-        graph = convert_form_neo4j_to_dgl(True, graph)
-        return prepare_dgl_g_for_ml(graph) if for_ml else graph
+    @abstractmethod
+    def get_domain(self, domain_name: str) -> dict[str, Any] | None:
+        pass
+
+    @abstractmethod
+    def get_neighbors_maliciousness(self, tmp_nd_id: int) -> tuple[float, float] | None:
+        pass

@@ -452,16 +452,18 @@ class DatasetImporter:
         dummy_labels =  NodeTypes.get_supporting_dummies_n_t()
         if not driver.check_label_exists(NodeTypes.DUMMY_DOMAIN):
             MyLogger.get_instance().log_debug("There is no dummy domain in graph, creating node_id counter for them")
-            driver.create_node_id_cnt(NodeTypes.DUMMY_DOMAIN)
+            driver.check_and_create_node_id_cnt(NodeTypes.DUMMY_DOMAIN)
 
         DatasetImporter._create_domain_name_indexes(driver)
 
         MyLogger.get_instance().log_debug(f"Found service dummy domains in graph are {dummy_labels}")
 
-        for label in dummy_labels: # UNWIND $ids AS id {{node_id: id}}
+        for label in dummy_labels:
 
             MyLogger.get_instance().log(f"Converting {label} domains to {NodeTypes.DUMMY_DOMAIN.neo4j}...")
 
+            #TODO if something here stops working most likely the problem will be free node id query and locks
+            #input("wait: ")
             query = f"""
             CALL apoc.periodic.iterate(
                 "MATCH (n: {label.neo4j}) RETURN n",
@@ -548,7 +550,7 @@ class DatasetImporter:
             ON (n.node_id);
             """
             client.execute_write(index_query)
-            client.create_node_id_cnt(n_t,client.get_max_id_of_node_type(n_t) + 1)
+            client.check_and_create_node_id_cnt(n_t,client.get_max_id_of_node_type(n_t) + 1)
 
         client.wait_for_index_creation([n_t+"NodeIdIndex" for n_t in self._n_data_neo4j.keys()])
 

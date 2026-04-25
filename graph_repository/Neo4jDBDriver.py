@@ -211,6 +211,35 @@ class Neo4jDBDriver:
 
         return active_version[0]['vers']
 
+    def start_new_transaction_on_curr_g_vers(self) -> int:
+        """
+        Method that sets transaction to given graph version and returns current graph version
+        :return: Current graph version number or -1 on error
+        """
+
+        query = f"""
+        MATCH (v:{NodeTypes.CURRENT_VERSION.neo4j}) 
+        WITH v.version AS curr_v
+        MATCH (v_cnt: {NodeTypes.VERSION.neo4j} {{ version: curr_v }})
+        SET v_cnt.n_users = v_cnt.n_users + 1
+        RETURN curr_v AS vers
+        """
+
+        active_version = self.execute_write(query)
+        if len(active_version) == 0:
+            return -1
+
+        return active_version[0]['vers']
+
+
+    def end_transaction(self, version: int) -> None:
+        """
+        Method that ends transaction on given graph version
+        :param version: whose transaction will be ended
+        :return: Nothing
+        """
+        self.execute_write(f"MATCH (v : {NodeTypes.VERSION.neo4j} {{ version: {version} }}) SET v.n_users = v.n_users - 1 ")
+
     def get_existing_versions(self) -> list[int]:
         """
         Method that returns all existing version of graph
@@ -237,6 +266,7 @@ class Neo4jDBDriver:
         """
         self.execute_write(query)
 
+    @deprecated
     def create_node_id_cnt(self, n_t: NodeTypes | str, start_value: int = 0) -> None:
         """
         Method that creates node_id counter for given ``n_t`` node type, if counter for given ``n_t`` exists, nothing will happen
@@ -248,6 +278,7 @@ class Neo4jDBDriver:
         self.execute_write(f"MERGE (:{NodeTypes.ND_ID_CNT.neo4j} {{ cnt_name: \"{n_t_str}\", val: {start_value} }}) ")
 
     _FREE_NODE_ID_POSTFIX = "_free_node_id"
+    _FREE_NODE_ID_POSTFIX_LOCK = "_free_node_id_lock"
 
     @staticmethod
     def get_free_node_id_query(n_t: NodeTypes, as_subquery: bool, req_number_of_ids: int = 1) -> str | None:
@@ -262,8 +293,16 @@ class Neo4jDBDriver:
         if req_number_of_ids < 1:
             return None
 
+        acquire_lock_query = f"""
+            MATCH (free_id_lock: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX_LOCK})
+            SET free_id_lock.val = free_id_lock.val + 1
+            WITH 1 AS nothing
+        """
+
         if req_number_of_ids != 1:
             query = f"""
+            {acquire_lock_query}
+            
             MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
             WITH free_id
             LIMIT {req_number_of_ids}
@@ -292,6 +331,8 @@ class Neo4jDBDriver:
         else:
 
             query = f"""
+            {acquire_lock_query}
+
             OPTIONAL MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
             WITH free_id
             LIMIT 1
@@ -320,9 +361,10 @@ class Neo4jDBDriver:
 
         return query
 
-    def check_and_create_node_id_cnt(self, n_t: NodeTypes | str) -> None:
+    def check_and_create_node_id_cnt(self, n_t: NodeTypes | str, start_value: int = 0) -> None:
         """
         Method that creates node_id counter for given node type if there is no such counter, otherwise does nothing
+        :param start_value: If node_id counter is created for the first time this value will be set as current value
         :param n_t: `NodeTypes | str` node type
         :return: None
         """
@@ -330,7 +372,9 @@ class Neo4jDBDriver:
         n_t_str = n_t.neo4j if type(n_t) == NodeTypes else n_t
         query = f"""
         MERGE (n: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t_str}'}})
-        ON CREATE SET n.val = 0 
+            ON CREATE SET n.val = {start_value}
+        MERGE (n_lock: {n_t_str}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX_LOCK})
+            ON CREATE SET n_lock.val = 0 
         """
         self.execute_write(query)
 
@@ -344,10 +388,10 @@ class Neo4jDBDriver:
         if req_number_of_ids < 1:
             return []
 
-        __NODE_ID_LOCKS__[n_t].acquire_lock()
+        #__NODE_ID_LOCKS__[n_t].acquire_lock()
         self.check_and_create_node_id_cnt(n_t)
         res = self.execute_write(self.get_free_node_id_query(n_t, False, req_number_of_ids))
-        __NODE_ID_LOCKS__[n_t].release_lock()
+        #__NODE_ID_LOCKS__[n_t].release_lock()
 
         ret_val = res[0]['free_node_id' if req_number_of_ids == 1 else 'free_node_ids']
         return ret_val
@@ -404,9 +448,11 @@ class Neo4jDBDriver:
             MyLogger.get_instance().log(f"Version {new_current_version} is already set as current graph version")
             return True
 
-        #TODO SET NEW VERSION INSTEAD OF DELETING WHEN UPDATING NEW CURRENT GRAPH VERSION
         query = f"""
         OPTIONAL MATCH (old_version: {NodeTypes.CURRENT_VERSION.neo4j})
+        SET old_version.version = {new_current_version}
+        """
+        """
         DETACH DELETE old_version
         CREATE (: {NodeTypes.CURRENT_VERSION.neo4j} {{version: {new_current_version}}})
         """
@@ -480,6 +526,7 @@ class Neo4jDBDriver:
         """
 
         node_label_q = "\" AND label <> \"".join([n_t_str + Neo4jDBDriver._FREE_NODE_ID_POSTFIX for n_t_str in NodeTypes.get_data_n_t_str()])
+        node_label_lock_q = "\" AND label <> \"".join([n_t_str + Neo4jDBDriver._FREE_NODE_ID_POSTFIX_LOCK for n_t_str in NodeTypes.get_data_n_t_str()])
 
         return self.execute_read(f"""
         CALL db.labels() 
@@ -489,7 +536,8 @@ class Neo4jDBDriver:
               label <> "{NodeTypes.TMP_DOMAIN.neo4j}" AND
               label <> "{NodeTypes.ND_ID_CNT.neo4j}" AND
               label <> "{NodeTypes.MAINTENANCE.neo4j}" AND
-              label <> "{node_label_q}"
+              label <> "{node_label_q}" AND 
+              label <> "{node_label_lock_q}"
         RETURN collect(label) AS lab
         """)[0]['lab']
 
@@ -653,6 +701,7 @@ class Neo4jDBDriver:
             tmp_domain['node_id'] = allocated_id
         else:
             allocated_id = tmp_domain['node_id']
+
         item_str = self.create_pre_filled_item_string(tmp_domain)
         query = f"""
         CREATE (:{NodeTypes.TMP_DOMAIN.neo4j} {{ {item_str} }})
@@ -735,6 +784,13 @@ class Neo4jDBDriver:
         DETACH DELETE m_del_var
         {'}' if as_subquery else 'WITH DISTINCT ' + var_name + ' ' + with_survival}
         """
+
+    def delete_all_tmp_nodes(self) -> None:
+        """
+        Method that deletes all tmp nodes, with no regard if they are used or not
+        :return: Nothing
+        """
+        self.execute_write(f"MATCH (n: {NodeTypes.TMP_DOMAIN.neo4j}) DETACH DELETE n")
 
     def delete_nodes(self, nodes: list[dict[str, Any]], n_t: NodeTypes,
                      only_rels_with_domains: bool = True, ignore_subdomains: bool = False,
@@ -985,7 +1041,47 @@ class Neo4jDBDriver:
         else:
             self._send_batch(func, rows, batch_size, batch_delay)
 
+    def get_domain_from_graph(self, domain_name: str) -> dict[str, Any] | None:
+
+        query = f"""
+        MATCH (v: {NodeTypes.CURRENT_VERSION.neo4j})
+        WITH v.version AS version
+        MATCH (n: {NodeTypes.DOMAIN.neo4j} {{ domain_name: "{domain_name}", graph_version: version}})
+        RETURN {{
+            domain_name: n.domain_name,
+            parent_domains: n.parent_domains,
+            label: n.label,
+            version: n.graph_version
+        }} AS domain_data
+        """
+
+        res = self.execute_read(query)
+        if len(res) == 0:
+            return None
+
+        return res[0]['domain_data']
+
+    def get_neighborhood_maliciousness(self, match: dict[str, Any]) -> tuple[float, float]:
+
+        query = f"""
+        CALL mapoc.stats.nieghPerc($match) YIELD benign, malicious
+        RETURN benign AS b, malicious AS m
+        """
+        res = self.execute_read(query,match=match)
+        if len(res) == 0:
+            return 0.0, 0.0
+
+        return res[0]['b'], res[0]['m']
+
     def get_k_hop_neighborhood_universal(self, match: dict[str, Any], max_depth: int, max_sample_size: int, get_back_edges: bool):
+        """
+        Method that gets matched tmp node's k-hop (max_depth-hop) sampled neighborhood
+        :param match: dictionary with data used to match given domain
+        :param max_depth: k parameter, max length from node to edge node
+        :param max_sample_size: max number of neighbors that will be sampled with uniform probability
+        :param get_back_edges: flag indicating if back edges should be also returned
+        :return: List of "edges" in format (start)-[edge]->(end) where node has dictionary (nid, nt, l) and edge has type for now
+        """
 
         #TODO also add edge values, now it is not required but who knows what future holds
         query = f"""

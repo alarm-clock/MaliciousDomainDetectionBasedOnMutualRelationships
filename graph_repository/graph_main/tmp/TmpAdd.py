@@ -52,10 +52,11 @@ def _create_edges(domain: dict[str, Any], edges: EDGES_T, driver: Neo4jDBDriver,
     return
 
 
-def add_temporary_domain(domain: dict[str, Any], driver: Neo4jDBDriver) -> int | None:
+def add_temporary_domain(domain: dict[str, Any], version: int, driver: Neo4jDBDriver) -> int | None:
     """
     Function that creates a temporary domain and it's relationships with ground truth domains
     :param domain: `dict[str|Any` that holds temporary domain data, mut at least hold domain name otherwise function fails
+    :param version: `int` version of graph into which temporary domain will be added
     :param driver: `Neo4jDBClient` db driver
     :return: Allocated temporary domain id on success, None if domain has no domain name or domain has no relationships in graph
     """
@@ -67,7 +68,6 @@ def add_temporary_domain(domain: dict[str, Any], driver: Neo4jDBDriver) -> int |
     available_options = []
     get_functions_from_registry(TMP_REGISTRY, available_options)
 
-    version =  driver.get_current_active_graph_version()
     tmp_node_id = driver.get_free_node_id(NodeTypes.TMP_DOMAIN)
     edges = _get_edges(available_options, domain, driver, version, tmp_node_id)
     if edges is None:

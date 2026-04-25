@@ -67,7 +67,7 @@ def add_diff_n_t_to_g(edges: EDGES_T_DGL) -> None:
     :return: None
     """
 
-    edges[(NodeTypes.MAINTENANCE.dgl, EdgeTypes.TRANSLATES.value, NodeTypes.MAINTENANCE.dgl)] = (th.Tensor([0]).to(th.int32), th.Tensor([1]).to(th.int32))
+    edges[(NodeTypes.MAINTENANCE.dgl, EdgeTypes.NULL.value, NodeTypes.MAINTENANCE.dgl)] = (th.Tensor([0]).to(th.int32), th.Tensor([1]).to(th.int32))
 
 def create_dgl_graph(
         edges: EDGES_T_DGL,

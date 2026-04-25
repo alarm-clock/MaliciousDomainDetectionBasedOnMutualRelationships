@@ -1,5 +1,3 @@
-import threading
-import time
 import uuid
 from abc import ABC, abstractmethod
 from functools import total_ordering
@@ -10,7 +8,6 @@ from typing import Callable
 import json
 
 
-#todo proper init
 #todo addition of two requests together (this may not work because each type does it's own thing, or at least it will be hard to implement)
 
 @total_ordering

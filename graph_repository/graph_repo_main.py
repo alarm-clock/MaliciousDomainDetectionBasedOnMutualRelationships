@@ -5,8 +5,7 @@ import sys
 import time
 import warnings
 from dgl.base import DGLWarning
-from fontTools import agl
-
+from api.app_api import create_app, ApiOptions
 from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
@@ -21,8 +20,6 @@ from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
 import dgl
 import uvicorn
-from evaluation.graph_repository.setTrainTestDomians import generateRanges, setTrainTestTODomains
-from functools import partial
 
 warnings.filterwarnings("ignore", category=DGLWarning)  #it actually comes from package itself
 
@@ -225,7 +222,8 @@ def main():
             print("Neo database connection config file not provided, exiting", file=sys.stderr)
             return
 
-        uvicorn.run("graph_repository.api.server:app", host=args.address, port=args.port)
+        app = create_app(ApiOptions.GRAPH_REPOSITORY)
+        uvicorn.run(app, host=args.address, port=args.port)
 
     elif args.mode == "test":
         client = Neo4jDBDriver.from_config(args.neo_db) #tmp.test.microsoft.com
