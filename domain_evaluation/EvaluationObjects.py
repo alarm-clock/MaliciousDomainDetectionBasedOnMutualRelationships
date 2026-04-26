@@ -244,7 +244,7 @@ class EvaluationJob:
 
     def to_text_csv_output(self) -> list[Any]:
 
-        csv_list: list[Any] = [self.domain_name, self._test_label, self.result.no_neighbor, self.result.in_graph]
+        csv_list: list[Any] = [self.domain_name, str(self.state), self._test_label, self.result.no_neighbor, self.result.in_graph]
         csv_list.extend(self.result.get_n_counts)
         csv_list.extend(self.result.get_1_hop_perc)
 

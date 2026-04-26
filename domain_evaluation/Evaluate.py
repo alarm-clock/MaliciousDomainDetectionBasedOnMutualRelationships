@@ -238,7 +238,7 @@ def parse_evaluation_result(eval_result: EvaluationJob, csv_writer) -> None:
 
 def _write_csv_header(csv_writer) -> None:
     csv_writer.writerow(
-        ["domain_name", "label", "no_neighbor", "already_in_graph", "n_good", "n_bad", "n_total", '1_hop_mal_p',
+        ["domain_name",'fin_state', "label", "no_neighbor", "already_in_graph", "n_good", "n_bad", "n_total", '1_hop_mal_p',
          '1_hop_ben_p','m_p_CNAME', 'b_p_CNAME', 'CNAME_pred', 'CNAME_c', 'm_p_SUBD', "b_p_SUBD", "SUBD_pred", "SUBD_c",
          "m_p_IP", "b_p_IP", 'IP_pred', "IP_c", 'm_p_AVG', 'b_p_AVG', "AVG_pred", "AVG_c", 'm_p_CAT', 'b_p_CAT', 'CAT_pred',
          'CAT_c','end_t', 'got_graph_t', 'calc_neigh_stats_t', 'wait_t', 'class_t']
