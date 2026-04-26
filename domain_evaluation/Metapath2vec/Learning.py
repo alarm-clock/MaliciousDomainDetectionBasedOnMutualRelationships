@@ -11,6 +11,7 @@ import sklearn.linear_model as sk
 from sklearn.preprocessing import StandardScaler
 
 from domain_evaluation.EvaluationObjects import EvaluationResult
+from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from misc.Logger import MyLogger
 import torch.multiprocessing as mp
@@ -32,7 +33,7 @@ def _train_regress(model_embedding: th.Tensor, train_mask,
 def _train_log_regress_and_cls(
         g: dgl.DGLHeteroGraph,
         embeddings: list[th.Tensor],
-        path_names: str,
+        path_names: list[str],
         mode: bool,
         scale: bool = True) :
 
@@ -61,7 +62,6 @@ def _train_log_regress_and_cls(
     if mode == TESTING:
         concat_embeds = th.cat(embeddings, dim=1)
         result_concat = _train_regress(concat_embeds, train_mask, classify_mask, labels, scale)
-        print(result_concat[0])
         results_dict['CONCAT'] = result_concat[0]
 
     return results_dict['AVERAGE'] if mode == PRODUCTION else results_dict
@@ -100,6 +100,51 @@ def _train_metapath2vec(model_loader: tuple[MetaPath2Vec, DataLoader, str], devi
     MyLogger.get_instance().log(f"Model {cnt} done")
 
     return d_emb, loss_cum, path_name
+
+def _train_metapath2vec_safe(
+        device: th.device,
+        lr: float,
+        cnt: int,
+        g: dgl.DGLHeteroGraph,
+        m_path: list[str],
+        w_size: int = 1,
+        emb_dim: int = 64,
+        neg_size: int = 5
+) -> tuple[th.Tensor, list[float], str] | None:
+
+    try:
+        model = MetaPath2Vec(g, m_path, window_size=w_size, emb_dim=emb_dim, negative_size=neg_size)
+    except Exception as e:
+        MyLogger.get_instance().log_error(str(e))
+        MyLogger.get_instance().log_warning(f"Ommiting metapath {m_path} because there are no edges of given type")
+        return None
+    model.to(device)
+    dataloader = DataLoader(torch.arange(g.num_nodes(ntype='d')), batch_size=128, shuffle=True, collate_fn=model.sample)
+    path_name = m_path[0].split('_')[0]
+
+    return _train_metapath2vec((model, dataloader, path_name), device,lr,cnt)
+
+def _gen_embeds_parallel_safe(
+        device: th.device,
+        g: dgl.DGLHeteroGraph,
+        m_paths: list[list[str]],
+        w_size: int = 1,
+        emb_dim: int = 64,
+        neg_size: int = 5,
+        lr: float = 0.01
+) -> tuple[list[th.Tensor], list[list[float]], list[str]]:
+
+    with mp.Pool(processes=3) as pool:
+        results = pool.starmap(_train_metapath2vec_safe, [(device, lr, cnt, g, path, w_size, emb_dim, neg_size) for cnt, path in enumerate(m_paths)])
+
+    filt_res = []
+
+    for res in results:
+        if res is None:
+            continue
+        filt_res.append(res)
+
+    return filt_res
 
 def _gen_embeds_parallel(models: list[tuple[MetaPath2Vec, DataLoader, str]], device: th.device, lr=0.01) -> tuple[list[th.Tensor], list[list[float]], list[str]]:
     """
@@ -255,17 +300,15 @@ def classify_domain(g: dgl.DGLHeteroGraph, eval_result: EvaluationResult, mode: 
              [f"{EdgeTypes.TRANSLATES.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.IP.dgl}",
               f"{EdgeTypes.TRANSLATES.value}_{NodeTypes.IP.dgl}_{NodeTypes.DOMAIN.dgl}"] * 4,
              ]
-    models, used_paths = _create_models_for_meta_paths(paths, g, device)
-    embeds, _, path_names = _gen_embeds_parallel(models, device) #_generate_embeddings(models, g, device)
+    #models, used_paths = _create_models_for_meta_paths(paths, g, device)
+    #embeds, _, path_names = _gen_embeds_parallel(models, device) #_generate_embeddings(models, g, device)
+    embeds, _, path_names = _gen_embeds_parallel_safe(device, g, paths)
+
     res = _train_log_regress_and_cls(g, embeds, path_names, mode)
 
-    print(type(counts[0]))
     eval_result.set_counts(counts[0], counts[1])
     if mode == PRODUCTION:
-        print(type(res[0]))
         eval_result.set_probability(res[0],res[1])
     else:
         eval_result.set_other_probs(res)
-
-
     return True
