@@ -246,7 +246,7 @@ def _write_csv_header(csv_writer) -> None:
 
 def _gen_job_from_domain_data(domain: dict[str, Any]) -> EvaluationJob:
 
-    job = EvaluationJob(domain['domain_name'],test_label=str(domain['label']).find('benign') != -1)
+    job = EvaluationJob(domain['domain_name'],test_label=str(domain['label']).find('benign') != -1, timeout=-1)
     domain.pop('label')
     job.set_domain_data(domain)
     return job

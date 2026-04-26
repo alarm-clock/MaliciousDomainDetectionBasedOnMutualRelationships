@@ -261,7 +261,7 @@ class GraphRepositoryABI(GraphRepository):
 
         return driver.get_domain_from_graph(domain_name)
 
-    def delete_temporary_domain(self, tmp_nd_id: int, job_id: str) -> None:
+    def delete_temporary_domain(self, tmp_nd_id: int, job_id: str | None) -> None:
         """
         Method that deletes temporary domain from graph
         :param tmp_nd_id: node_id of deleted temporary domain
@@ -273,8 +273,10 @@ class GraphRepositoryABI(GraphRepository):
         if driver is None:
             return
 
-        self._remove_tmp_from_transaction(job_id, driver, tmp_nd_id)
-        driver.delete_node({'node_id': tmp_nd_id},NodeTypes.TMP_DOMAIN.neo4j)
+        if job_id is not None:
+            self._remove_tmp_from_transaction(job_id, driver, tmp_nd_id)
+            driver.delete_node({'node_id': tmp_nd_id},NodeTypes.TMP_DOMAIN.neo4j)
+
         driver.close()
         return
 

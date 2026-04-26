@@ -164,9 +164,10 @@ class EvaluationJob:
         self._finish_time: float | None = None
         self._test_label = test_label
 
-        self._timeout = timeout
-        self._timeout_event = Event()
-        Thread(target=self._timeout_thrd, daemon=True, name=f'EvaluationTimeout{self._id}').start()
+        if timeout > 0.0:
+            self._timeout = timeout
+            self._timeout_event = Event()
+            Thread(target=self._timeout_thrd, daemon=True, name=f'EvaluationTimeout{self._id}').start()
 
     @property
     def state(self) -> EvaluationState:

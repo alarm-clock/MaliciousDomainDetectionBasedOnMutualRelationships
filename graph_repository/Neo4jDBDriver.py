@@ -226,6 +226,7 @@ class Neo4jDBDriver:
         """
 
         active_version = self.execute_write(query)
+        print(active_version)
         if len(active_version) == 0:
             return -1
 
@@ -449,12 +450,8 @@ class Neo4jDBDriver:
             return True
 
         query = f"""
-        OPTIONAL MATCH (old_version: {NodeTypes.CURRENT_VERSION.neo4j})
+        MERGE (old_version: {NodeTypes.CURRENT_VERSION.neo4j})
         SET old_version.version = {new_current_version}
-        """
-        """
-        DETACH DELETE old_version
-        CREATE (: {NodeTypes.CURRENT_VERSION.neo4j} {{version: {new_current_version}}})
         """
         self.execute_write(query)
         return True
