@@ -144,7 +144,7 @@ def _gen_embeds_parallel_safe(
             continue
         filt_res.append(res)
 
-    return filt_res
+    return zip(*filt_res)
 
 def _gen_embeds_parallel(models: list[tuple[MetaPath2Vec, DataLoader, str]], device: th.device, lr=0.01) -> tuple[list[th.Tensor], list[list[float]], list[str]]:
     """
