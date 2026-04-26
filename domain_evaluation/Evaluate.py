@@ -34,7 +34,7 @@ def _check_domains_neighborhood_maliciousness(tmp_nd_id: int, job: EvaluationJob
         res = repository.get_neighbors_maliciousness(tmp_nd_id)
     except Exception as e:
         MyLogger.get_instance().log_error(f"job {job.id}: Exception occurred while getting neighborhood stats: {e}")
-        job.set_error("Exception occurred while getting neighborhood stats: {e}")
+        job.set_error(f"Exception occurred while getting neighborhood stats: {e}")
         return
 
     job.result.set_times(time.time() - checking_start_t, EvaluationResult.Times.CALC_NEIGH_M_T)
@@ -47,7 +47,7 @@ def _check_domains_neighborhood_maliciousness(tmp_nd_id: int, job: EvaluationJob
 
     job.result.set_1_hop_perc(m_perc,b_perc)
     if b_perc == 1.0 or m_perc == 1.0:
-        MyLogger.get_instance().log(f"job {job.id}: Domain {job.domain} has only {'benign' if b_perc == 1.0 else 'malicious'} direct neighbors in graph")
+        MyLogger.get_instance().log(f"job {job.id}: Domain {job.domain_name} has only {'benign' if b_perc == 1.0 else 'malicious'} direct neighbors in graph")
         job.result.set_probability(m_perc, b_perc)
         job.result.set_times(time.time() - start_t, EvaluationResult.Times.END_T)
         job.set_state(EvaluationJob.EvaluationState.FINISHED)
@@ -254,7 +254,7 @@ def _gen_job_from_domain_data(domain: dict[str, Any]) -> EvaluationJob:
 
 def parallel_test(provider, class_out_f_name: str) -> None:
 
-    eval_lock = threading.Semaphore(4)
+    eval_lock = threading.Semaphore(3)
     with open(class_out_f_name, 'w') as f:
 
         csv_writer = csv.writer(f)
