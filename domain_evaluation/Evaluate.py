@@ -254,7 +254,7 @@ def _gen_job_from_domain_data(domain: dict[str, Any]) -> EvaluationJob:
 
 def parallel_test(provider, class_out_f_name: str) -> None:
 
-    eval_lock = threading.Semaphore(3)
+    eval_lock = threading.Semaphore(16)
     with open(class_out_f_name, 'w') as f:
 
         csv_writer = csv.writer(f)
@@ -286,7 +286,7 @@ def test_from_collection(path_to_config: str, class_out_f_name: str, filter_trai
     collection = db[conf["collection"]]
 
     # pick domains that are malicious [{"$match": {"train": False, "label": { "$not": {"$regex": "benign", "$options": "i"}}}}]
-    agg_filt = [{'$limit': 100}, {"$match": {"train": False}}] if filter_train else []
+    agg_filt = [{"$match": {"train": False}}] if filter_train else []
     cursor = collection.aggregate(agg_filt, batchSize=1000)
 
     parallel_test(cursor, class_out_f_name)

@@ -291,7 +291,7 @@ def classify_domain(g: dgl.DGLHeteroGraph, eval_result: EvaluationResult, mode: 
 
     _, counts = get_class_counts(g)
 
-    device = th.device('cuda' if th.cuda.is_available() else 'cpu')
+    device = th.device('cpu')  #th.device('cuda' if th.cuda.is_available() else 'cpu')
     MyLogger.get_instance().log(
         f"This device does {'' if th.cuda.is_available() else 'not'} have GPU, chosen device is {device}")
     g = g.to(device)

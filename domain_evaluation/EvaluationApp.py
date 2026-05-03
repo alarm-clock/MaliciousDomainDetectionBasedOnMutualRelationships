@@ -26,7 +26,7 @@ class EvaluationApp:
 
     _RESULT_REMOVAL_TIME = 600.0
 
-    def __init__(self, graph_repository: GraphRepository, max_evaluations: int = 16, max_gpu_evaluations: int = 4):
+    def __init__(self, graph_repository: GraphRepository, max_evaluations: int = 16, max_gpu_evaluations: int = 16):
 
         if self._evaluation_app_instance_ is None:
             self._repository = graph_repository
