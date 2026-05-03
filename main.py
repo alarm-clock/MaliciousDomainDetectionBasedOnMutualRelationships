@@ -4,7 +4,7 @@ import uvicorn
 import signal
 from api.app_api import ApiOptions, create_app
 from domain_evaluation.Evaluate import  test_from_collection
-from domain_evaluation.EvaluationApp import EvaluationApp
+from domain_evaluation.EvaluationApp import EvaluationApp, test_from_parquet
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
@@ -90,6 +90,7 @@ def main():
 
     test_parser = subparsers.add_parser('test')
     test_parser.add_argument('output', type=str, help="Path where output will be stored")
+    test_parser.add_argument('-p',type=str, help="Path to parquet file")
 
     server_parser = subparsers.add_parser('server')
     server_parser.add_argument('available_endpoints', type=str, help=f"Endpoints that will available, available options are: {', '.join([opt.value for opt in ApiOptions])}")
@@ -269,10 +270,16 @@ def main():
         mp.set_start_method("spawn")
         r = GraphRepository.init(GraphRepository.ABI, args.neo_db)
         if r is None:
-            print("picka")
+            print("amana hy")
             return
 
-        test_from_collection(args.mongo_db,args.output,True)
+        if args.p is None:
+            test_from_collection(args.mongo_db,args.output,True)
+        else:
+            EvaluationApp(r)
+
+            test_from_parquet(args.p,args.output)
+
     """
     elif args.mode == 'classify':
         if args.json is not None:

@@ -290,3 +290,4 @@ def test_from_collection(path_to_config: str, class_out_f_name: str, filter_trai
     cursor = collection.aggregate(agg_filt, batchSize=1000)
 
     parallel_test(cursor, class_out_f_name)
+

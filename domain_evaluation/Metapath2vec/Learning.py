@@ -52,19 +52,20 @@ def _train_log_regress_and_cls(
 
         if mode == TESTING:
             results_dict[path_names[cnt]] = result[0]
-        avg_0.append(result[0][0])
-        avg_1.append(result[0][1])
+            avg_0.append(result[0][0])
+            avg_1.append(result[0][1])
 
+    if mode == TESTING and len(avg_0) > 0:
         avg_mal = sum(avg_0) / len(avg_0)
         abg_ben = sum(avg_1) / len(avg_1)
         results_dict['AVERAGE'] = numpy.array([avg_mal, abg_ben])
 
-    if mode == TESTING:
-        concat_embeds = th.cat(embeddings, dim=1)
-        result_concat = _train_regress(concat_embeds, train_mask, classify_mask, labels, scale)
-        results_dict['CONCAT'] = result_concat[0]
+    #if mode == PRODUCTION:
+    concat_embeds = th.cat(embeddings, dim=1)
+    result_concat = _train_regress(concat_embeds, train_mask, classify_mask, labels, scale)
+    results_dict['CONCAT'] = result_concat[0]
 
-    return results_dict['AVERAGE'] if mode == PRODUCTION else results_dict
+    return results_dict['CONCAT'] if mode == PRODUCTION else results_dict
 
 def _train_metapath2vec(model_loader: tuple[MetaPath2Vec, DataLoader, str], device: th.device, lr: float, cnt: int) -> tuple[th.Tensor, list[float], str]:
     """

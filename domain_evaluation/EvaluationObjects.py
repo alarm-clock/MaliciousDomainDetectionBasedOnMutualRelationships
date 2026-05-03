@@ -262,6 +262,13 @@ class EvaluationJob:
 
                 start_idx, end_idx = self.__EXISTING_RESULT_PROVIDERS[provider]
                 csv_list[start_idx: end_idx] = [m_prob, b_prob, prediction, correct]
+        else:
+            m_prob, b_prob = self.result.get_probability
+            prediction = int(b_prob > 0.5)
+            correct = int(int(self._test_label) == prediction)
+            start_idx, end_idx = self.__EXISTING_RESULT_PROVIDERS['CONCAT']
+            csv_list[start_idx: end_idx] = [m_prob, b_prob, prediction, correct]
+
 
         csv_list.extend(self.result.get_times)
 

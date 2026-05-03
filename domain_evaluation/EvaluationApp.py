@@ -4,15 +4,17 @@ Author: Jozef Michal Bukas <xbukas00@stud.fit.vutbr.cz>
 Date: 21.4.2026
 Brief: File containing evaluation application singleton class which implements application loop
 """
+import csv
 import time
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
-from domain_evaluation.Evaluate import evaluate_domain_metapath2vec
+from domain_evaluation.Evaluate import evaluate_domain_metapath2vec, parse_evaluation_result
 from domain_evaluation.EvaluationObjects import EvaluationJob, EvaluationResult
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from threading import Semaphore, Event, Lock, Thread
 from data_extraction.dnsExtractor import extract_dns_sync, DnsErr
 from misc.Logger import MyLogger
+import pandas as pd
 
 
 class EvaluationApp:
@@ -156,4 +158,32 @@ class EvaluationApp:
 
         return job.id
 
+
+
+def submit_domain(eval_job: EvaluationJob, csv_writer) -> None:
+    eval_app = EvaluationApp.get_instance()
+    if eval_app is None:
+        return
+
+    eval_app._evaluate_domain(eval_job)
+    parse_evaluation_result(eval_job,csv_writer)
+
+
+def test_from_parquet(path_to_file: str, class_out_f_name: str) -> None:
+    df = pd.read_parquet(path_to_file)
+    df = df[['domain_name', 'label']]
+    df = df['label'].map({
+        'good':'benign',
+        'bad':'malicious'
+    })
+
+    jobs = []
+    for domain in df.itertuples(index=False):
+        job = EvaluationJob(domain.domain_name, timeout=-1, test_label= domain.label == 'benign')
+        jobs.append(job)
+
+    with open(class_out_f_name, 'w') as f:
+        writer = csv.writer(f)
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [executor.submit(submit_domain, job, writer) for job in jobs]
 
