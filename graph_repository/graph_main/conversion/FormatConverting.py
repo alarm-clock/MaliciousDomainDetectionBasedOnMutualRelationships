@@ -271,7 +271,7 @@ def prepare_dgl_g_for_ml(graph: DGLHeteroGraph) -> dgl.DGLHeteroGraph:
     """
     Function for preparing dgl graph for metapath2vec, mainly changing tmp domain into regular one, note that
     this function only works correctly if there is only one tmp domain (there is no reason for existence of two
-    tmp domains in one graph), NOTE that for memory consumption reasons the old graph is deleted
+    tmp domains in one graph), NOTE that for memory consumption reasons the old graph is ``DELETED``
     :param graph: `DglHeteroGraph` instance that is original graph in dgl format that will be updated
     :return: New, updated, graph
     """

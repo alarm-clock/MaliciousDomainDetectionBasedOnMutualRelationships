@@ -1,3 +1,6 @@
+import copy
+import threading
+import time
 from typing import Any
 import requests
 import json
@@ -6,7 +9,19 @@ import string
 import ipaddress
 import argparse
 import time as t
+from pathlib import Path
+import matplotlib.pyplot as plt
 from tqdm import tqdm
+
+from domain_evaluation.Evaluate import evaluate_domain_metapath2vec
+from domain_evaluation.EvaluationApp import EvaluationApp
+from domain_evaluation.EvaluationObjects import EvaluationJob
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver
+from graph_repository.graph_main.GraphRepository import GraphRepository
+from graph_repository.graph_main.graph_editing.EditConsumer import _handle_request
+from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
+from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
+from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 
 SIZES = [10, 50, 100, 250, 500, 750, 1000, 2000, 5000, 10000]
 BASE_TLDS = ["com", "cz", "sk", "at", "net", "org","us", "ru", "co", "uk", "hu", "de", "edu", "ro", "co.uk", "mil", "gov" ]
@@ -55,7 +70,7 @@ def generate_dns():
     dns = {}
 
     # Occasionally create a new shared IP group
-    if rng.random() < 0.1:  # 10% chance
+    if rng.random() < 0.5:  # 10% chance
         group_size = rng.randint(1, 100)
 
         shared_ip4 = random_ipv4()
@@ -106,7 +121,7 @@ def generate_domain_record():
 
     return {
         "domain_name": domain,
-        "label": "benign",
+        "label": "benign" if rng.random() < 0.5 else "malicious",
         "other_data": rand_label(20, 40),
         "dns": dns
     }
@@ -130,6 +145,8 @@ def send(req_body: dict[str, Any], pbar, pbar_add: int, url) -> None:
     response = requests.post(url, json=req_body)
     print(response)
     pbar.update(pbar_add)
+
+
 
 def gen_send(N: int, size: int, interval: int, url, time) -> None:
 
@@ -159,6 +176,315 @@ def load_send(url: str, file: str, size: int, interval: int, time) -> None:
         t.sleep(time)
         cnt = next_cnt
 
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+
+
+def visualize_test_results(
+        req_times: list[float],
+        node_cnts: list[int],
+        edge_cnts: list[int],
+        eval_times: list[float],
+        eval_mod: int,
+        out_dir: str = "figures",
+) -> None:
+    """
+    Creates visualization figures for:
+
+    Request times:
+    - vs node counts
+    - vs edge counts
+    - vs total graph size (nodes + edges)
+
+    Evaluation times:
+    - vs node counts
+    - vs edge counts
+    - vs total graph size
+
+    Combined plots:
+    - request + evaluation vs node counts
+    - request + evaluation vs edge counts
+    - request + evaluation vs total graph size
+    """
+
+    # ---------------------------------------------------------
+    # Validation
+    # ---------------------------------------------------------
+
+    if not (
+            len(req_times)
+            == len(node_cnts)
+            == len(edge_cnts)
+    ):
+        raise ValueError(
+            "req_times, node_cnts and edge_cnts "
+            "must have same length"
+        )
+
+    if eval_mod <= 0:
+        raise ValueError("eval_mod must be > 0")
+
+    eval_n_cnts = node_cnts[::eval_mod]
+    eval_e_cnts = edge_cnts[::eval_mod]
+
+    expected_eval_len = len(eval_n_cnts)
+
+    if len(eval_times) != expected_eval_len:
+        raise ValueError(
+            f"eval_times length ({len(eval_times)}) "
+            f"does not match expected length "
+            f"({expected_eval_len}) "
+            f"for eval_mod={eval_mod}"
+        )
+
+    # ---------------------------------------------------------
+    # Prepare output directory
+    # ---------------------------------------------------------
+
+    output_path = Path(out_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # ---------------------------------------------------------
+    # Derived metrics
+    # ---------------------------------------------------------
+
+    total_sizes = [
+        n + e
+        for n, e in zip(node_cnts, edge_cnts)
+    ]
+
+    eval_total_sizes = [
+        n + e
+        for n, e in zip(eval_n_cnts, eval_e_cnts)
+    ]
+
+    # ---------------------------------------------------------
+    # Plot helpers
+    # ---------------------------------------------------------
+
+    def save_single_plot(
+            x_data,
+            y_data,
+            xlabel: str,
+            ylabel: str,
+            title: str,
+            filename: str,
+    ) -> None:
+
+        plt.figure(figsize=(10, 6))
+
+        plt.plot(
+            x_data,
+            y_data,
+            marker="o",
+        )
+
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+
+        plt.grid(True)
+
+        plt.tight_layout()
+
+        plt.savefig(output_path / filename)
+
+        plt.close()
+
+    def save_combined_plot(
+            x1_data,
+            y1_data,
+            x2_data,
+            y2_data,
+            xlabel: str,
+            title: str,
+            filename: str,
+    ) -> None:
+
+        plt.figure(figsize=(10, 6))
+
+        plt.plot(
+            x1_data,
+            y1_data,
+            marker="o",
+            label="Request Time",
+        )
+
+        plt.plot(
+            x2_data,
+            y2_data,
+            marker="o",
+            label="Evaluation Time",
+        )
+
+        plt.xlabel(xlabel)
+        plt.ylabel("Time (s)")
+        plt.title(title)
+
+        plt.legend()
+        plt.grid(True)
+
+        plt.tight_layout()
+
+        plt.savefig(output_path / filename)
+
+        plt.close()
+
+    # ---------------------------------------------------------
+    # Request time plots
+    # ---------------------------------------------------------
+
+    save_single_plot(
+        node_cnts,
+        req_times,
+        "Node Count",
+        "Request Time (s)",
+        "Request Time vs Node Count",
+        "req_vs_nodes.png",
+    )
+
+    save_single_plot(
+        edge_cnts,
+        req_times,
+        "Edge Count",
+        "Request Time (s)",
+        "Request Time vs Edge Count",
+        "req_vs_edges.png",
+    )
+
+    save_single_plot(
+        total_sizes,
+        req_times,
+        "Nodes + Edges",
+        "Request Time (s)",
+        "Request Time vs Total Graph Size",
+        "req_vs_total.png",
+    )
+
+    # ---------------------------------------------------------
+    # Evaluation time plots
+    # ---------------------------------------------------------
+
+    save_single_plot(
+        eval_n_cnts,
+        eval_times,
+        "Node Count",
+        "Evaluation Time (s)",
+        "Evaluation Time vs Node Count",
+        "eval_vs_nodes.png",
+    )
+
+    save_single_plot(
+        eval_e_cnts,
+        eval_times,
+        "Edge Count",
+        "Evaluation Time (s)",
+        "Evaluation Time vs Edge Count",
+        "eval_vs_edges.png",
+    )
+
+    save_single_plot(
+        eval_total_sizes,
+        eval_times,
+        "Nodes + Edges",
+        "Evaluation Time (s)",
+        "Evaluation Time vs Total Graph Size",
+        "eval_vs_total.png",
+    )
+
+    # ---------------------------------------------------------
+    # Combined plots
+    # ---------------------------------------------------------
+
+    save_combined_plot(
+        node_cnts,
+        req_times,
+        eval_n_cnts,
+        eval_times,
+        "Node Count",
+        "Request vs Evaluation Time (Nodes)",
+        "combined_nodes.png",
+    )
+
+    save_combined_plot(
+        edge_cnts,
+        req_times,
+        eval_e_cnts,
+        eval_times,
+        "Edge Count",
+        "Request vs Evaluation Time (Edges)",
+        "combined_edges.png",
+    )
+
+    save_combined_plot(
+        total_sizes,
+        req_times,
+        eval_total_sizes,
+        eval_times,
+        "Nodes + Edges",
+        "Request vs Evaluation Time (Total Graph Size)",
+        "combined_total.png",
+    )
+
+    print(
+        f"Saved all figures to: "
+        f"{output_path.resolve()}"
+    )
+
+
+def direct_test(neo4j_conf: str, stable: str) -> None:
+    stop_event = threading.Event()
+    gpu_sem = threading.Semaphore(16)
+
+    N = 20
+    n = 1000
+    eval_mod = 2
+
+    req_times = []
+    node_cnts = []
+    edge_cnts = []
+    eval_times = []
+
+    with open(stable, "r") as f:
+        data = json.load(f)
+
+    domains = data["domains"]
+    req = EditRequest(domains,RequestPriority.CRITICAL,-1)
+    req._first_filter = False
+    _handle_request(req,stop_event,neo4j_conf)
+
+    domain ={
+        "domain_name": "test.domain.for.eval.test",
+        "dns":{
+            "A": ["84.21.198.54","49.212.238.9"],
+            "CNAME": "ywoih.qwhebv.riz.xrbxkbbspq.x.test"
+        }
+    }
+
+    for cnt in range(N):
+        generated_domains = generate_json(n)['domains']
+        req = EditRequest(generated_domains, RequestPriority.CRITICAL,-1)
+        req._first_filter = False
+        n_cnt, e_cnt = Neo4jDBDriver.from_config(neo4j_conf).get_node_and_edge_cnt()
+        start_t = time.time()
+        _handle_request(req,stop_event,neo4j_conf)
+        time_taken = time.time() - start_t
+        req_times.append(time_taken)
+        node_cnts.append(n_cnt)
+        edge_cnts.append(e_cnt)
+
+        if cnt % eval_mod == 0:
+            dom_copy = copy.deepcopy(domain)
+            job = EvaluationJob(str(dom_copy['domain_name']),timeout=-1)
+            job.set_domain_data(dom_copy)
+            eval_start_t = time.time()
+            evaluate_domain_metapath2vec(job,gpu_sem)
+            eval_time_taken = time.time() - eval_start_t
+            eval_times.append(eval_time_taken)
+
+    visualize_test_results(req_times,node_cnts,edge_cnts,eval_times,eval_mod)
 
 def main():
     parser = argparse.ArgumentParser()

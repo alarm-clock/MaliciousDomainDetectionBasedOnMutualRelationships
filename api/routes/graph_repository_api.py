@@ -120,8 +120,6 @@ async def job_status(req_id: str):
     Endpoint for getting request status
     """
 
-    repo = GraphRepository.get_instance()
-    print(repo)
     status = GraphRepository.get_instance().get_request_state(req_id)
     if status is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -138,9 +136,15 @@ async def rm_fin_req():
 @router.get("/info")
 async def sys_info():
     n_r, n_f, n_t, m_p, m_a, t_a, t_l = MyLogger.get_instance().log_stats()
+    driver = GraphRepository.get_instance().get_neo4j_driver()
+    curr_version = driver.get_current_active_graph_version()
+    n_cnt, e_cnt = driver.get_node_and_edge_cnt(curr_version)
+    driver.close()
+
     return {"Requests": {"Total": n_r, "Finished": n_f, "Timeout": n_t},
             "Memory": {"Used%": m_p, "Available": m_a},
-            "Time": {"Avg": t_a, "Last": t_l}
+            "Time": {"Avg": t_a, "Last": t_l},
+            "Counts": {"Nodes": n_cnt, "Edges": e_cnt}
             }
 
 class ReadQuery(BaseModel):

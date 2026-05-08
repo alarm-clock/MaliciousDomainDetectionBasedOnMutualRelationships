@@ -31,7 +31,7 @@ class DnsErr(Enum):
         else:
             return "Unknown error"
 
-async def _get_domain_records(domain: str, record: str, n_retries: int = 3) -> list[str] | DnsErr:
+async def _get_domain_records(domain: str, record: str, n_retries: int = 4) -> list[str] | DnsErr:
 
     for resolve_try in range(n_retries):
 

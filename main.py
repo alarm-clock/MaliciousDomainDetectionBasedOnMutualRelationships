@@ -5,6 +5,7 @@ import signal
 from api.app_api import ApiOptions, create_app
 from domain_evaluation.Evaluate import  test_from_collection
 from domain_evaluation.EvaluationApp import EvaluationApp, test_from_parquet
+from evaluation.graph_repository.generate_and_send_new_domains import direct_test
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
@@ -50,6 +51,7 @@ def main():
     import_parser = subparsers.add_parser('import_db')
     import_parser.add_argument('--dgl', action='store_true', help="Import from mongodb and create dgl graph")
     import_parser.add_argument('--neo', action='store_true', help="Import from mongodb and create neo4j graph")
+    import_parser.add_argument('--empty',action='store_true', help="Create empty graph")
     import_parser.add_argument('--dgl_exp', type=str, help="Path where created dgl graph will be stored")
     import_parser.add_argument('-e', '--etypes', type=str, help="Edge types that will be created, specified in format \"etype1,etype2,...\"")
     import_parser.add_argument("-r", "--ranges", type=str, help="Ranges specified in format \"start1,end1,start2,end2,...\"")
@@ -92,6 +94,9 @@ def main():
     test_parser.add_argument('output', type=str, help="Path where output will be stored")
     test_parser.add_argument('-p',type=str, help="Path to parquet file")
 
+    size_parser = subparsers.add_parser('size_test')
+    size_parser.add_argument('-p',type=str, help="Path to stable file")
+
     server_parser = subparsers.add_parser('server')
     server_parser.add_argument('available_endpoints', type=str, help=f"Endpoints that will available, available options are: {', '.join([opt.value for opt in ApiOptions])}")
     server_parser.add_argument('-a','--address',metavar='HOST', type=str, help="Host to which will server bind", default='localhost')
@@ -129,6 +134,10 @@ def main():
             except CouldNotConnect:
                 print("Could not connect to Neo4j server", file=sys.stderr)
                 return
+            return
+
+        if args.empty:
+            Neo4jDBDriver.from_config(args.neo_db).create_empty_graph()
             return
 
         if args.convert_supporting:
@@ -279,6 +288,18 @@ def main():
             EvaluationApp(r)
 
             test_from_parquet(args.p,args.output)
+
+    if args.mode == "size_test":
+        mp.set_start_method("spawn")
+        r = GraphRepository.init(GraphRepository.ABI, args.neo_db)
+        if r is None:
+            print("amana hy")
+            return
+
+        EvaluationApp(r)
+        direct_test(args.neo_db, args.p)
+        EvaluationApp.get_instance().stop()
+        GraphRepository.get_instance().stop()
 
     """
     elif args.mode == 'classify':
