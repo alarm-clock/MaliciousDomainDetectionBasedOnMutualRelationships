@@ -163,10 +163,10 @@ class EvaluationJob:
         self._error_description = ""
         self._finish_time: float | None = None
         self._test_label = test_label
+        self._timeout = timeout
+        self._timeout_event = Event()
 
         if timeout > 0.0:
-            self._timeout = timeout
-            self._timeout_event = Event()
             Thread(target=self._timeout_thrd, daemon=True, name=f'EvaluationTimeout{self._id}').start()
 
     @property
@@ -240,8 +240,11 @@ class EvaluationJob:
             self.set_state(EvaluationJob.EvaluationState.TIMEOUT)
             self.result.set_error("Timeout")
 
-    __EXISTING_RESULT_PROVIDERS = {EdgeTypes.CNAME.value: (9, 13), EdgeTypes.SUBDOMAIN.value : (13, 17), EdgeTypes.TRANSLATES.value: (17, 21),
-                                   'AVERAGE': (21, 25), 'CONCAT': (25, 29)}
+    __EXISTING_RESULT_PROVIDERS = {EdgeTypes.CNAME.value: (10, 14),
+                                   EdgeTypes.SUBDOMAIN.value : (14, 18),
+                                   EdgeTypes.TRANSLATES.value: (18, 22),
+                                   'AVERAGE': (22, 26),
+                                   'CONCAT': (26, 30)}
 
     def to_text_csv_output(self) -> list[Any]:
 
@@ -266,7 +269,7 @@ class EvaluationJob:
             m_prob, b_prob = self.result.get_probability
             prediction = int(b_prob > 0.5)
             correct = int(int(self._test_label) == prediction)
-            start_idx, end_idx = self.__EXISTING_RESULT_PROVIDERS['CONCAT']
+            start_idx, end_idx = self.__EXISTING_RESULT_PROVIDERS['AVERAGE']
             csv_list[start_idx: end_idx] = [m_prob, b_prob, prediction, correct]
 
 

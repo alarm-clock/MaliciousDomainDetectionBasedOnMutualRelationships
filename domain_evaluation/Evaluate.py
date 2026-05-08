@@ -13,9 +13,6 @@ from domain_evaluation.Metapath2vec.Learning import classify_domain, check_for_d
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from misc.Logger import MyLogger
 
-__EXISTING_RESULT_PROVIDERS = {'STANDALONE_1': (7,11), 'STANDALONE_2': (11,15), 'STANDALONE_3': (15,19), 'AVERAGE': (19,23), 'CONCAT': (23,27)}
-
-
 def _check_domains_neighborhood_maliciousness(tmp_nd_id: int, job: EvaluationJob, repository: GraphRepository, start_t: float) -> None:
     """
     Method that checks what percentage of direct neighbors in graphs are benign and which malicious. Direct is here meant
@@ -236,7 +233,7 @@ def parse_evaluation_result(eval_result: EvaluationJob, csv_writer) -> None:
     csv_arr = eval_result.to_text_csv_output()
     csv_writer.writerow(csv_arr)
 
-def _write_csv_header(csv_writer) -> None:
+def write_csv_header(csv_writer) -> None:
     csv_writer.writerow(
         ["domain_name",'fin_state', "label", "no_neighbor", "already_in_graph", "n_good", "n_bad", "n_total", '1_hop_mal_p',
          '1_hop_ben_p','m_p_CNAME', 'b_p_CNAME', 'CNAME_pred', 'CNAME_c', 'm_p_SUBD', "b_p_SUBD", "SUBD_pred", "SUBD_c",
@@ -258,7 +255,7 @@ def parallel_test(provider, class_out_f_name: str) -> None:
     with open(class_out_f_name, 'w') as f:
 
         csv_writer = csv.writer(f)
-        _write_csv_header(csv_writer)
+        write_csv_header(csv_writer)
 
         with ThreadPoolExecutor(max_workers=16) as executor:
             futures = [executor.submit(evaluate_domain_metapath2vec, _gen_job_from_domain_data(domain) , eval_lock, True) for domain in provider]
