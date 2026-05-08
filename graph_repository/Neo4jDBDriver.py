@@ -302,59 +302,59 @@ class Neo4jDBDriver:
 
         if req_number_of_ids != 1:
             query = f"""
-            {acquire_lock_query}
-            
-            MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
-            WITH free_id
-            LIMIT {req_number_of_ids}
-            WITH collect(free_id) AS free_nodes
-            WITH free_nodes, [x IN free_nodes | x.node_id] as reused_ids
-            
-            FOREACH (x IN free_nodes | DELETE x)
-            
-            WITH reused_ids, {req_number_of_ids} - size(reused_ids) AS rem_cnt
-            
-            CALL(rem_cnt){{
-                WITH rem_cnt
-                WHERE rem_cnt > 0
-                MATCH (counter: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t.neo4j}' }})
-                SET counter.val = counter.val + rem_cnt
-                RETURN range(counter.val - rem_cnt, counter.val - 1) AS allocated_ids 
+                {acquire_lock_query}
                 
-                UNION
+                MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
+                WITH free_id
+                LIMIT {req_number_of_ids}
+                WITH collect(free_id) AS free_nodes
+                WITH free_nodes, [x IN free_nodes | x.node_id] as reused_ids
                 
-                WITH rem_cnt
-                WHERE rem_cnt = 0
-                RETURN [] AS allocated_ids
-            }}
-            RETURN reused_ids + coalesce( allocated_ids, []) AS free_node_ids
+                FOREACH (x IN free_nodes | DELETE x)
+                
+                WITH reused_ids, {req_number_of_ids} - size(reused_ids) AS rem_cnt
+                
+                CALL(rem_cnt){{
+                    WITH rem_cnt
+                    WHERE rem_cnt > 0
+                    MATCH (counter: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t.neo4j}' }})
+                    SET counter.val = counter.val + rem_cnt
+                    RETURN range(counter.val - rem_cnt, counter.val - 1) AS allocated_ids 
+                    
+                    UNION
+                    
+                    WITH rem_cnt
+                    WHERE rem_cnt = 0
+                    RETURN [] AS allocated_ids
+                }}
+                RETURN reused_ids + coalesce( allocated_ids, []) AS free_node_ids
             """
         else:
 
             query = f"""
-            {acquire_lock_query}
-
-            OPTIONAL MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
-            WITH free_id
-            LIMIT 1
-            
-            CALL (free_id) {{
+                {acquire_lock_query}
+    
+                OPTIONAL MATCH (free_id: {n_t.neo4j}{Neo4jDBDriver._FREE_NODE_ID_POSTFIX})
                 WITH free_id
-                WHERE free_id IS NOT NULL
-                WITH free_id.node_id AS free_node_id, free_id
-                DELETE free_id
-                RETURN free_node_id
-
-                UNION
+                LIMIT 1
                 
-                WITH free_id
-                WHERE free_id IS NULL
-                MATCH (counter: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t.neo4j}' }})
-                SET counter.val = counter.val + 1
-                RETURN counter.val - 1 AS free_node_id
-            }}
-            
-            RETURN free_node_id
+                CALL (free_id) {{
+                    WITH free_id
+                    WHERE free_id IS NOT NULL
+                    WITH free_id.node_id AS free_node_id, free_id
+                    DELETE free_id
+                    RETURN free_node_id
+    
+                    UNION
+                    
+                    WITH free_id
+                    WHERE free_id IS NULL
+                    MATCH (counter: {NodeTypes.ND_ID_CNT.neo4j} {{cnt_name: '{n_t.neo4j}' }})
+                    SET counter.val = counter.val + 1
+                    RETURN counter.val - 1 AS free_node_id
+                }}
+                
+                RETURN free_node_id
             """
 
         if as_subquery:
@@ -409,9 +409,9 @@ class Neo4jDBDriver:
         """
 
         return f"""
-        WITH {'"'+ (n_t.neo4j if type(n_t) == NodeTypes else n_t) + '"'} || "{Neo4jDBDriver._FREE_NODE_ID_POSTFIX}" AS del_q_n_t, {with_survival} 
-        CREATE (:$(del_q_n_t) {{node_id: {id_var_name} }})
-        """ + ('' if last else 'WITH ' + with_survival )
+            WITH {'"'+ (n_t.neo4j if isinstance(n_t, NodeTypes) else n_t) + '"'} || "{Neo4jDBDriver._FREE_NODE_ID_POSTFIX}" AS del_q_n_t {',' if with_survival != '' else ''} {with_survival} 
+            CREATE (:$(del_q_n_t) {{node_id: {id_var_name} }})
+        """ + ('' if last or with_survival == '' else 'WITH ' + with_survival )
 
 
     def return_unused_node_ids(self, n_t: NodeTypes, node_ids: int | list[int]) -> None:
@@ -450,8 +450,8 @@ class Neo4jDBDriver:
             return True
 
         query = f"""
-        MERGE (old_version: {NodeTypes.CURRENT_VERSION.neo4j})
-        SET old_version.version = {new_current_version}
+            MERGE (old_version: {NodeTypes.CURRENT_VERSION.neo4j})
+            SET old_version.version = {new_current_version}
         """
         self.execute_write(query)
         return True
@@ -466,10 +466,10 @@ class Neo4jDBDriver:
             index_names.append(index_name)
 
             query = f"""
-            CREATE INDEX {index_name}
-            IF NOT EXISTS
-            FOR (n: {label})
-            ON (n.node_id, n.graph_version);
+                CREATE INDEX {index_name}
+                IF NOT EXISTS
+                FOR (n: {label})
+                ON (n.node_id, n.graph_version);
             """
 
             self.execute_write(query)
@@ -485,10 +485,10 @@ class Neo4jDBDriver:
         """
 
         query = f"""
-        SHOW INDEXES
-        YIELD name, state, populationPercent
-        WHERE state = 'POPULATING' OR state = 'ERROR' {'AND name IN $index_names' if index_names is not None else ''} 
-        RETURN name, state, populationPercent
+            SHOW INDEXES
+            YIELD name, state, populationPercent
+            WHERE state = 'POPULATING' OR state = 'ERROR' {'AND name IN $index_names' if index_names is not None else ''} 
+            RETURN name, state, populationPercent
         """
 
         all_created = False
@@ -526,16 +526,16 @@ class Neo4jDBDriver:
         node_label_lock_q = "\" AND label <> \"".join([n_t_str + Neo4jDBDriver._FREE_NODE_ID_POSTFIX_LOCK for n_t_str in NodeTypes.get_data_n_t_str()])
 
         return self.execute_read(f"""
-        CALL db.labels() 
-        YIELD label 
-        WHERE label <> "{NodeTypes.VERSION.neo4j}" AND 
-              label <> "{NodeTypes.CURRENT_VERSION.neo4j}" AND 
-              label <> "{NodeTypes.TMP_DOMAIN.neo4j}" AND
-              label <> "{NodeTypes.ND_ID_CNT.neo4j}" AND
-              label <> "{NodeTypes.MAINTENANCE.neo4j}" AND
-              label <> "{node_label_q}" AND 
-              label <> "{node_label_lock_q}"
-        RETURN collect(label) AS lab
+            CALL db.labels() 
+            YIELD label 
+            WHERE label <> "{NodeTypes.VERSION.neo4j}" AND 
+                  label <> "{NodeTypes.CURRENT_VERSION.neo4j}" AND 
+                  label <> "{NodeTypes.TMP_DOMAIN.neo4j}" AND
+                  label <> "{NodeTypes.ND_ID_CNT.neo4j}" AND
+                  label <> "{NodeTypes.MAINTENANCE.neo4j}" AND
+                  label <> "{node_label_q}" AND 
+                  label <> "{node_label_lock_q}"
+            RETURN collect(label) AS lab
         """)[0]['lab']
 
     def get_all_relationships_in_graph(self) -> list[str]:
@@ -544,9 +544,9 @@ class Neo4jDBDriver:
         :return: `list[str]` with all relationships types
         """
         return self.execute_read(f"""
-        CALL db.relationshipTypes()
-        YIELD relationshipType
-        RETURN collect(relationshipType) AS rel
+            CALL db.relationshipTypes()
+            YIELD relationshipType
+            RETURN collect(relationshipType) AS rel
         """)[0]['rel']
 
 
@@ -570,7 +570,7 @@ class Neo4jDBDriver:
                 "DETACH DELETE n",
                 {{
                     batchSize: {self._batch_size},
-                    parallel: true,
+                    parallel: false,
                     batchMode: 'BATCH'
                 }}
             ) YIELD batch
@@ -793,7 +793,8 @@ class Neo4jDBDriver:
                      only_rels_with_domains: bool = True, ignore_subdomains: bool = False,
                      version: int = VERSION_MAX ) -> None:
         """
-        Method that deletes `nodes` and optionally deletes neighbors that won't have any other relation after `nodes` are deleted
+        Method that deletes `nodes` and optionally deletes neighbors that won't have any other relation after `nodes` are deleted.
+        If domain is in relationships with other domains, it will be transformed into dummy domain and relations with non-domain nodes will be deleted.
         :param nodes: `list[dict]` of nodes where dictionary contains element name/s that will be matched to find node that will be deleted
         :param n_t: `NodeTypes` node type of deleted nodes
         :param only_rels_with_domains: `bool` flag indicating if only relations with domains should be counted, only used if `del_lone_neigh` is true, defaults to `True`
@@ -818,11 +819,51 @@ class Neo4jDBDriver:
         MATCH (n: {n_t.neo4j} {{ {items_str} {get_version_query(version,False)} }})
         //must put this before opt match because otherwise rows would explode and node id would be returned many many times
         {Neo4jDBDriver.get_node_id_return_query(n_t, "n.node_id", 'n', False)}
+        CALL (n) {{
+            WITH n
+            MATCH (n)--(:{NodeTypes.DOMAIN.neo4j})
+            WITH n
+            LIMIT 1
+            {self.get_free_node_id_query(NodeTypes.DUMMY_DOMAIN, True)}
+            CREATE(d_n:{NodeTypes.DUMMY_DOMAIN.neo4j})
+            SET d_n = apoc.map.setKey(properties(n), 'node_id', free_node_id)
+            REMOVE d_n.label, d_n.other_data
+            WITH n, d_n
+            CALL (n, d_n) {{
+                WITH n, d_n
+                //do this only if domain has subdomains, if not, then ignore it
+                MATCH (n)-[r:{EdgeTypes.SUBDOMAIN.value}]->(d: ({NodeTypes.DOMAIN.neo4j}|{NodeTypes.DUMMY_DOMAIN.neo4j}))
+                WHERE n.domain_name IN d.parent_domains
+                LIMIT 1
+                WITH n, d_n
+                MATCH (n)-[r:{EdgeTypes.SUBDOMAIN.value}]->(d: ({NodeTypes.DOMAIN.neo4j}|{NodeTypes.DUMMY_DOMAIN.neo4j}))
+                CALL apoc.create.relationship(d_n, type(r), properties(r), d) YIELD rel
+                WITH d_n, r, d
+                CALL apoc.create.relationship(d, type(r), properties(r), d_n) YIELD rel
+                RETURN COUNT(*) AS _
+            }}            
+            WITH n, d_n
+            CALL (n, d_n) {{
+                WITH n, d_n
+                MATCH (d)-[r:{EdgeTypes.CNAME.value}]->(n)
+                WHERE r.owner = d.domain_name
+                CALL apoc.create.relationship(d_n, type(r), properties(r), d) YIELD rel
+                WITH d_n, r, d
+                CALL apoc.create.relationship(d, type(r), properties(r), d_n) YIELD rel
+                
+                RETURN COUNT(*) AS __
+            }}
+            //if domain had relations with other domains but it was determined that it should be deleted entirely then delete dummy
+            FOREACH (_ IN CASE WHEN COUNT {{(d_n)--()}} = 0 THEN [1] ELSE [] END |
+                DETACH DELETE d_n 
+            )
+            RETURN COUNT(*) AS _
+        }} 
         OPTIONAL MATCH (n)-{ignore_subdomains}-(node_for_del:!{NodeTypes.DOMAIN.neo4j}  {{ {get_version_query(version, True)} }} )
         DETACH DELETE n
 
         WITH DISTINCT node_for_del WHERE node_for_del IS NOT NULL AND COUNT {{(node_for_del)--(m_other_rel{where_label})}} = 0 
-        {Neo4jDBDriver.get_node_id_return_query("labels(node_for_del)[0]", "node_for_del.node_id", f'node_for_del', True)}
+        {Neo4jDBDriver.get_node_id_return_query("$(labels(node_for_del)[0])", "node_for_del.node_id", f'node_for_del', True)}
         DETACH DELETE node_for_del
         """
 
@@ -1121,6 +1162,54 @@ class Neo4jDBDriver:
         """
 
         return self.execute_read(query)
+
+    def create_empty_graph(self) -> None:
+        self.set_new_graph_version_node(1)
+        self.set_new_current_graph_version_node(1)
+
+        for n_t in NodeTypes.get_data_n_t_str():
+
+            constraint_query = f"""
+                CREATE CONSTRAINT {n_t}_unique_node_id_version_combo
+                IF NOT EXISTS
+                FOR (t:{n_t})
+                REQUIRE (t.node_id, t.graph_version) IS UNIQUE
+            """
+            index_query = f"""
+                CREATE INDEX {n_t}NodeIdIndex
+                IF NOT EXISTS
+                FOR (n:{n_t})
+                ON (n.node_id);
+            """
+
+            self.execute_write(constraint_query)
+            self.execute_write(index_query)
+
+        dummy_labels = NodeTypes.get_supporting_dummies_n_t()
+        dummy_labels.append(NodeTypes.DOMAIN)
+        dummy_labels.append(NodeTypes.DUMMY_DOMAIN)
+
+        for label in dummy_labels:
+            query = f"""
+                CREATE INDEX Domain_Name_Index_{label.neo4j} 
+                IF NOT EXISTS
+                FOR (d: {label.neo4j})
+                ON (d.domain_name);
+            """
+
+            self.execute_write(query)
+
+    def get_node_and_edge_cnt(self, version: int = 1) -> tuple[int, int]:
+
+        labels = '|'.join(self.get_all_labels_in_graph())
+        query = f"""
+            MATCH (n:({NodeTypes.DOMAIN.neo4j}|{NodeTypes.DUMMY_DOMAIN.neo4j}|{NodeTypes.IP.neo4j}) {{ {get_version_query(version, True)} }} )
+            WITH COUNT(n) AS node_cnt
+            MATCH ({{ {get_version_query(version, True)} }})-[r]-()
+            RETURN node_cnt, COUNT(r) AS edge_cnt
+        """
+        result = self.execute_read(query)[0]
+        return result['node_cnt'], result['edge_cnt']
 
 
 def get_version_query(version: int, alone: bool, variable: str | None = None) -> str:

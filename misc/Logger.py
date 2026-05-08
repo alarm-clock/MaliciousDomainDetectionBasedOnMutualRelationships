@@ -32,7 +32,6 @@ class MyLogger:
             self._whole_time = 0.0
             self._last_time = 0.0
 
-
             if log_file is not None:
                 with open(self._logfile, 'a') as f:
                     f.write(("=" * 35) + " Log start " + ("=" * 35) + '\n')
