@@ -1,4 +1,5 @@
 import copy
+import csv
 import threading
 import time
 from typing import Any
@@ -450,6 +451,10 @@ def direct_test(neo4j_conf: str, stable: str) -> None:
     with open(stable, "r") as f:
         data = json.load(f)
 
+    with open("res_times.csv", "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(["iteration","req_time","n_cnt","e_cnt","eval_time"])
+
     domains = data["domains"]
     req = EditRequest(domains,RequestPriority.CRITICAL,-1)
     req._first_filter = False
@@ -463,26 +468,32 @@ def direct_test(neo4j_conf: str, stable: str) -> None:
         }
     }
 
-    for cnt in range(N):
-        generated_domains = generate_json(n)['domains']
-        req = EditRequest(generated_domains, RequestPriority.CRITICAL,-1)
-        req._first_filter = False
-        n_cnt, e_cnt = Neo4jDBDriver.from_config(neo4j_conf).get_node_and_edge_cnt()
-        start_t = time.time()
-        _handle_request(req,stop_event,neo4j_conf)
-        time_taken = time.time() - start_t
-        req_times.append(time_taken)
-        node_cnts.append(n_cnt)
-        edge_cnts.append(e_cnt)
+    with open("res_times.csv", "w") as f:
+        writer = csv.writer(f)
+        for cnt in range(N):
+            generated_domains = generate_json(n)['domains']
+            req = EditRequest(generated_domains, RequestPriority.CRITICAL,-1)
+            req._first_filter = False
+            n_cnt, e_cnt = Neo4jDBDriver.from_config(neo4j_conf).get_node_and_edge_cnt()
+            start_t = time.time()
+            _handle_request(req,stop_event,neo4j_conf)
+            time_taken = time.time() - start_t
+            req_times.append(time_taken)
+            node_cnts.append(n_cnt)
+            edge_cnts.append(e_cnt)
 
-        if cnt % eval_mod == 0:
-            dom_copy = copy.deepcopy(domain)
-            job = EvaluationJob(str(dom_copy['domain_name']),timeout=-1)
-            job.set_domain_data(dom_copy)
-            eval_start_t = time.time()
-            evaluate_domain_metapath2vec(job,gpu_sem)
-            eval_time_taken = time.time() - eval_start_t
-            eval_times.append(eval_time_taken)
+            if cnt % eval_mod == 0:
+                dom_copy = copy.deepcopy(domain)
+                job = EvaluationJob(str(dom_copy['domain_name']),timeout=-1)
+                job.set_domain_data(dom_copy)
+                eval_start_t = time.time()
+                evaluate_domain_metapath2vec(job,gpu_sem)
+                eval_time_taken = time.time() - eval_start_t
+                eval_times.append(eval_time_taken)
+                writer.writerow([time_taken,n_cnt,e_cnt,eval_time_taken])
+            else:
+                writer.writerow([time_taken,n_cnt,e_cnt,eval_times[-1]])
+
 
     visualize_test_results(req_times,node_cnts,edge_cnts,eval_times,eval_mod)
 
