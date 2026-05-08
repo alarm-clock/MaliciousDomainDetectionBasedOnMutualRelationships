@@ -50,18 +50,16 @@ class EditRequest(GraphRequest):
         self._stop_wait()
 
         if self._canceled:
-            MyLogger.get_instance().log_warning(f"Delete request with id {self.id} is canceled before it could edit but after graph copy was created")
+            MyLogger.get_instance().log_warning(f"Edit request with id {self.id} is canceled before it could edit but after graph copy was created")
             if self.state != RequestStates.TIMEOUT:
                 self.state = RequestStates.CANCELED
             return False
 
         #self._delete_req.edit(version)
         driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
-
         driver.delete_nodes(self._update, NodeTypes.DOMAIN, True, True)
-        #TODO find a way how to not delete subdodomains
+        #TODO find a way how to not delete subdomains
         driver.close()
-
         add = AddRequest(self._add,self._priority)
         res = add.edit(version)
         self.state = RequestStates.DONE

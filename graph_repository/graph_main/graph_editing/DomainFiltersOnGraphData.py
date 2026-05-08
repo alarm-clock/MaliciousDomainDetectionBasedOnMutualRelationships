@@ -72,13 +72,14 @@ def rm_domains_with_same_cname(domains: list[dict], version: int, driver: Neo4jD
     query = f"""
     UNWIND $domains AS domain
     OPTIONAL MATCH (:{NodeTypes.DOMAIN.neo4j} {{domain_name: domain.domain_name {get_version_query(version,False)} }})
-                  -[:{EdgeTypes.CNAME.value}]->(m)
+                  -[:{EdgeTypes.CNAME.value} {{owner: domain.domain_name}}]->(m)
     WITH domain, m
     WHERE (domain.CNAME IS NOT NULL AND m IS NULL) OR (domain.CNAME IS NULL AND m IS NOT NULL) OR domain.CNAME <> m.domain_name
     RETURN collect(domain.domain_name) AS diff_domains
     """
 
-    diff_domain_names = driver.execute_read(query,domains=domains)[0]['diff_domains']
+    diff_domain_names = driver.execute_read(query,domains=rows)[0]['diff_domains']
     diff_domains = set(diff_domain_names)
     del diff_domain_names, rows
+
     return diff_domains

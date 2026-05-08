@@ -94,6 +94,7 @@ def update_filter_domains(domains: list[dict]) -> tuple[list[dict], list[dict]]:
     driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
     add_domains, update_domains = _get_add_update_sets(filtered_domains, driver, False)
     update_domains = _rm_domains_that_are_in_graph(update_domains, driver)
+    add_domains = _rm_domains_that_are_in_graph(add_domains, driver)
 
     driver.close()
     return add_domains, update_domains

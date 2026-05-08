@@ -99,7 +99,6 @@ class SubdomainWorker(EditWorker):
     def _find_related_domains_and_data(self) -> None:
 
         driver = GraphRepository.get_instance().get_neo4j_driver()
-        #TODO CHECK IF I NEED TO CREATE INDEX FOR THIS OR IF IT IS ALREADY CREATED ELSEWHERE
         #self._create_index(driver)
 
         find_related_domains_query = f"""
