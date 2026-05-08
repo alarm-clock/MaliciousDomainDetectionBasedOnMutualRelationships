@@ -5,10 +5,11 @@ Date: 21.4.2026
 Brief: File containing evaluation application singleton class which implements application loop
 """
 import csv
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
-from domain_evaluation.Evaluate import evaluate_domain_metapath2vec, parse_evaluation_result
+from domain_evaluation.Evaluate import evaluate_domain_metapath2vec, parse_evaluation_result, write_csv_header
 from domain_evaluation.EvaluationObjects import EvaluationJob, EvaluationResult
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from threading import Semaphore, Event, Lock, Thread
@@ -24,7 +25,7 @@ class EvaluationApp:
 
     _evaluation_app_instance_ = None
 
-    _RESULT_REMOVAL_TIME = 600.0
+    _RESULT_REMOVAL_TIME = 1200.0
 
     def __init__(self, graph_repository: GraphRepository, max_evaluations: int = 16, max_gpu_evaluations: int = 16):
 
@@ -33,6 +34,7 @@ class EvaluationApp:
             self._evaluation_semaphore = Semaphore(max_evaluations)
             self._gpu_semaphore = Semaphore(max_gpu_evaluations)
             self._results: dict[str, EvaluationJob] = {}
+            #self._uuid_domain_map: dict[str, str] = {}
             self._results_lock = Lock()
 
             self._job_queue = Queue()
@@ -80,9 +82,10 @@ class EvaluationApp:
                 if job.is_finished():
                     if curr_time - job.finish_time > self._RESULT_REMOVAL_TIME:
                         self._results.pop(key, None)
+                        #self._uuid_domain_map.pop(job.domain_name, None)
 
             self._results_lock.release()
-            self._stop_event.wait(self._RESULT_REMOVAL_TIME)  #either wait 10 mins for next iteration or finish waiting when stop event is set
+            self._stop_event.wait(self._RESULT_REMOVAL_TIME)  #either wait 20 mins for next iteration or finish waiting when stop event is set
 
 
     def _evaluate_domain(self, job: EvaluationJob) -> None:
@@ -147,12 +150,35 @@ class EvaluationApp:
 
         return job
 
+    """
+    def _find_domain_in_results(self, domain: str) -> EvaluationResult | None:
+
+        res_id = self._uuid_domain_map.get(domain, None)
+        if res_id is None:
+            return None
+
+        result = self._results.get(res_id, None)
+        if result is None:
+            return None
+
+        return result.result
+
+    #def _copy_result(self, job: EvaluationJob, result: EvaluationResult) -> None:
+    """
+
     def evaluate_domain_async(self, domain: str, timeout: float | None = None) -> str:
 
         job = EvaluationJob(domain) if timeout is None else EvaluationJob(domain, timeout=timeout)
         job.set_state(EvaluationJob.EvaluationState.SUBMITTED)
+
+        #with self._results_lock:
+        #    result = self._find_domain_in_results(domain)
+
+        #if result is not None:
+
         self._results_lock.acquire()
         self._results[job.id] = job
+        #self._uuid_domain_map[domain] = job.id
         self._results_lock.release()
         self._job_queue.put(job)
 
@@ -160,19 +186,22 @@ class EvaluationApp:
 
 
 
-def submit_domain(eval_job: EvaluationJob, csv_writer) -> None:
+def submit_domain(eval_job: EvaluationJob, csv_writer, write_lock: threading.Lock) -> None:
+
     eval_app = EvaluationApp.get_instance()
     if eval_app is None:
         return
 
     eval_app._evaluate_domain(eval_job)
-    parse_evaluation_result(eval_job,csv_writer)
+
+    with write_lock:
+        parse_evaluation_result(eval_job,csv_writer)
 
 
 def test_from_parquet(path_to_file: str, class_out_f_name: str) -> None:
     df = pd.read_parquet(path_to_file)
     df = df[['domain_name', 'label']]
-    df = df['label'].map({
+    df['label'] = df['label'].map({
         'good':'benign',
         'bad':'malicious'
     })
@@ -182,8 +211,12 @@ def test_from_parquet(path_to_file: str, class_out_f_name: str) -> None:
         job = EvaluationJob(domain.domain_name, timeout=-1, test_label= domain.label == 'benign')
         jobs.append(job)
 
+    write_lock = threading.Lock()
     with open(class_out_f_name, 'w') as f:
         writer = csv.writer(f)
-        with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [executor.submit(submit_domain, job, writer) for job in jobs]
+        write_csv_header(writer)
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for job in jobs:
+                executor.submit(submit_domain, job, writer, write_lock)
 
+    EvaluationApp.get_instance().stop()
