@@ -35,7 +35,7 @@ def _handle_request(request: GraphRequest, stop_event: threading.Event, driver_c
     driver: Neo4jDBDriver = Neo4jDBDriver.from_config(driver_conf_file)
     cnt = 0
     waiting_on_copy = True
-    new_version = -1
+    new_version = 1 #-1
     while waiting_on_copy:
         if stop_event.is_set():
             request.cancel()
@@ -44,7 +44,7 @@ def _handle_request(request: GraphRequest, stop_event: threading.Event, driver_c
             return
 
         try:
-            new_version = driver.create_new_version_mirror_of_graph()
+            #new_version = driver.create_new_version_mirror_of_graph()
             waiting_on_copy = False
         except TooManyVersions:
             cnt += 1
@@ -61,18 +61,16 @@ def _handle_request(request: GraphRequest, stop_event: threading.Event, driver_c
 
     if stop_event.is_set():
         request.cancel()
-        driver.delete_graph_version(new_version)
+        #driver.delete_graph_version(new_version)
         driver.close()
         return
 
     if not request.edit(new_version):
-        driver.delete_graph_version(new_version)
+        #driver.delete_graph_version(new_version)
         driver.close()
         return
 
-    #TODO here is where I will add relearning and other stuff for models or something, I dunno
-
-    driver.set_new_current_graph_version_node(new_version)
+    #driver.set_new_current_graph_version_node(new_version)
     driver.close()
 
     return
