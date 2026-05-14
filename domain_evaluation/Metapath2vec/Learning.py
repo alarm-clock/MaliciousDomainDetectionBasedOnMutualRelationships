@@ -23,10 +23,20 @@ TESTING = False
 
 def _train_regress(model_embedding: th.Tensor, train_mask,
                    classify_mask: th.Tensor, labels: th.Tensor, scale: bool) -> th.Tensor:
+
+    embeds = model_embedding.detach().cpu()
+    labels = labels[train_mask].detach().cpu()
+
+    embeds_train = embeds[train_mask]
+    embeds_test = embeds[classify_mask]
+
     if scale:
-        model_embedding = StandardScaler().fit_transform(model_embedding.detach().numpy())
-    clf = sk.LogisticRegression(max_iter=130).fit(model_embedding[train_mask], labels[train_mask].detach().numpy())
-    result = clf.predict_proba(model_embedding[classify_mask])
+        sclr = StandardScaler()
+        embeds_train = sclr.fit_transform(embeds_train)
+        embeds_test = sclr.transform(embeds_test)
+
+    clf =  sk.LogisticRegression(max_iter=300, class_weight="balanced").fit(embeds_train, labels) #sk.LogisticRegression(max_iter=130).fit(embeds_train, labels)
+    result = clf.predict_proba(embeds_test)
     return result
 
 
@@ -120,7 +130,9 @@ def _train_metapath2vec_safe(
         MyLogger.get_instance().log_warning(f"Ommiting metapath {m_path} because there are no edges of given type")
         return None
     model.to(device)
-    dataloader = DataLoader(torch.arange(g.num_nodes(ntype='d')), batch_size=128, shuffle=True, collate_fn=model.sample)
+    walk_seed = th.Generator()
+    walk_seed.manual_seed(42)     #TODO MAKE THIS CONFIGURABLE
+    dataloader = DataLoader(torch.arange(g.num_nodes(ntype='d')), batch_size=128, shuffle=True, collate_fn=model.sample, generator=walk_seed)
     path_name = m_path[0].split('_')[0]
 
     return _train_metapath2vec((model, dataloader, path_name), device,lr,cnt)

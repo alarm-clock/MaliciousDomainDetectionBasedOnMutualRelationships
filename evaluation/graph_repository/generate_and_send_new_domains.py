@@ -1,5 +1,6 @@
 import copy
 import csv
+import os
 import threading
 import time
 from typing import Any
@@ -10,18 +11,12 @@ import string
 import ipaddress
 import argparse
 import time as t
-from pathlib import Path
-import matplotlib.pyplot as plt
 from tqdm import tqdm
-
 from domain_evaluation.Evaluate import evaluate_domain_metapath2vec
-from domain_evaluation.EvaluationApp import EvaluationApp
 from domain_evaluation.EvaluationObjects import EvaluationJob
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver
-from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_main.graph_editing.EditConsumer import _handle_request
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
-from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 
 SIZES = [10, 50, 100, 250, 500, 750, 1000, 2000, 5000, 10000]
@@ -32,7 +27,7 @@ all_domains = []
 shared_ipv4_pool = []
 shared_ipv6_pool = []
 
-rng = random.Random()
+rng = random.Random(42)
 
 def rand_label(min_len=1, max_len=10):
     letters = string.ascii_lowercase
@@ -227,8 +222,9 @@ def visualize_test_results(
     if eval_mod <= 0:
         raise ValueError("eval_mod must be > 0")
 
-    eval_n_cnts = node_cnts[::eval_mod]
-    eval_e_cnts = edge_cnts[::eval_mod]
+    edge_cnts = [e//2 for e in edge_cnts]
+    eval_n_cnts = node_cnts #[::eval_mod]
+    eval_e_cnts = edge_cnts #[::eval_mod]
 
     expected_eval_len = len(eval_n_cnts)
 
@@ -274,11 +270,25 @@ def visualize_test_results(
             filename: str,
     ) -> None:
 
+        # Filter out Y values > 50
+        filtered = [
+            (x, y)
+            for x, y in zip(x_data, y_data)
+            if y <= 50
+        ]
+
+        filtered = filtered[::20]
+
+        if not filtered:
+            return
+
+        filtered_x, filtered_y = zip(*filtered)
+
         plt.figure(figsize=(10, 6))
 
         plt.plot(
-            x_data,
-            y_data,
+            filtered_x,
+            filtered_y,
             marker="o",
         )
 
@@ -304,21 +314,41 @@ def visualize_test_results(
             filename: str,
     ) -> None:
 
+        # Filter request data
+        filtered_req = [
+            (x, y)
+            for x, y in zip(x1_data, y1_data)
+            if y <= 50
+        ][::20]
+
+        # Filter evaluation data
+        filtered_eval = [
+            (x, y)
+            for x, y in zip(x2_data, y2_data)
+            if y <= 50
+        ][::20]
+
         plt.figure(figsize=(10, 6))
 
-        plt.plot(
-            x1_data,
-            y1_data,
-            marker="o",
-            label="Request Time",
-        )
+        if filtered_req:
+            req_x, req_y = zip(*filtered_req)
 
-        plt.plot(
-            x2_data,
-            y2_data,
-            marker="o",
-            label="Evaluation Time",
-        )
+            plt.plot(
+                req_x,
+                req_y,
+                marker="o",
+                label="Request Time",
+            )
+
+        if filtered_eval:
+            eval_x, eval_y = zip(*filtered_eval)
+
+            plt.plot(
+                eval_x,
+                eval_y,
+                marker="o",
+                label="Evaluation Time",
+            )
 
         plt.xlabel(xlabel)
         plt.ylabel("Time (s)")
@@ -434,14 +464,30 @@ def visualize_test_results(
         f"{output_path.resolve()}"
     )
 
+def parse_csv(file_path: str):
+    req_times: list[float] = []
+    node_cnts: list[int] = []
+    edge_cnts: list[int] = []
+    eval_times: list[float] = []
+
+    with open(file_path, "r") as f:
+        reader = csv.reader(f)
+        reader.__next__()
+        for row in reader:
+            req_times.append(float(row[0]))
+            node_cnts.append(int(row[1]))
+            edge_cnts.append(int(row[2]))
+            eval_times.append(float(row[3]))
+
+    visualize_test_results(req_times, node_cnts, edge_cnts, eval_times, 9)
 
 def direct_test(neo4j_conf: str, stable: str) -> None:
     stop_event = threading.Event()
     gpu_sem = threading.Semaphore(16)
 
-    N = 20
+    N = 5000
     n = 1000
-    eval_mod = 2
+    eval_mod = 10
 
     req_times = []
     node_cnts = []
@@ -450,10 +496,6 @@ def direct_test(neo4j_conf: str, stable: str) -> None:
 
     with open(stable, "r") as f:
         data = json.load(f)
-
-    with open("res_times.csv", "w") as f:
-        writer = csv.writer(f)
-        writer.writerow(["iteration","req_time","n_cnt","e_cnt","eval_time"])
 
     domains = data["domains"]
     req = EditRequest(domains,RequestPriority.CRITICAL,-1)
@@ -468,8 +510,9 @@ def direct_test(neo4j_conf: str, stable: str) -> None:
         }
     }
 
-    with open("res_times.csv", "w") as f:
+    with open("res_times2.csv", "w") as f:
         writer = csv.writer(f)
+        writer.writerow(["iteration","req_time","n_cnt","e_cnt","eval_time"])
         for cnt in range(N):
             generated_domains = generate_json(n)['domains']
             req = EditRequest(generated_domains, RequestPriority.CRITICAL,-1)
@@ -494,6 +537,11 @@ def direct_test(neo4j_conf: str, stable: str) -> None:
             else:
                 writer.writerow([time_taken,n_cnt,e_cnt,eval_times[-1]])
 
+            if cnt % 50 == 0:
+                f.flush()
+                os.fsync(f.fileno())
+
+            time.sleep(1.0)
 
     visualize_test_results(req_times,node_cnts,edge_cnts,eval_times,eval_mod)
 
@@ -546,4 +594,6 @@ def main():
     return
 
 if __name__ == '__main__':
-    main()
+    #main()
+    #parse_csv("../../res_times.csv")
+    parse_csv("res_times_meta.csv")

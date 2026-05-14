@@ -398,18 +398,22 @@ class Neo4jDBDriver:
         return ret_val
 
     @staticmethod
-    def get_node_id_return_query(n_t: NodeTypes | str, id_var_name: str, with_survival: str, last: bool) -> str:
+    def get_node_id_return_query(n_t: NodeTypes | str, id_var_name: str, with_survival: str, last: bool, quotes: bool = True) -> str:
         """
         Method that returns query for returning node_ids of deleted nodes
         :param last: `bool` that signals that nothing will follow this query
         :param with_survival: `str` variables that should survive this query
         :param n_t: `NodeTypes | str` node type of node which's node_id is returned, can be dynamic function like "labels(var_name)[0]"
         :param id_var_name: `str` variable that holds node_id that will be returned
+        :param quotes: `bool` flag indicating that quotes should be added to n_t
         :return: `str` query
         """
 
+        if isinstance(n_t, NodeTypes):
+            n_t = n_t.neo4j
+
         return f"""
-            WITH {'"'+ (n_t.neo4j if isinstance(n_t, NodeTypes) else n_t) + '"'} || "{Neo4jDBDriver._FREE_NODE_ID_POSTFIX}" AS del_q_n_t {',' if with_survival != '' else ''} {with_survival} 
+            WITH { f'"{n_t}"' if quotes else n_t} || "{Neo4jDBDriver._FREE_NODE_ID_POSTFIX}" AS del_q_n_t {',' if with_survival != '' else ''} {with_survival} 
             CREATE (:$(del_q_n_t) {{node_id: {id_var_name} }})
         """ + ('' if last or with_survival == '' else 'WITH ' + with_survival )
 
@@ -776,7 +780,8 @@ class Neo4jDBDriver:
             "labels(m_del_var)[0]", 
             "m_del_var.node_id", 
             f'{var_name}, m_del_var {with_survival}',
-            True
+            True,
+            False
         )}
         DETACH DELETE m_del_var
         {'}' if as_subquery else 'WITH DISTINCT ' + var_name + ' ' + with_survival}
@@ -863,7 +868,7 @@ class Neo4jDBDriver:
         DETACH DELETE n
 
         WITH DISTINCT node_for_del WHERE node_for_del IS NOT NULL AND COUNT {{(node_for_del)--(m_other_rel{where_label})}} = 0 
-        {Neo4jDBDriver.get_node_id_return_query("$(labels(node_for_del)[0])", "node_for_del.node_id", f'node_for_del', True)}
+        {Neo4jDBDriver.get_node_id_return_query("labels(node_for_del)[0]", "node_for_del.node_id", f'node_for_del', True, False)}
         DETACH DELETE node_for_del
         """
 
@@ -1123,7 +1128,7 @@ class Neo4jDBDriver:
 
         #TODO also add edge values, now it is not required but who knows what future holds
         query = f"""
-        CALL mapoc.sampling.bfsStream($match, {max_depth}, {max_sample_size}, {get_back_edges}) YIELD relId
+        CALL mapoc.sampling.bfsStream($match, {max_depth}, {max_sample_size}, {get_back_edges}, 42) YIELD relId
         MATCH ()-[r]->()
         WHERE elementId(r) = relId
         WITH startNode(r) AS from, endNode(r) AS to, r
@@ -1145,7 +1150,7 @@ class Neo4jDBDriver:
 
         # TODO also add edge values, now it is not required but who knows what future holds
         query = f"""
-        CALL mapoc.sampling.bfs_nd_id({n_t}, {node_id}, {max_depth}, {max_sample_size}, {get_back_edges}) YIELD relId
+        CALL mapoc.sampling.bfs_nd_id({n_t}, {node_id}, {max_depth}, {max_sample_size}, {get_back_edges}, 42) YIELD relId
         MATCH ()-[r]->()
         WHERE elementId(r) = relId
         WITH startNode(r) AS from, endNode(r) AS to, r

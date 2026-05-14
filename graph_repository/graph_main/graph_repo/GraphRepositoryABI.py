@@ -77,6 +77,8 @@ class GraphRepositoryABI(GraphRepository):
         #on the other hand if edits are to be finished then they need client.
         return Neo4jDBDriver.from_config(self._neo4j_conf)
 
+    #TODO add deletion of edit requests that did not started yet
+
     def add_request_to_queue(self, request):
         if self._stop_event.is_set():
             request.state = RequestStates.TIMEOUT
