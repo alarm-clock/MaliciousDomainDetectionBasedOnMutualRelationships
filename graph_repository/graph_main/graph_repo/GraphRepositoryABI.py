@@ -140,6 +140,7 @@ class GraphRepositoryABI(GraphRepository):
 
         self._transaction_context_operations_cnt = (self._transaction_context_operations_cnt + 1) & ((2**8) - 1)
         if not self._transaction_context_operations_cnt:
+            MyLogger.get_instance().log("Checking all transactions if they are under time limit")
 
             driver = self.get_neo4j_driver()
             if driver is None:
@@ -148,7 +149,9 @@ class GraphRepositoryABI(GraphRepository):
             keys_for_del = []
             for key, transaction in self._transaction_context.items():
                 if transaction.is_over_time():
+                    MyLogger.get_instance().log_warning(f"Transaction {transaction.job_id} was over time limit and therefore it and all of it's tmp domains are deleted")
                     transaction.delete_all_tmp_nodes(driver)
+                    driver.end_transaction(transaction.version)
                     keys_for_del.append(key)
 
             driver.close()
@@ -188,6 +191,7 @@ class GraphRepositoryABI(GraphRepository):
             transaction.remove_tmp_node_from_transaction(node_id)
 
         if transaction.empty:
+            MyLogger.get_instance().log(f"Transaction {job_id} is being deleted")
             driver.end_transaction(transaction.version)
             self._remove_job(job_id)
 
@@ -275,8 +279,10 @@ class GraphRepositoryABI(GraphRepository):
         if driver is None:
             return
 
+        MyLogger.get_instance().log(f"Deleting temporary domain with id {tmp_nd_id} for job context {job_id}")
         if job_id is not None:
             self._remove_tmp_from_transaction(job_id, driver, tmp_nd_id)
+            MyLogger.get_instance().log_debug(f"Deleting tmp node f{tmp_nd_id}")
             driver.delete_node({'node_id': tmp_nd_id},NodeTypes.TMP_DOMAIN.neo4j)
 
         driver.close()

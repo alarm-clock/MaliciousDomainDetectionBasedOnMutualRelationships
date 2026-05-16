@@ -289,6 +289,8 @@ def main():
 
             test_from_parquet(args.p,args.output)
 
+        GraphRepository.get_instance().stop()
+
     if args.mode == "size_test":
         mp.set_start_method("spawn")
         r = GraphRepository.init(GraphRepository.ABI, args.neo_db)

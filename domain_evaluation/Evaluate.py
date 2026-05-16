@@ -190,6 +190,7 @@ def evaluate_domain_metapath2vec(eval_job: EvaluationJob, gpu_semaphore: Semapho
     _check_domains_neighborhood_maliciousness(tmp_node_id, eval_job, repository, start_t)
 
     if eval_job.is_finished():
+        repository.delete_temporary_domain(tmp_node_id, eval_job.id)
         eval_job.result.set_times(time.time() - start_t, EvaluationResult.Times.END_T)
         return eval_job if return_result else None
 
@@ -287,4 +288,3 @@ def test_from_collection(path_to_config: str, class_out_f_name: str, filter_trai
     cursor = collection.aggregate(agg_filt, batchSize=1000)
 
     parallel_test(cursor, class_out_f_name)
-
