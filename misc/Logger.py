@@ -22,6 +22,7 @@ class MyLogger:
     def __init__(self, log_file: str | None = None, log_level: LogLevel = LogLevel.INFO) -> None:
         if not self.initialized:
             self._lock = threading.Lock()
+            self._result_lock = threading.Lock()
             self._stats_lock = threading.Lock()
             self._logfile = log_file
             self._log_level = log_level
@@ -31,6 +32,11 @@ class MyLogger:
             self._GB = 1024**3
             self._whole_time = 0.0
             self._last_time = 0.0
+
+            self._result_log_file = "evaluation_results.log"
+            with open(self._result_log_file, 'a') as f:
+                f.write(("=" * 35) + " Log start " + ("=" * 35) + '\n')
+                f.write("domain_name in_graph no_neighbor class mal_prob ben_prob fin_state err_descr\n")
 
             if log_file is not None:
                 with open(self._logfile, 'a') as f:
@@ -109,3 +115,20 @@ class MyLogger:
             threading.Thread(target=self._concurent_log, args=(msg,MyLogger.LogLevel.DEBUG,with_time)).start()
         else:
             self._concurent_log(msg,MyLogger.LogLevel.DEBUG,with_time)
+
+    def log_evaluation_result(self, job) -> None:
+
+        domain_name = job.domain_name
+        state = job.state.value
+        err_descr = job.error_description
+        in_graph = job.result.in_graph
+        no_neighbor = job.result.no_neighbor
+        malicious = job.result.malicious
+        m_p, b_p = job.result.get_probability
+        msg = f"{domain_name} {in_graph} {no_neighbor} {'m' if malicious else 'b'} {m_p} {b_p} {state} {err_descr}"
+
+        eval_time = datetime.now()
+        msg = f"{eval_time.strftime('%Y-%m-%d %H:%M:%S.%f')}: {msg} \n"
+        with self._result_lock:
+            with open(self._result_log_file, 'a') as f:
+                f.write(msg)

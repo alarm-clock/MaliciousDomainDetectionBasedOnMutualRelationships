@@ -1,6 +1,4 @@
 import copy
-
-import pygtrie
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
@@ -139,7 +137,7 @@ class SubdomainWorker(EditWorker):
         domains_and_related_domains = driver.execute_read(find_related_domains_query, parent_domains=list(self._subs.keys()))
 
         for row in domains_and_related_domains:
-            #self._domain_data[row["domain_name"]] = row['parents_in_graph']
+
             if row['d'] not in self._domains_in_dset:
                 n_t = row['n_t']
 
@@ -163,155 +161,4 @@ class SubdomainWorker(EditWorker):
 
     def _compute(self):
         self._find_related_domains_and_data()
-        #self._parse_new_domains()
         self._create_sub_edges()
-        #self._create_sub_of_edges()
-
-
-#could still be useful for subdomain_of edges creation If I decide to implement it outside of graph
-f"""
-        UNWIND $domain_tuples AS domain 
-
-        CALL (domain){{
-            UNWIND domain.parent_domains AS parent_domain
-            MATCH (d: {NodeTypes.DOMAIN.neo4j})
-            WHERE parent_domain IN d.parent_domains AND d.domain_name <> domain.domain_name AND d.graph_version = {9}
-            WITH DISTINCT d
-            RETURN collect({{
-                match_domain_name: d.domain_name,
-                parent_domains: d.parent_domains
-            }}) AS matches
-        }}
-        CALL (domain){{
-            UNWIND domain.parent_domains AS parent_domain
-            OPTIONAL MATCH (d: {NodeTypes.DOMAIN.neo4j} {{domain_name: parent_domain {get_version_query(9, False)}}})
-            RETURN collect(d.domain_name) AS parent_domains_in_graph
-        }}
-        CALL (domain){{ 
-            MATCH (d: {NodeTypes.DOMAIN.neo4j})
-            WHERE domain.domain_name IN d.parent_domains AND d.graph_version = {9}
-            RETURN collect(d.domain_name) AS subdomains
-        }}
-
-        RETURN domain.domain_name AS domain_name, 
-               domain.parent_domains AS parent_domains, 
-               matches, 
-               parent_domains_in_graph, 
-               subdomains
-        """
-
-
-
-"""
-    def _put_domain_in_trie(self, trie: pygtrie.StringTrie, domain: str) -> None:
-
-        reversed_domain = reverse_domain(domain)
-
-        if trie.has_node(reversed_domain):
-
-            children = list(trie.keys(prefix=reversed_domain))
-
-            if reversed_domain in children:
-                children.remove(reversed_domain)
-
-            children = [reverse_domain(child) for child in children if reverse_domain(child) in self._domain_data]
-
-            for child in children:
-                #add parent domain for each child as domain that is in the graph
-                self._domain_data[child][domain] = NodeTypes.DOMAIN.neo4j
-
-        parent, _ = trie.longest_prefix(reverse_domain)
-
-        if parent is not None:
-            if parent == reversed_domain:
-                return
-
-            self._domain_data[domain][parent] = NodeTypes.DOMAIN.neo4j
-
-        trie[reversed_domain] = True
-        return
-
-
-    def _parse_new_domains(self) -> None:
-
-        trie = pygtrie.StringTrie(separator='.')
-
-        for domain_name in self._domain_data.keys():
-            self._put_domain_in_trie(trie, domain_name)
-
-            #for parent_domain in data.keys():
-            #    self._put_domain_in_trie(trie, parent_domain)
-
-        del trie
-        return
-
-    def _create_edges_between_domains(self, domains: list[str], seen: set[tuple[str, str]], sub_of_edges: list[dict[str, str]]) -> None:
-
-        for cnt1 in range(len(domains)):
-            for cnt2 in range(len(domains)):
-                if cnt1 != cnt2 and (domains[cnt1],domains[cnt2]) not in seen:
-                    jacc = calc_jaccard(self._domain_data[domains[cnt1]][self._PARENT_DOMAINS], self._domain_data[domains[cnt2]][self._PARENT_DOMAINS])
-                    sub_of_edges.append({'u': domains[cnt1], 'v': domains[cnt2], 'weight': jacc})
-                    seen.add((domains[cnt1],domains[cnt2]))
-
-        return
-
-    def _create_sub_of_edges_dataset(self, sub_of_edges: list[dict[str, str]]) -> None:
-
-        seen = set()
-
-        for domains in self._subs.neo4js():
-            self._create_edges_between_domains(domains, seen, sub_of_edges)
-
-        del seen
-        return
-
-    def _create_sub_of_edges_graph(self, sub_of_edges: list[dict[str, str]]) -> None:
-
-        u, v, jacc = [], [], []
-
-        for domain_name, data in self._domain_data.items():
-            if len(data[self._MATCHES]) < 1:
-                continue
-
-            match_domains = [match['domain_name'] for match in data[self._MATCHES]]
-            domain_name_list = [domain_name] * len(match_domains)
-            u_tmp, v_tmp = domain_name_list + match_domains, match_domains + domain_name_list
-
-            jacc_tmp = []
-            for match_domain in data[self._MATCHES]:
-                jacc_tmp.append(calc_jaccard(data[self._PARENT_DOMAINS], match_domain['parent_domains']))
-
-            u.extend(u_tmp)
-            v.extend(v_tmp)
-            jacc.extend(jacc_tmp)
-            jacc.extend(jacc_tmp) #this is done for reverse edges
-
-
-        for cnt in range(len(u)):
-            sub_of_edges.append({'u': u[cnt], 'v': v[cnt], 'weight': jacc[cnt]})
-
-        del u, v, jacc
-        return
-
-
-    def _create_sub_of_edges(self) -> None:
-
-        sub_of_edges: list[dict[str, str]] = []
-
-        self._create_sub_of_edges_graph(sub_of_edges)
-        self._create_sub_of_edges_dataset(sub_of_edges)
-
-        query_option = {
-            Neo4jDBClient.E_NODE_T1: NodeTypes.DOMAIN,
-            Neo4jDBClient.E_NODE_T2: NodeTypes.DOMAIN,
-            Neo4jDBClient.E_OPTION: Neo4jDBClient.EdgeCreationQueryOptions.WEIGHT_NO_REVERSE,
-            Neo4jDBClient.E_EDGE_T: EdgeTypes.SUBDOMAIN_OF,
-            Neo4jDBClient.E_MATCH1: "domain_name",
-            Neo4jDBClient.E_MATCH2: "domain_name",
-            Neo4jDBClient.E_EDGE_VALUE_NAME: "weight"
-        }
-
-        self._edge_submit_callback(sub_of_edges,query_option,self.worker_name + "sub_of")
-        return
-"""

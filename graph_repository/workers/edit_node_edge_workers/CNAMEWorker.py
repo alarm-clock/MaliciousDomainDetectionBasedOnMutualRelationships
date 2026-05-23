@@ -5,7 +5,6 @@ from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
 from misc.Logger import MyLogger
-from functools import partial
 from graph_repository.workers.common.Enums import CallbackWhen, EditTypes
 from enum import Enum
 

@@ -9,7 +9,7 @@ from graph_repository.graph_main.graph_editing.requests.DeleteRequest import Del
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from misc.Logger import MyLogger
-from misc.mem_monitor import enough_memory
+from misc.MemMonitor import enough_memory
 from neo4j.exceptions import ClientError, TransactionError, DatabaseError, CypherSyntaxError
 
 router = APIRouter()

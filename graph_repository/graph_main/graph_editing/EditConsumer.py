@@ -66,6 +66,7 @@ def _handle_request(request: GraphRequest, stop_event: threading.Event, driver_c
         return
 
     if not request.edit(new_version):
+        MyLogger.get_instance().log_error(f"New graph version {new_version} creation failed! Current graph version {new_version - 1} stays current graph version!")
         driver.delete_graph_version(new_version)
         driver.close()
         return
@@ -73,6 +74,7 @@ def _handle_request(request: GraphRequest, stop_event: threading.Event, driver_c
     #TODO here is where I will add relearning and other stuff for models or something, I dunno
 
     driver.set_new_current_graph_version_node(new_version)
+    MyLogger.get_instance().log(f"New graph version {new_version} was created and was set as current graph version")
     driver.close()
 
     return

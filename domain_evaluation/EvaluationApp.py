@@ -103,6 +103,7 @@ class EvaluationApp:
 
         job.set_domain_data(domain_data)
         evaluate_domain_metapath2vec(job, self._evaluation_semaphore)
+        MyLogger.get_instance().log_evaluation_result(job)
 
     def evaluate_domain(self, domain: str, force: bool = False) -> EvaluationResult | None:
 

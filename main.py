@@ -1,11 +1,13 @@
 import json
+import time
+
 import dgl
 import uvicorn
 import signal
 from api.app_api import ApiOptions, create_app
 from domain_evaluation.Evaluate import  test_from_collection
 from domain_evaluation.EvaluationApp import EvaluationApp, test_from_parquet
-from evaluation.graph_repository.generate_and_send_new_domains import direct_test
+from evaluation.graph_repository.generate_and_send_new_domains import direct_test, direct_test_of_copy_on_write
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
 from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
@@ -97,13 +99,15 @@ def main():
     size_parser = subparsers.add_parser('size_test')
     size_parser.add_argument('-p',type=str, help="Path to stable file")
 
+    copy_parser = subparsers.add_parser('copy_test')
+    copy_parser.add_argument("output", type=str, help="Path where output will be stored")
+
     server_parser = subparsers.add_parser('server')
     server_parser.add_argument('available_endpoints', type=str, help=f"Endpoints that will available, available options are: {', '.join([opt.value for opt in ApiOptions])}")
     server_parser.add_argument('-a','--address',metavar='HOST', type=str, help="Host to which will server bind", default='localhost')
     server_parser.add_argument('-p','--port', metavar='PORT', type= int, help="Port to which will server bind", default=8000)
     server_parser.add_argument('--max_eval',type=int, help="Maximum number of concurrent evaluations", default=16)
     server_parser.add_argument('--max_concurent_gpu',type=int, help="Maximum number of concurrent evaluations on gpu", default=4)
-
 
     args = parser.parse_args()
 
@@ -292,6 +296,7 @@ def main():
         GraphRepository.get_instance().stop()
 
     if args.mode == "size_test":
+
         mp.set_start_method("spawn")
         r = GraphRepository.init(GraphRepository.ABI, args.neo_db)
         if r is None:
@@ -302,6 +307,10 @@ def main():
         direct_test(args.neo_db, args.p)
         EvaluationApp.get_instance().stop()
         GraphRepository.get_instance().stop()
+
+    if args.mode == "copy_test":
+        direct_test_of_copy_on_write(args.neo_db, args.output)
+
 
     """
     elif args.mode == 'classify':

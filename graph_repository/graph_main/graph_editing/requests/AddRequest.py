@@ -23,7 +23,6 @@ class AddRequest(GraphRequest):
     _N_EDIT_T_LOC = 1
     _N_NODE_T_LOC = 0
 
-    #TODO how to parse data for the graph
     def __init__(self, domains: list[dict], priority: RequestPriority, timeout: float = 1200.0):
         super().__init__(domains, priority, timeout, basic_filter_domains)
 
@@ -77,8 +76,10 @@ class AddRequest(GraphRequest):
         if self._nodes.get('du_domains_group') is None:
             return
 
-        free_ids = driver.get_free_node_id(NodeTypes.DUMMY_DOMAIN,
-                                           len(self._nodes['du_domains_group'][self._N_NODES_LOC]))
+        free_ids = driver.get_free_node_id(
+            NodeTypes.DUMMY_DOMAIN,
+            len(self._nodes['du_domains_group'][self._N_NODES_LOC])
+        )
 
         if type(free_ids) != int:
             for cnt, node in enumerate(self._nodes['du_domains_group'][self._N_NODES_LOC]):

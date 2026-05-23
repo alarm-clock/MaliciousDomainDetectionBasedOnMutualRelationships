@@ -14,7 +14,7 @@ import time as t
 from tqdm import tqdm
 from domain_evaluation.Evaluate import evaluate_domain_metapath2vec
 from domain_evaluation.EvaluationObjects import EvaluationJob
-from graph_repository.Neo4jDBDriver import Neo4jDBDriver
+from graph_repository.Neo4jDBDriver import Neo4jDBDriver, COPY_ON_WRITE_TIMES
 from graph_repository.graph_main.graph_editing.EditConsumer import _handle_request
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
@@ -545,6 +545,25 @@ def direct_test(neo4j_conf: str, stable: str) -> None:
 
     visualize_test_results(req_times,node_cnts,edge_cnts,eval_times,eval_mod)
 
+def direct_test_of_copy_on_write(neo4j_conf: str, out: str) -> None:
+    stop_event = threading.Event()
+
+    N = 50000
+    n = 100
+
+    with open(out, "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(["copy_time","n_cnt","e_cnt"])
+        for cnt in range(N):
+            generated_domains = generate_json(n)['domains']
+            req = EditRequest(generated_domains, RequestPriority.CRITICAL,-1)
+            req._first_filter = False
+            n_cnt, e_cnt = Neo4jDBDriver.from_config(neo4j_conf).get_node_and_edge_cnt(cnt)
+            _handle_request(req,stop_event,neo4j_conf)
+            writer.writerow([COPY_ON_WRITE_TIMES[-1],n_cnt,e_cnt])
+            f.flush()
+            os.fsync(f.fileno())
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-m',type=str, default="send", choices=["send","save","load","load-and-generate"],help="Program mode")
@@ -593,7 +612,30 @@ def main():
 
     return
 
+def count_numbers_between_ranges(ranges_str: str) -> int:
+    nums = list(map(int, ranges_str.split(",")))
+
+    if len(nums) % 2 != 0:
+        raise ValueError("Input must contain even number of integers")
+
+    total = 0
+
+    # Iterate over ranges pairwise
+    for i in range(1, len(nums) - 2, 2):
+        end_current = nums[i]
+        start_next = nums[i + 1]
+
+        # Count numbers strictly between ranges
+        gap = start_next - end_current - 1
+
+        if gap > 0:
+            total += gap
+
+    print(total)
+    return total
+
 if __name__ == '__main__':
     #main()
     #parse_csv("../../res_times.csv")
-    parse_csv("res_times_meta.csv")
+    #parse_csv("res_times_meta.csv")
+    count_numbers_between_ranges("1234,4333,4998,22445,25166,40196,41657,49145,51838,61171,63495,85151,85170,87668,90752,94877,96952,101990,104799,120096,121997,127064,130032,151533,154823,159501,161651,168626,168688,174635,175209,189648,190941,195897,196749,202964,206575,215731,216037,222532,223230,226356,228170,236572,236971,247755,248175,255079,259235,277970,279108,291367,294942,316336,317713,325191,326929,332762,336030,345797,347881,355791,358780,360221,363448,381388,386915,401406,404283,420504,425266,432827,435192,449644,453857,475641,481385,498453,501295,506329,511329,514246,516545,522629,529422,532441,536113,558385,559173,568102,571089,573482,574012,576570,586895,589841,593774,595811,600481,607894")

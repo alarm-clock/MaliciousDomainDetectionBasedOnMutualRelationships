@@ -13,6 +13,8 @@ from graph_repository.graph_main.graph_editing.common.Exceptions import TooManyV
 from typing import Any
 
 
+COPY_ON_WRITE_TIMES = []
+
 class CouldNotConnect(Exception):
     def __init__(self, url: str, port: int, username: str):
         self.url = url
@@ -636,6 +638,7 @@ class Neo4jDBDriver:
         labels = self.get_all_labels_in_graph()
 
         MyLogger.get_instance().log(f"Creating new version copy of graph v.{current_version}")
+        start = time.time()
         for label in labels:
 
             copy_query = f"""
@@ -686,6 +689,7 @@ class Neo4jDBDriver:
         self.set_new_graph_version_node(current_version + 1)
         MyLogger.get_instance().log_debug(f"Copied all edges")
         MyLogger.get_instance().log(f"Created new version of graph. New graph version is v.{current_version + 1}")
+        COPY_ON_WRITE_TIMES.append(time.time() - start)
         return current_version + 1
 
     def create_tmp_node(self, tmp_domain: dict[str, Any]) -> int | None:
