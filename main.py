@@ -309,6 +309,7 @@ def main():
         GraphRepository.get_instance().stop()
 
     if args.mode == "copy_test":
+        GraphRepository.init(GraphRepository.ABI, args.neo_db)
         direct_test_of_copy_on_write(args.neo_db, args.output)
 
 

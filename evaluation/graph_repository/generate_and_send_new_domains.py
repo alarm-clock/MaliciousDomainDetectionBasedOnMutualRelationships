@@ -548,7 +548,7 @@ def direct_test(neo4j_conf: str, stable: str) -> None:
 def direct_test_of_copy_on_write(neo4j_conf: str, out: str) -> None:
     stop_event = threading.Event()
 
-    N = 50000
+    N = 100
     n = 100
 
     with open(out, "w") as f:

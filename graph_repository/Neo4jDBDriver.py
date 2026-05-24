@@ -1210,15 +1210,16 @@ class Neo4jDBDriver:
 
     def get_node_and_edge_cnt(self, version: int = 1) -> tuple[int, int]:
 
-        labels = '|'.join(self.get_all_labels_in_graph())
         query = f"""
             MATCH (n:({NodeTypes.DOMAIN.neo4j}|{NodeTypes.DUMMY_DOMAIN.neo4j}|{NodeTypes.IP.neo4j}) {{ {get_version_query(version, True)} }} )
             WITH COUNT(n) AS node_cnt
             MATCH ({{ {get_version_query(version, True)} }})-[r]-()
             RETURN node_cnt, COUNT(r) AS edge_cnt
         """
-        result = self.execute_read(query)[0]
-        return result['node_cnt'], result['edge_cnt']
+        result = self.execute_read(query) #[0]
+        if len(result) == 0:
+            return 0,0
+        return result[0]['node_cnt'], result[0]['edge_cnt']
 
 
 def get_version_query(version: int, alone: bool, variable: str | None = None) -> str:
