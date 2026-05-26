@@ -1,0 +1,5 @@
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
+
+Common name: localhost
+
+ curl -i -k -H "pass: heslo" https://127.0.0.1:8000/docs

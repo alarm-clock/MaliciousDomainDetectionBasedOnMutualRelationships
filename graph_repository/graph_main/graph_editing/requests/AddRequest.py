@@ -188,6 +188,7 @@ class AddRequest(GraphRequest):
             driver.create_nodes(data[self._N_NODE_T_LOC], data[self._N_NODES_LOC], data[self._N_EDIT_T_LOC])
 
         MyLogger.get_instance().log_debug(f"Created all {len(self._nodes.keys())} nodes")
+        driver.wait_for_index_creation(None)
         return
 
     def _create_edges(self, driver: Neo4jDBDriver) -> None:

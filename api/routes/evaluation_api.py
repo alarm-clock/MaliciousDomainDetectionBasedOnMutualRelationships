@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from domain_evaluation.EvaluationApp import EvaluationApp
 from domain_evaluation.EvaluationObjects import EvaluationJob
+from misc.MemMonitor import enough_memory
 
 router = APIRouter()
 
@@ -11,6 +12,9 @@ class EvaluationRequest(BaseModel):
 
 @router.post("/evaluate")
 async def evaluate(req: EvaluationRequest):
+
+    if not enough_memory():
+        raise HTTPException(status_code=503, detail="Server is temporary overloaded. Please, try again later.")
 
     app = EvaluationApp.get_instance()
 

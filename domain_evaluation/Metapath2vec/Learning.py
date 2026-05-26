@@ -10,6 +10,7 @@ from dgl.nn.pytorch import MetaPath2Vec
 import sklearn.linear_model as sk
 from sklearn.preprocessing import StandardScaler
 
+from api.config.config import Config
 from domain_evaluation.EvaluationObjects import EvaluationResult
 from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
@@ -313,9 +314,13 @@ def classify_domain(g: dgl.DGLHeteroGraph, eval_result: EvaluationResult, mode: 
              [f"{EdgeTypes.TRANSLATES.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.IP.dgl}",
               f"{EdgeTypes.TRANSLATES.value}_{NodeTypes.IP.dgl}_{NodeTypes.DOMAIN.dgl}"] * 4,
              ]
-    #models, used_paths = _create_models_for_meta_paths(paths, g, device)
-    #embeds, _, path_names = _gen_embeds_parallel(models, device) #_generate_embeddings(models, g, device)
-    embeds, _, path_names = _gen_embeds_parallel_safe(device, g, paths)
+
+    w_size = Config.get_instance().eval_app_conf.eval_params.w_size
+    neg_size = Config.get_instance().eval_app_conf.eval_params.neg_size
+    emb_dim = Config.get_instance().eval_app_conf.eval_params.emb_dim
+    lr = Config.get_instance().eval_app_conf.eval_params.lr
+
+    embeds, _, path_names = _gen_embeds_parallel_safe(device, g, paths,w_size,emb_dim,neg_size,lr)
 
     res = _train_log_regress_and_cls(g, embeds, path_names, mode)
 

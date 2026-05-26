@@ -50,11 +50,12 @@ class DomainWorker(EditWorker):
 
         result = driver.execute_read(find_if_domain_is_dummy_in_graph, domains=domain_names)
 
-        domains_for_replacing = []
+        domains_for_replacing = set()
         for regular_domain in result:
             domain_name = regular_domain['domain_name']
-            domains_for_replacing.append(domain_name)
+            domains_for_replacing.add(domain_name)
 
+        domains_for_replacing = list(domains_for_replacing)
         pre_filled = partial(DomainWorker._replace_dummies, domains_for_replacing, get_version_query(self._version,False))
 
         self._callbacks_submit_callback(pre_filled, CallbackWhen.BETWEEN_NODES_EDGES, self.worker_name)
@@ -66,7 +67,7 @@ class DomainWorker(EditWorker):
         available_ids = available_ids if type(available_ids) == list else [available_ids]
 
         ids_for_returning = []
-        domain_names = []
+        domain_names = set()
         for cnt, domain in enumerate(self._domains):
             node_id = available_ids[cnt]
             try:
@@ -88,6 +89,10 @@ class DomainWorker(EditWorker):
             except KeyError:
                 other_data = ""
 
+            if domain_name in domain_names:
+                ids_for_returning.append(node_id)
+                continue
+
             parent_domains = get_domains_parent_domains(domain_name)
             depth = domain_depth(domain_name)
             self._domains_for_creation.append({
@@ -98,11 +103,11 @@ class DomainWorker(EditWorker):
                 'parent_domains': parent_domains,
                 'depth': depth
             })
-            domain_names.append(domain_name)
+            domain_names.add(domain_name)
 
         if len(ids_for_returning) > 0:
             driver.return_unused_node_ids(NodeTypes.DOMAIN, ids_for_returning)
 
-        self._find_du_domains(domain_names, driver)
+        self._find_du_domains(list(domain_names), driver)
         driver.close()
-        self._node_submission_callback(self._domains_for_creation, NodeTypes.DOMAIN, self.worker_name , EditTypes.UPDATE)
+        self._node_submission_callback(self._domains_for_creation, NodeTypes.DOMAIN, self.worker_name, EditTypes.UPDATE)

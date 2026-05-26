@@ -9,6 +9,8 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
+
+from api.config.config import Config
 from domain_evaluation.Evaluate import evaluate_domain_metapath2vec, parse_evaluation_result, write_csv_header
 from domain_evaluation.EvaluationObjects import EvaluationJob, EvaluationResult
 from graph_repository.graph_main.GraphRepository import GraphRepository
@@ -47,6 +49,7 @@ class EvaluationApp:
 
             Thread(target=self._remove_finished_jobs, name='ResultRemovalThread', daemon=True).start()
             EvaluationApp._evaluation_app_instance_ = self
+            self._RESULT_REMOVAL_TIME = Config.get_instance().eval_app_conf.result_removal_time
 
     @classmethod
     def get_instance(cls) -> 'EvaluationApp | None':

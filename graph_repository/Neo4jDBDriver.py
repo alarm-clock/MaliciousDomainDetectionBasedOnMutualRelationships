@@ -1,3 +1,10 @@
+"""
+File: Neo4jDBDriver.py
+Author: Jozef Michal Bukas <xbukas00@stud.fit.vutbr.cz>
+Date: 27.12.2025
+Brief: File that contains Neo4jDb class used to represent Neo4j domain relationship graph and holds many pre-built queries
+    and other methods
+"""
 import threading
 import time
 import json
@@ -1120,7 +1127,7 @@ class Neo4jDBDriver:
 
         return res[0]['b'], res[0]['m']
 
-    def get_k_hop_neighborhood_universal(self, match: dict[str, Any], max_depth: int, max_sample_size: int, get_back_edges: bool):
+    def get_k_hop_neighborhood_universal(self, match: dict[str, Any], max_depth: int, max_sample_size: int, seed: int, get_back_edges: bool):
         """
         Method that gets matched tmp node's k-hop (max_depth-hop) sampled neighborhood
         :param match: dictionary with data used to match given domain
@@ -1132,7 +1139,7 @@ class Neo4jDBDriver:
 
         #TODO also add edge values, now it is not required but who knows what future holds
         query = f"""
-        CALL mapoc.sampling.bfsStream($match, {max_depth}, {max_sample_size}, {get_back_edges}, 42) YIELD relId
+        CALL mapoc.sampling.bfsStream($match, {max_depth}, {max_sample_size}, {get_back_edges}, {seed}) YIELD relId
         MATCH ()-[r]->()
         WHERE elementId(r) = relId
         WITH startNode(r) AS from, endNode(r) AS to, r
@@ -1148,13 +1155,13 @@ class Neo4jDBDriver:
         """
         return self.execute_read(query, match=match)
 
-    def get_k_hop_neighborhood(self, n_t: NodeTypes | str, node_id: int, max_depth: int, max_sample_size: int, get_back_edges: bool):
+    def get_k_hop_neighborhood(self, n_t: NodeTypes | str, node_id: int, max_depth: int, max_sample_size: int, seed: int, get_back_edges: bool):
 
         n_t = n_t.neo4j if type(n_t) == NodeTypes else n_t
 
         # TODO also add edge values, now it is not required but who knows what future holds
         query = f"""
-        CALL mapoc.sampling.bfs_nd_id({n_t}, {node_id}, {max_depth}, {max_sample_size}, {get_back_edges}, 42) YIELD relId
+        CALL mapoc.sampling.bfs_nd_id({n_t}, {node_id}, {max_depth}, {max_sample_size}, {get_back_edges}, {seed}) YIELD relId
         MATCH ()-[r]->()
         WHERE elementId(r) = relId
         WITH startNode(r) AS from, endNode(r) AS to, r
@@ -1207,6 +1214,55 @@ class Neo4jDBDriver:
             """
 
             self.execute_write(query)
+
+    def find_node(self, node: dict[str, Any], n_t: str | NodeTypes | None, version: int = -2) -> list[dict[str,Any]] | dict[str, Any] | None:
+        """
+        Method that find any node and returns all its outgoing neighbours
+        :param node: `dict` with node data that is used to match node
+        :param n_t: `str | NodeTypes | None` node type, if node type None indicates that node type is in ``node`` as key n_t, if it is not then None is returned
+        :param version: graph version
+        :return: dictionary if only one node is matched, list of dictionaries if multiple nodes were matched, None otherwise
+        """
+        if n_t is None:
+            n_t_tmp = node['n_t']
+            if type(n_t_tmp) == NodeTypes:
+                n_t_str = n_t_tmp.neo4j
+            elif type(n_t_tmp) == str:
+                n_t_str = n_t_tmp
+            else:
+                return None
+        else:
+            n_t_str = n_t.neo4j if type(n_t) == NodeTypes else n_t
+
+        if version == Neo4jDBDriver.VERSION_MAX:
+            version = max(self.get_existing_versions())
+        elif version == Neo4jDBDriver.VERSION_CURR:
+            version = self.get_current_active_graph_version()
+
+        node.pop('n_t', None)
+        item_str = self.create_pre_filled_item_string(node)
+
+        query = f"""
+            MATCH (n: {n_t_str} {{ {item_str} {get_version_query(version, False)} }} )
+            OPTIONAL MATCH (n)-[r]->(m)
+            WITH n, collect(
+                CASE WHEN m IS NOT NULL THEN {{
+                    e_t: type(r),
+                    n_t: labels(m),
+                    node_id: m.node_id
+                }}   
+            ) AS neighbours
+            RETURN properties(n) + {{ 
+                neighbours: [neigh IN neighbours WHERE x IS NOT NULL]
+            }} AS res
+        """
+        res = self.execute_read(query)
+        if len(res) == 0:
+            return None
+        elif len(res) == 1:
+            return res[0]['res']
+        else:
+            return res
 
     def get_node_and_edge_cnt(self, version: int = 1) -> tuple[int, int]:
 

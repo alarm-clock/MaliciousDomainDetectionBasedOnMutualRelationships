@@ -74,7 +74,7 @@ class MyLogger:
 
         mem = psutil.virtual_memory()
         self._stats_lock.acquire()
-        avg_time = self._whole_time / self._n_fin
+        avg_time = self._whole_time / self._n_fin if self._n_fin > 0 else 0
         last_time = self._last_time
         self.log(
         f"""Tasks (Total: {self._n_req}, finished: {self._n_fin}, timeout: {self._n_timeout}) 

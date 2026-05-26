@@ -1,8 +1,15 @@
+"""
+File: GraphRepositoryABI.py
+Author: Jozef Michal Bukas <xbukas00@stud.fit.vutbr.cz>
+Date: 1.2.2026
+Brief: File that holds graph repository implementation
+"""
+import uuid
 from queue import PriorityQueue
 from typing import Any
 import dgl
-import time
-
+from api.app_api import ApiOptions
+from api.config.config import Config
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_main.conversion.FormatConverting import convert_form_neo4j_to_dgl, prepare_dgl_g_for_ml
@@ -28,8 +35,17 @@ class GraphRepositoryABI(GraphRepository):
         self._stop_event = Event()
         import_all_modules_from_package("graph_repository.workers.edit_node_edge_workers")
         import_all_modules_from_package("graph_repository.workers.tmp")
-        self._edit_worker = Thread(target=edit_loop,args=(self._worker_stop_event,self._request_q, self._neo4j_conf), daemon=True)
-        self._edit_worker.start()
+
+        d_option = Config.get_instance().server_conf.deploy_option
+
+        if d_option == ApiOptions.WHOLE_APP or d_option == ApiOptions.GRAPH_REPOSITORY or ApiOptions.READ_AND_GRAPH_REPO or ApiOptions.READ:
+
+            self._edit_worker = Thread(target=edit_loop,args=(self._worker_stop_event,self._request_q, self._neo4j_conf), daemon=True)
+            self._edit_worker.start()
+
+        else:
+            self._edit_worker = None
+
         self._state_dict: dict[str, GraphRequest] = {}
         self._state_dict_lock = Lock()
 
@@ -61,7 +77,9 @@ class GraphRepositoryABI(GraphRepository):
             MyLogger.get_instance().log("All edits that are in queue will be finished before shut down")
 
         self._request_q.put(FinishRequest())
-        self._edit_worker.join() #no timeout because I need to wait if worker is wrapping up and potentially finishing all work
+
+        if self._edit_worker is not None:
+            self._edit_worker.join() #no timeout because I need to wait if worker is wrapping up and potentially finishing all work
                                  #maybe I will give it some time limit just in case
 
         driver = self.get_neo4j_driver()
@@ -73,13 +91,20 @@ class GraphRepositoryABI(GraphRepository):
         return
 
     def get_neo4j_driver(self) -> Neo4jDBDriver | None:
-        #maybe I should add check that if graph repo is stopping then it should not give any client
-        #on the other hand if edits are to be finished then they need client.
+        """
+        Method that returns Neo4jDBDriver instance used to communicate with database
+        :return: Neo4jDBDriver instance or None if it does not connect to database
+        """
         return Neo4jDBDriver.from_config(self._neo4j_conf)
 
     #TODO add deletion of edit requests that did not started yet
 
-    def add_request_to_queue(self, request):
+    def add_request_to_queue(self, request) -> None:
+        """
+        Method that adds edit request to queue
+        :param request: Add, Edit, or Delete request
+        :return: Nothing
+        """
         if self._stop_event.is_set():
             request.state = RequestStates.TIMEOUT
             MyLogger.get_instance().log_warning(f"Graph repository is in process of stopping or it has already stopped - {request.id}")
@@ -101,6 +126,11 @@ class GraphRepositoryABI(GraphRepository):
         request.state = RequestStates.IN_QUEUE
 
     def get_request_state(self, job_id: str) -> RequestStates | None:
+        """
+        Method that returns edit request state
+        :param job_id: Request ID
+        :return: Request state or None if it does not exist
+        """
         with self._state_dict_lock:
             if self._state_dict.get(job_id) is None:
                 return None
@@ -114,6 +144,10 @@ class GraphRepositoryABI(GraphRepository):
         return state
 
     def delete_finished_request(self) -> None:
+        """
+        Method that deletes all finished requests
+        :return: Nothing
+        """
         with self._state_dict_lock:
             jobs_for_deleting = []
             for job_id, req in self._state_dict.items():
@@ -159,6 +193,11 @@ class GraphRepositoryABI(GraphRepository):
                 self._transaction_context.pop(key, None)
 
     def _find_job(self, job_id: str) -> Transaction| None:
+        """
+        Method that finds transaction with given job_id
+        :param job_id: ID of transaction
+        :return: Transaction if it exists else None
+        """
         with self._transaction_context_lock:
             data = self._transaction_context.get(job_id, None)
             self._inc_transaction_op_cnt()
@@ -166,14 +205,56 @@ class GraphRepositoryABI(GraphRepository):
         return data
 
     def _insert_job(self, job_id: str, data: Transaction) -> None:
+        """
+        Method that inserts transaction
+        :param job_id: ID of transaction
+        :param data: data object
+        :return: Nothing
+        """
         with self._transaction_context_lock:
             self._transaction_context[job_id] = data
             self._inc_transaction_op_cnt()
 
     def _remove_job(self, job_id: str) -> None:
+        """
+        Method that removes transaction
+        :param job_id:
+        :return: Nothing
+        """
         with self._transaction_context_lock:
             self._transaction_context.pop(job_id, None)
             self._inc_transaction_op_cnt()
+
+    def create_transaction(self) -> tuple[str | int] | None:
+        """
+        Method that creates transaction
+        :return: transation id and graph version
+        """
+
+        driver = self.get_neo4j_driver()
+        if driver is None:
+            return None
+
+        version = driver.start_new_transaction_on_curr_g_vers()
+        job_id = str(uuid.uuid4())
+        transaction = Transaction(job_id, version)
+        self._insert_job(job_id, transaction)
+        return job_id, version
+
+    def delete_transaction(self, job_id: str) -> None:
+        """
+        Method that deletes transaction
+        :param job_id: id of transaction
+        :return: Nothing
+        """
+
+        transaction = self._find_job(job_id)
+        driver = self.get_neo4j_driver()
+        if transaction is None or driver is None:
+            return
+
+        transaction.delete_all_tmp_nodes(driver)
+        self._remove_job(job_id)
 
     def _remove_tmp_from_transaction(self, job_id: str, driver: Neo4jDBDriver, node_id: int | None) -> None:
         """
@@ -210,6 +291,21 @@ class GraphRepositoryABI(GraphRepository):
             return
 
         transaction.add_tmp_node_to_transaction(node_id)
+
+    def find_domain(self, domain_name: str, version: int | None = None) -> dict[str, Any] | None:
+        driver = self.get_neo4j_driver()
+        if driver is None:
+            return None
+
+        res = driver.find_node(
+            {'domain_name': domain_name},
+            NodeTypes.DOMAIN ,
+            version if version is not None else Neo4jDBDriver.VERSION_CURR
+        )
+        if type(res) is not dict:
+            return None
+
+        return res
 
     def temporary_add_domain(self, domain: dict[str, Any], job_id: str | None) -> int | None:
         """
@@ -289,6 +385,11 @@ class GraphRepositoryABI(GraphRepository):
         return
 
     def get_neighbors_maliciousness(self, tmp_nd_id: int) -> tuple[float, float] | None:
+        """
+        Method that returns maliciousness of all neighbours in one meta-path-hop- distance
+        :param tmp_nd_id: Node id of evaluated domain
+        :return: `tuple[ malicious%, benign%] or None if not found
+        """
 
         driver = self.get_neo4j_driver()
         if driver is None:
@@ -312,8 +413,12 @@ class GraphRepositoryABI(GraphRepository):
         if driver is None:
             raise RuntimeError('Can not connect to database')
 
+        max_depth = Config.get_instance().graph_repo_conf.k_hop_neigh_params.max_depth
+        max_sample = Config.get_instance().graph_repo_conf.k_hop_neigh_params.max_sample_size
+        seed = Config.get_instance().graph_repo_conf.k_hop_neigh_params.walk_seed
+
         graph = driver.get_k_hop_neighborhood_universal(
-            {"label": NodeTypes.TMP_DOMAIN.neo4j, "node_id": tmp_node_id}, 3, 1500, False)
+            {"label": NodeTypes.TMP_DOMAIN.neo4j, "node_id": tmp_node_id}, 3, 1500, seed, False)
 
         driver.close()
         graph = convert_form_neo4j_to_dgl(True, graph)

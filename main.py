@@ -5,6 +5,7 @@ import dgl
 import uvicorn
 import signal
 from api.app_api import ApiOptions, create_app
+from api.config.config import Config
 from domain_evaluation.Evaluate import  test_from_collection
 from domain_evaluation.EvaluationApp import EvaluationApp, test_from_parquet
 from evaluation.graph_repository.generate_and_send_new_domains import direct_test, direct_test_of_copy_on_write
@@ -42,6 +43,7 @@ def add_signal_handlers():
 def main():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--config', type=str, help="Path to config file")
     parser.add_argument("--mongo_db", metavar='MONGO_CONF_FILE', type=str, help="Path to MongoDB database connection config file")
     parser.add_argument("--neo_db", metavar='NEO_DB_CONF_FILE', type=str, help="Path to Neo database connection config file")
     parser.add_argument("-l", "--log", metavar='LOG_FILE', type=str, help="Path where log file will be stored")
@@ -92,24 +94,26 @@ def main():
     classify_parser.add_argument('--test',type=str, metavar='OUT_FILE_CSV' ,help="Test metapath2vec model")
     """
 
-    test_parser = subparsers.add_parser('test')
-    test_parser.add_argument('output', type=str, help="Path where output will be stored")
-    test_parser.add_argument('-p',type=str, help="Path to parquet file")
+    #test_parser = subparsers.add_parser('test')
+    #test_parser.add_argument('output', type=str, help="Path where output will be stored")
+    #test_parser.add_argument('-p',type=str, help="Path to parquet file")
 
-    size_parser = subparsers.add_parser('size_test')
-    size_parser.add_argument('-p',type=str, help="Path to stable file")
+    #size_parser = subparsers.add_parser('size_test')
+    #size_parser.add_argument('-p',type=str, help="Path to stable file")
 
-    copy_parser = subparsers.add_parser('copy_test')
-    copy_parser.add_argument("output", type=str, help="Path where output will be stored")
+    #copy_parser = subparsers.add_parser('copy_test')
+    #copy_parser.add_argument("output", type=str, help="Path where output will be stored")
 
     server_parser = subparsers.add_parser('server')
-    server_parser.add_argument('available_endpoints', type=str, help=f"Endpoints that will available, available options are: {', '.join([opt.value for opt in ApiOptions])}")
-    server_parser.add_argument('-a','--address',metavar='HOST', type=str, help="Host to which will server bind", default='localhost')
-    server_parser.add_argument('-p','--port', metavar='PORT', type= int, help="Port to which will server bind", default=8000)
-    server_parser.add_argument('--max_eval',type=int, help="Maximum number of concurrent evaluations", default=16)
-    server_parser.add_argument('--max_concurent_gpu',type=int, help="Maximum number of concurrent evaluations on gpu", default=4)
+    #server_parser.add_argument('available_endpoints', type=str, help=f"Endpoints that will available, available options are: {', '.join([opt.value for opt in ApiOptions])}")
+    #server_parser.add_argument('-a','--address',metavar='HOST', type=str, help="Host to which will server bind", default='localhost')
+    #server_parser.add_argument('-p','--port', metavar='PORT', type= int, help="Port to which will server bind", default=8000)
+    #server_parser.add_argument('--max_eval',type=int, help="Maximum number of concurrent evaluations", default=16)
+    #server_parser.add_argument('--max_concurent_gpu',type=int, help="Maximum number of concurrent evaluations on gpu", default=4)
 
     args = parser.parse_args()
+
+    conf = Config.get_instance(args.config)
 
     if args.log is not None:
 
@@ -128,6 +132,8 @@ def main():
                 return
 
         MyLogger(args.log, log_level)
+
+    MyLogger(conf.logging_conf.log_file, conf.logging_conf.log_level)
 
     if args.mode == "import_db":
 
@@ -234,49 +240,33 @@ def main():
 
     elif args.mode == 'server':
 
-        mode = ApiOptions.from_str(args.available_endpoints)
+        mode = ApiOptions.from_str(conf.server_conf.deploy_option)
         if mode is None:
             return
 
-        graph_repo_init = False
-
-        if mode == ApiOptions.GRAPH_REPOSITORY or mode == ApiOptions.WHOLE_APP:
-
-            try:
-                repository = GraphRepository.init(GraphRepository.ABI, args.neo_db)
-            except Exception as e:
+        try:
+            g_r = GraphRepository.init(GraphRepository.ABI, conf.graph_repo_conf.neo4j_db_conf)
+            if g_r is None:
                 print("Neo database connection config file not provided, exiting", file=sys.stderr)
                 return
 
-            graph_repo_init = True
+        except Exception as e:
+            print("Neo database connection config file not provided, exiting", file=sys.stderr)
+            return
 
-            if repository is None:
-                print("Neo database connection config file not provided, exiting", file=sys.stderr)
-                return
-
-
-        if mode == ApiOptions.WHOLE_APP or mode == ApiOptions.EVALUATION:
-
-            if graph_repo_init:
-                repo = GraphRepository.get_instance()
-            else:
-                try:
-                    repo = GraphRepository.init(GraphRepository.ABI, args.neo_db)
-                except Exception as e:
-                    print("Neo database connection config file not provided, exiting", file=sys.stderr)
-                    return
-
-            if repo is None:
-                print("there is no instance of graph repository, exiting", file=sys.stderr)
-                return
-
+        if mode == ApiOptions.WHOLE_APP or mode == ApiOptions.EVALUATION or mode == ApiOptions.READ_AND_GRAPH_REPO:
             mp.set_start_method("spawn")
-            EvaluationApp(repo,args.max_eval, args.max_concurent_gpu)
-
+            EvaluationApp(g_r,conf.eval_app_conf.max_evaluations, conf.eval_app_conf.max_metapath2vec_evaluations)
 
         add_signal_handlers()
         app = create_app(mode)
-        uvicorn.run(app, host=args.address, port=args.port)
+        uvicorn.run(
+            app,
+            host=conf.server_conf.host,
+            port=conf.server_conf.port,
+            ssl_certfile = conf.server_conf.cert_file,
+            ssl_keyfile = conf.server_conf.key_file
+        )
 
 
     if args.mode == "test":

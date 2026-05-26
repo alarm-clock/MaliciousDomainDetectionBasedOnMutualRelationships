@@ -147,19 +147,20 @@ async def sys_info():
             "Counts": {"Nodes": n_cnt, "Edges": e_cnt}
             }
 
+"""
 class ReadQuery(BaseModel):
-    """
+    ""
     `query` query string
     `data` dictionary with variable name ($variable is in dict just variable) and value for that variable
-    """
+    ""
     query: str
     data: dict[str, Any] | None = None
 
 @router.post("/read_query")
 async def query_req(query: ReadQuery):
-    """
+    ""
     Endpoint for executing read queries in graph, query_result is not edited in no way
-    """
+    ""
     driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
 
     if driver is None:
@@ -190,7 +191,7 @@ async def query_req(query: ReadQuery):
 class PutTmpDomainsModel(BaseModel):
     domains: list[str]
 
-"""
+
 @router.post("/put_tmp_domians")
 async def put_tmp_domains(domains_obj: PutTmpDomainsModel):
 
