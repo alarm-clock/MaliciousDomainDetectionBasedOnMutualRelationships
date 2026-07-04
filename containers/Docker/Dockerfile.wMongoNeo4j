@@ -1,0 +1,75 @@
+FROM nvcr.io/nvidia/dgl:25.08-py3
+LABEL author="Jozef Michal Bukas"
+LABEL brief="Graph repository with system for domain evaluation based on the mutual relationships together with databases that can system use"
+EXPOSE 7474 7687 27017 8000
+
+WORKDIR /workspace
+
+COPY ../../src ./app/src
+COPY ../../requirements.txt ./requirements.txt
+
+ENV PATH="/opt/mongodb/mongodb-linux-x86_64-ubuntu2404-8.2.1/bin:/opt/mongodb/mongosh-2.5.8-linux-x64/bin:/opt/mongodb/mongodb-database-tools-ubuntu2404-x86_64-100.13.0/bin:${PATH}" \
+    MONGO_DBPATH="/data/db" \
+    NEO4J_server_directories_data="/data/neo4j_data" \
+    NEO4J_server_directories_logs="/data/neo4j_logs" \
+    NEO4J_server_directories_import="/data/neo4j_import" \
+    NEO4J_server_directories_plugins="/data/neo4j_plugins"
+
+RUN set -eux && \
+    mkdir -p /etc/apt/keyrings && \
+    wget -O - https://debian.neo4j.com/neotechnology.gpg.key \
+        | gpg --dearmor -o /etc/apt/keyrings/neotechnology.gpg && \
+    chmod a+r /etc/apt/keyrings/neotechnology.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/neotechnology.gpg] https://debian.neo4j.com stable latest" \
+        > /etc/apt/sources.list.d/neo4j.list && \
+    \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        python3 \
+        python3-pip \
+        python3-dev \
+        wget \
+        tar \
+        libcurl4 \
+        openssl \
+        openjdk-17-jre \
+        neo4j=1:2026.01.3 \
+        iputils-ping \
+        curl \
+        proxychains4 && \
+    \
+    python3 -m pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    \
+    mkdir -p \
+        /opt/mongodb \
+        /data/db \
+        /data/neo4j_data \
+        /data/neo4j_logs \
+        /data/neo4j_import \
+        /data/neo4j_plugins && \
+    \
+    cd /tmp && \
+    wget https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2404-8.2.1.tgz && \
+    wget https://downloads.mongodb.com/compass/mongosh-2.5.8-linux-x64.tgz && \
+    wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2404-x86_64-100.13.0.tgz && \
+    \
+    tar -xzf mongodb-linux-x86_64-ubuntu2404-8.2.1.tgz && \
+    tar -xzf mongosh-2.5.8-linux-x64.tgz && \
+    tar -xzf mongodb-database-tools-ubuntu2404-x86_64-100.13.0.tgz && \
+    \
+    mv mongodb-linux-x86_64-ubuntu2404-8.2.1 /opt/mongodb && \
+    mv mongosh-2.5.8-linux-x64 /opt/mongodb && \
+    mv mongodb-database-tools-ubuntu2404-x86_64-100.13.0 /opt/mongodb && \
+    \
+    rm -rf /tmp/*.tgz && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /root/.cache /var/lib/apt/lists/* && \
+    cd /workspace &&\
+    mkdir app/config #mount configuration folder here\
+    mkdir app/log #mount logs here
+
+WORKDIR /workspace/app/src
+CMD ["systemctl", "start", "neo4j.service", "&&", "python3", "-m", "main" ,"--config","../config/config.json","server"]

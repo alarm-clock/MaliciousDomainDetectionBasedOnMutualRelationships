@@ -1,48 +1,69 @@
-import copy
+"""
+File: test_data_generator.py
+Author: Jozef Michal Bukas <xbukas00@stud.fit.vutbr.cz>
+Date: 22.01.2026
+Brief: File that contains utilities for generating synthetic domain datasets,
+    sending update requests, running direct graph/evaluation performance tests,
+    parsing result CSV files, and visualizing timing statistics
+"""
+
 import csv
-import os
 import threading
-import time
 from typing import Any
 import requests
 import json
 import random
 import string
 import ipaddress
-import argparse
 import time as t
 from tqdm import tqdm
-from domain_evaluation.Evaluate import evaluate_domain_metapath2vec
-from domain_evaluation.EvaluationObjects import EvaluationJob
-from graph_repository.Neo4jDBDriver import Neo4jDBDriver, COPY_ON_WRITE_TIMES
-from graph_repository.graph_main.graph_editing.EditConsumer import _handle_request
-from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
-from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
+from src.graph_repository.graph_main.graph_editing.EditConsumer import _handle_request
+from src.graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
+from src.graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 
 SIZES = [10, 50, 100, 250, 500, 750, 1000, 2000, 5000, 10000]
 BASE_TLDS = ["com", "cz", "sk", "at", "net", "org","us", "ru", "co", "uk", "hu", "de", "edu", "ro", "co.uk", "mil", "gov" ]
 
-#used_domains = set()
+# used_domains = set()
 all_domains = []
 shared_ipv4_pool = []
 shared_ipv6_pool = []
 
 rng = random.Random(42)
 
+
 def rand_label(min_len=1, max_len=10):
+    """
+    Method that generates random lowercase domain label
+    :param min_len: `int` minimum generated label length
+    :param max_len: `int` maximum generated label length
+    :return: `str` generated random label
+    """
     letters = string.ascii_lowercase
     return "".join(rng.choice(letters) for _ in range(rng.randint(min_len, max_len)))
 
 
 def random_ipv4():
+    """
+    Method that generates random IPv4 address
+    :return: `str` generated IPv4 address
+    """
     return str(ipaddress.IPv4Address(rng.getrandbits(32)))
 
 
 def random_ipv6():
+    """
+    Method that generates random IPv6 address
+    :return: `str` generated IPv6 address
+    """
     return str(ipaddress.IPv6Address(rng.getrandbits(128)))
 
 
 def generate_unique_domain():
+    """
+    Method that generates globally unique synthetic domain
+    :return: `str` generated unique domain name
+    """
     """Generate domain that is globally unique"""
     while True:
 
@@ -56,13 +77,18 @@ def generate_unique_domain():
             labels = [rand_label() for _ in range(depth)]
             domain = ".".join(labels + [rng.choice(BASE_TLDS)])
 
-        #if domain not in used_domains:
-        #used_domains.add(domain)
+        # if domain not in used_domains:
+        # used_domains.add(domain)
         all_domains.append(domain)
         return domain
 
 
 def generate_dns():
+    """
+    Method that generates synthetic DNS record dictionary with random A, AAAA,
+    and optionally shared IP reuse
+    :return: `dict[str, Any]` generated DNS data
+    """
     dns = {}
 
     # Occasionally create a new shared IP group
@@ -105,6 +131,10 @@ def generate_dns():
 
 
 def generate_domain_record():
+    """
+    Method that generates one synthetic domain record including DNS and label
+    :return: `dict[str, Any]` generated domain record
+    """
     domain = generate_unique_domain()
 
     dns = generate_dns()
@@ -124,11 +154,21 @@ def generate_domain_record():
 
 
 def generate_dataset(size):
+    """
+    Method that yields synthetic domain records
+    :param size: `int` number of records to generate
+    :return: generator of generated domain records
+    """
     for _ in range(size):
         yield generate_domain_record()
 
 
 def generate_json(size: int) -> dict[str, Any]:
+    """
+    Method that generates request JSON body with synthetic domains
+    :param size: `int` number of domains to include
+    :return: `dict[str, Any]` JSON-ready dictionary with generated domains
+    """
 
     domains = []
 
@@ -137,24 +177,51 @@ def generate_json(size: int) -> dict[str, Any]:
 
     return {"domains": domains}
 
+
 def send(req_body: dict[str, Any], pbar, pbar_add: int, url) -> None:
+    """
+    Method that sends HTTP POST request with generated domain payload
+    :param req_body: `dict[str, Any]` request body to send
+    :param pbar: tqdm progress bar instance
+    :param pbar_add: `int` progress increment after request is sent
+    :param url: target request URL
+    :return: None
+    """
     response = requests.post(url, json=req_body)
     print(response)
     pbar.update(pbar_add)
 
 
-
 def gen_send(N: int, size: int, interval: int, url, time) -> None:
+    """
+    Method that generates and sends `N` random requests with variable size
+    :param N: `int` number of requests to send
+    :param size: `int` base number of domains per request
+    :param interval: `int` random deviation around base size
+    :param url: target URL
+    :param time: delay between requests in seconds
+    :return: None
+    """
 
     pbar = tqdm(total=N)
     for cnt in range(N):
         req_size = random.randint(size - interval, size + interval)
         request_body = generate_json(req_size)
 
-        send(request_body,pbar,1,url)
+        send(request_body, pbar, 1, url)
         t.sleep(time)
 
+
 def load_send(url: str, file: str, size: int, interval: int, time) -> None:
+    """
+    Method that loads domains from file and sends them in chunked requests
+    :param url: `str` target URL
+    :param file: `str` path to JSON file with domains
+    :param size: `int` base chunk size
+    :param interval: `int` random deviation around chunk size
+    :param time: delay between requests in seconds
+    :return: None
+    """
 
     with open(file, "r") as f:
         data = json.load(f)
@@ -168,7 +235,7 @@ def load_send(url: str, file: str, size: int, interval: int, time) -> None:
         req_size = random.randint(size - interval, size + interval)
         next_cnt = cnt + req_size
         domains_for_send = domains[cnt:next_cnt]
-        send({"domains": domains_for_send},pbar,req_size,url)
+        send({"domains": domains_for_send}, pbar, req_size, url)
         t.sleep(time)
         cnt = next_cnt
 
@@ -187,6 +254,16 @@ def visualize_test_results(
         out_dir: str = "figures",
 ) -> None:
     """
+    Method that creates and saves graphs showing request and evaluation times
+    against graph size characteristics
+    :param req_times: `list[float]` request processing times
+    :param node_cnts: `list[int]` graph node counts
+    :param edge_cnts: `list[int]` graph edge counts
+    :param eval_times: `list[float]` evaluation times
+    :param eval_mod: `int` evaluation interval parameter
+    :param out_dir: `str` output directory for generated figures
+    :return: None
+
     Creates visualization figures for:
 
     Request times:
@@ -222,9 +299,9 @@ def visualize_test_results(
     if eval_mod <= 0:
         raise ValueError("eval_mod must be > 0")
 
-    edge_cnts = [e//2 for e in edge_cnts]
-    eval_n_cnts = node_cnts #[::eval_mod]
-    eval_e_cnts = edge_cnts #[::eval_mod]
+    edge_cnts = [e // 2 for e in edge_cnts]
+    eval_n_cnts = node_cnts  # [::eval_mod]
+    eval_e_cnts = edge_cnts  # [::eval_mod]
 
     expected_eval_len = len(eval_n_cnts)
 
@@ -269,6 +346,16 @@ def visualize_test_results(
             title: str,
             filename: str,
     ) -> None:
+        """
+        Method that saves one line plot into output directory
+        :param x_data: x-axis values
+        :param y_data: y-axis values
+        :param xlabel: `str` x-axis label
+        :param ylabel: `str` y-axis label
+        :param title: `str` plot title
+        :param filename: `str` output file name
+        :return: None
+        """
 
         # Filter out Y values > 50
         filtered = [
@@ -313,6 +400,17 @@ def visualize_test_results(
             title: str,
             filename: str,
     ) -> None:
+        """
+        Method that saves combined request/evaluation line plot
+        :param x1_data: request x-axis values
+        :param y1_data: request y-axis values
+        :param x2_data: evaluation x-axis values
+        :param y2_data: evaluation y-axis values
+        :param xlabel: `str` x-axis label
+        :param title: `str` plot title
+        :param filename: `str` output file name
+        :return: None
+        """
 
         # Filter request data
         filtered_req = [
@@ -464,7 +562,13 @@ def visualize_test_results(
         f"{output_path.resolve()}"
     )
 
+
 def parse_csv(file_path: str):
+    """
+    Method that loads performance CSV file and visualizes contained results
+    :param file_path: `str` path to CSV file
+    :return: None
+    """
     req_times: list[float] = []
     node_cnts: list[int] = []
     edge_cnts: list[int] = []
@@ -481,7 +585,15 @@ def parse_csv(file_path: str):
 
     visualize_test_results(req_times, node_cnts, edge_cnts, eval_times, 9)
 
+
 def direct_test(neo4j_conf: str, stable: str) -> None:
+    """
+    Method that repeatedly inserts generated domains into graph and periodically
+    measures evaluation performance on stable test domain
+    :param neo4j_conf: `str` path to Neo4j configuration file
+    :param stable: `str` path to JSON file with stable seed dataset
+    :return: None
+    """
     stop_event = threading.Event()
     gpu_sem = threading.Semaphore(16)
 
@@ -498,144 +610,14 @@ def direct_test(neo4j_conf: str, stable: str) -> None:
         data = json.load(f)
 
     domains = data["domains"]
-    req = EditRequest(domains,RequestPriority.CRITICAL,-1)
+    req = EditRequest(domains, RequestPriority.CRITICAL, -1)
     req._first_filter = False
-    _handle_request(req,stop_event,neo4j_conf)
+    _handle_request(req, stop_event, neo4j_conf)
 
-    domain ={
+    domain = {
         "domain_name": "test.domain.for.eval.test",
         "dns":{
             "A": ["84.21.198.54","49.212.238.9"],
             "CNAME": "ywoih.qwhebv.riz.xrbxkbbspq.x.test"
         }
     }
-
-    with open("res_times2.csv", "w") as f:
-        writer = csv.writer(f)
-        writer.writerow(["iteration","req_time","n_cnt","e_cnt","eval_time"])
-        for cnt in range(N):
-            generated_domains = generate_json(n)['domains']
-            req = EditRequest(generated_domains, RequestPriority.CRITICAL,-1)
-            req._first_filter = False
-            n_cnt, e_cnt = Neo4jDBDriver.from_config(neo4j_conf).get_node_and_edge_cnt()
-            start_t = time.time()
-            _handle_request(req,stop_event,neo4j_conf)
-            time_taken = time.time() - start_t
-            req_times.append(time_taken)
-            node_cnts.append(n_cnt)
-            edge_cnts.append(e_cnt)
-
-            if cnt % eval_mod == 0:
-                dom_copy = copy.deepcopy(domain)
-                job = EvaluationJob(str(dom_copy['domain_name']),timeout=-1)
-                job.set_domain_data(dom_copy)
-                eval_start_t = time.time()
-                evaluate_domain_metapath2vec(job,gpu_sem)
-                eval_time_taken = time.time() - eval_start_t
-                eval_times.append(eval_time_taken)
-                writer.writerow([time_taken,n_cnt,e_cnt,eval_time_taken])
-            else:
-                writer.writerow([time_taken,n_cnt,e_cnt,eval_times[-1]])
-
-            if cnt % 50 == 0:
-                f.flush()
-                os.fsync(f.fileno())
-
-            time.sleep(1.0)
-
-    visualize_test_results(req_times,node_cnts,edge_cnts,eval_times,eval_mod)
-
-def direct_test_of_copy_on_write(neo4j_conf: str, out: str) -> None:
-    stop_event = threading.Event()
-
-    N = 100
-    n = 100
-
-    with open(out, "w") as f:
-        writer = csv.writer(f)
-        writer.writerow(["copy_time","n_cnt","e_cnt"])
-        for cnt in range(N):
-            generated_domains = generate_json(n)['domains']
-            req = EditRequest(generated_domains, RequestPriority.CRITICAL,-1)
-            req._first_filter = False
-            n_cnt, e_cnt = Neo4jDBDriver.from_config(neo4j_conf).get_node_and_edge_cnt(cnt)
-            _handle_request(req,stop_event,neo4j_conf)
-            writer.writerow([COPY_ON_WRITE_TIMES[-1],n_cnt,e_cnt])
-            f.flush()
-            os.fsync(f.fileno())
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-m',type=str, default="send", choices=["send","save","load","load-and-generate"],help="Program mode")
-    parser.add_argument('-f',type=str, default="domains.json", help="File name")
-    parser.add_argument("-n", type=int, help="Number of requests to generate", default=1)
-    parser.add_argument("-s", type=int, help="Number of domains to generate in one request", default=1000)
-    parser.add_argument("-i", type=int, help="+- size interval around 'size' from which size will be randomly chosen", default=0)
-    parser.add_argument("-t",type=float, help="Time between requests in seconds",default=5.00)
-    parser.add_argument('-rs',type=int, help="RNG seed", default=42)
-    parser.add_argument("-a",type=str, help="Host name",default="localhost")
-    parser.add_argument("-p",type=int, help="Port number",default=8000)
-    args = parser.parse_args()
-
-    N = args.n
-    size = args.s
-    interval = args.i
-    time = args.t
-    host = args.a
-    port = args.p
-    file = args.f
-    mode = args.m
-    seed = args.rs
-
-    global rng
-    rng = random.Random(seed)
-
-    url = f"http://{host}:{port}/update"
-
-    if mode == "save":
-        dset = generate_json(size)
-
-        with open(file, "w") as f:
-            json.dump(dset, f)
-
-        return
-
-    if mode == 'send':
-        gen_send(N,size,interval,url,time)
-
-    if mode == 'load':
-        load_send(url, file, size, interval, time)
-
-    if mode == 'load-and-generate':
-        load_send(url, file, size, interval, time)
-        gen_send(N, size, interval, url, time)
-
-    return
-
-def count_numbers_between_ranges(ranges_str: str) -> int:
-    nums = list(map(int, ranges_str.split(",")))
-
-    if len(nums) % 2 != 0:
-        raise ValueError("Input must contain even number of integers")
-
-    total = 0
-
-    # Iterate over ranges pairwise
-    for i in range(1, len(nums) - 2, 2):
-        end_current = nums[i]
-        start_next = nums[i + 1]
-
-        # Count numbers strictly between ranges
-        gap = start_next - end_current - 1
-
-        if gap > 0:
-            total += gap
-
-    print(total)
-    return total
-
-if __name__ == '__main__':
-    #main()
-    #parse_csv("../../res_times.csv")
-    #parse_csv("res_times_meta.csv")
-    count_numbers_between_ranges("1234,4333,4998,22445,25166,40196,41657,49145,51838,61171,63495,85151,85170,87668,90752,94877,96952,101990,104799,120096,121997,127064,130032,151533,154823,159501,161651,168626,168688,174635,175209,189648,190941,195897,196749,202964,206575,215731,216037,222532,223230,226356,228170,236572,236971,247755,248175,255079,259235,277970,279108,291367,294942,316336,317713,325191,326929,332762,336030,345797,347881,355791,358780,360221,363448,381388,386915,401406,404283,420504,425266,432827,435192,449644,453857,475641,481385,498453,501295,506329,511329,514246,516545,522629,529422,532441,536113,558385,559173,568102,571089,573482,574012,576570,586895,589841,593774,595811,600481,607894")

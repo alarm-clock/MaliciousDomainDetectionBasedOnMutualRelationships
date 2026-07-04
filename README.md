@@ -26,17 +26,17 @@ Optionally, you can use a ``MongoDb`` database for easier initial graph creation
 ### System
 First, you must create a Python virtual environment and activate it with the command:
 
-```
+```bash
 python -m venv .venv
 source .venv/bin/activate 
 ```
 and then you install requirements using command:
-```
+```bash
 pip install -r requirements.txt
 ```
 Now the system should be able to run. Optionally, you can create a Singularity container from the TODO.def file and run the system inside it. For how to work with singularity containers, see their official tutorials.
 Mapoc is being built simply using the command:
-```
+```bash
 mvn clean package
 ```
 inside Mapoc's main source code folder. This will create ``mapoc-1.0-SNAPSHOT.jar``, which needs to be put into Neo4j's ``plugins`` directory (usually ``/var/lib/neo4j/plugins``)
@@ -124,7 +124,7 @@ After building and downloading all dependencies, you can start the system instan
 
 Optionally, before starting, you can build an initial graph from the domain dataset that is stored in MongoDB. Supported data format is:
 
-```
+```json
 {
     "domain_name": "gymlm.sk",
     "node_id": 42,
@@ -142,13 +142,13 @@ Optionally, before starting, you can build an initial graph from the domain data
 where a benign domain is a domain that has a benign substring in the label, all other domains are considered malicious. Node_id is unique node id that each domain must have otherwise they can not be parsed by the system. Dns, ip_data, and fields inside them are optional and can be omitted.
 
 This import then can be done using command:
-```
+```bash
 python3.10 -m main --neo_db path_to_neo_conf.json --mongo_db path_to_mongo_conf.json [-l logfile.log -ll LOGLEVEL] import_db --neo -e all [-r start1,end1,start2,end2,...]
 ```
 where ``-r`` can be used to pick only domain that are within start,end range (including start and end), -l is for optional logging
 and -ll is log level (default is info, can be set to debug), Neo4j configuration looks like this:
 
-```
+```json
 {
       "host": "localhost",
       "port": 7687,
@@ -161,7 +161,7 @@ and -ll is log level (default is info, can be set to debug), Neo4j configuration
 ```
 where it is best to leave batch_size and batch_delay in default values for optimal performance. MongoDB configuration 
 looks like this:
-```
+```json
 {
 	"client" : "localhost",
 	"port" : 27017,
@@ -172,7 +172,7 @@ looks like this:
 that has its fields self explanatory.
 
 If you don't want to build initial graph like this you still need before start do:
-```
+```bash
 python3.10 -m main --neo_db path_to_neo_conf.json  import_db --empty
 ```
 to create empty instance of domain relationship graph. Without this step system cannot work.
@@ -194,11 +194,98 @@ for authentication when using the system's API, and lastly, you can set a deploy
 Optionally you can add or remove cert_file and key_file which are used if you want to use TLS, if you don't you can remove them.
 
 Now you can start system instance using command:
-```
+```bash
 python3.10 -m main --config path_to_confing.json server
 ```
 
 Instance can be stopped using ``ctrl-c``/kill signal. 
+### Containers (Singularity/Docker)
+
+In folder containers you can find files for creating Singularity and Docker images that already have all prerequisites
+installed and system is in ready-to-use state. Both Docker and Singularity images have two files to create image from:
+one with only system and one with both system and Neo4j database within them. In both cases if you need to use VPN like 
+Wireguard sometimes it is hard or impossible to execute it on hosting system or inside container so all containers
+come with preinstalled ``proxychains`` to cheat system with "router" machine on which you can use VPN and to which you
+can SSH (for example Metacentrum batch jobs). 
+
+
+To build Singularity container firstly you must download Singularity on your machine. Then you can build image using 
+command: 
+```bash 
+sudo singularity build name_of_image.sif containers/singularity/pick_your_file.def
+```
+Image must be built from 
+main folder due to path restrictions. Then with created `.sif` image you can write simple bash script that will execute
+anything you want. Note that Singularity container does not contain any code within. You use code inside your own file 
+system and you execute it inside. Like for example: ```singularity exec python3 -m main --config path/to/conf.json server```.
+
+Docker image is built in similar manner and must be built from main folder. Created image is then started like this:
+```bash
+sudo docker run -v "$(pwd)/path/to/your/config":/workspace/app/config:ro -v "$(pwd)/path/to/log":/workspace/app/log graph_repo
+```
+This command will start container and system within it. Of course, if you edit image name or something else you must 
+start container accordingly. Also, if you want to start system with proxychains or in different manner you must do it
+using interactive session or any other way.
+
+If you want to start database you must bind given directories to directories inside container in both cases. Note that
+databases inside Docker were not tested how they behave. 
+
 ### API
 
 API documentation can be read after system started on http(s)://host:port/docs for further information.
+
+System API works as follows. For graph editing there are endpoints: 
+- add,
+- delete,
+- update,
+
+to which you can send domain data to be added, updated, or deleted. Data is passed as `application/json` with format:
+```json
+{
+  "domains": [
+    {
+      "domain_name": "gymlm.sk",
+      "node_id": 42,
+      "label": "benign",
+      "dns": {
+        "A": ["192.168.1.1", "42.42.42.42"],
+        "AAAA": ["fe80::1234"],
+        "CNAME": "some.hosting.com",
+        ...
+        },
+      "ip_data": [{"ip": "67.67.67.67", ...}],
+      ...
+    },
+    ...
+  ]
+}
+```
+
+If you are deleting domains you can just pass `domain_name` inside domain data JSON body. Domain data format is taken 
+from Hranický et al. "A Dataset of Information (DNS, IP, WHOIS/RDAP, TLS, GeoIP) for a Large Corpus of Benign, Phishing, and Malware Domain Names 2024".
+In request headers it is also required to have header specified in system configuration (`auth_header_name`) with
+pre shared secret that is hashed in the configuration as SHA256 hash. In response to edit request you will find
+`job_id` which can be used to check edit progress. To do so you use `/job_status/<job_id>` endpoint.
+
+Because of Neo4j free version not having any database or user management essentially you only have one user that can 
+both read and edit graph. If you want to force readonly queries you can use `/read_query` endpoint to which you will pass
+you query and data in `application/json` format:
+
+```json
+{
+  "query": "UNWIND ids AS id MATCH (n: Domain {node_id: $id}) RETURN COUNT n AS domain_count",
+  "data": {
+    "ids": [42,69,55]
+  }
+}
+```
+
+If you want to use domain evaluation than for it there is one endpoint `evaluate`. Here you just submit domain and optionally
+timeout again in `application/json` format: 
+
+```json
+{
+  "domain": "gymlm.sk"
+}
+```
+System will then return evaluation id that can be used to retrieve evaluation result using `/evaluate/<evaluation_id>` endpoint.

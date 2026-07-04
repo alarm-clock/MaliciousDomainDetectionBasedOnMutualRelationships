@@ -1,6 +1,0 @@
-{
-	"client" : "localhost",
-	"port" : 27017,
-	"db" : "datasets",
-	"collection" : "domains"
-}

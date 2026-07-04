@@ -1,0 +1,54 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/dgl:25.08-py3
+
+%files
+	requirements.txt ../../requirements.txt
+
+%environment
+	export PATH=/opt/mongodb/mongodb-linux-x86_64-ubuntu2404-8.2.1/bin:/opt/mongodb/mongosh-2.5.8-linux-x64/bin:/opt/mongodb/mongodb-database-tools-ubuntu2404-x86_64-100.13.0/bin:$PATH
+    export MONGO_DBPATH=/data/db
+	export NEO4J_server_directories_data=/data/neo4j_data
+	export NEO4J_server_directories_logs=/data/neo4j_logs
+	export NEO4J_server_directories_import=/data/neo4j_import
+	export NEO4J_server_directories_plugins=/data/neo4j_plugins
+
+
+%post
+
+	set -e
+	mkdir -p /etc/apt/keyrings
+	wget -O - https://debian.neo4j.com/neotechnology.gpg.key | gpg --dearmor -o /etc/apt/keyrings/neotechnology.gpg > /dev/null
+	chmod a+r /etc/apt/keyrings/neotechnology.gpg
+	echo 'deb [signed-by=/etc/apt/keyrings/neotechnology.gpg] https://debian.neo4j.com stable latest' | tee -a /etc/apt/sources.list.d/neo4j.list > /dev/null
+
+	apt-get update && apt-get install -y --no-install-recommends build-essential python3 python3-pip python3-dev wget tar libcurl4 openssl openjdk-17-jre neo4j=1:2026.01.3  iputils-ping curl wget proxychains4 && apt-get clean
+	python3 -m pip install --upgrade pip
+	pip install -r requirements.txt
+	
+	mkdir -p /opt/mongodb /data/db /data/neo4j_data /data/neo4j_logs /data/neo4j_import /data/neo4j_plugins
+
+	cd /tmp
+	wget https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2404-8.2.1.tgz
+	wget https://downloads.mongodb.com/compass/mongosh-2.5.8-linux-x64.tgz
+	wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2404-x86_64-100.13.0.tgz
+	
+	tar -xzf mongosh-2.5.8-linux-x64.tgz
+	tar -xzf mongodb-linux-x86_64-ubuntu2404-8.2.1.tgz
+	tar -xzf mongodb-database-tools-ubuntu2404-x86_64-100.13.0.tgz
+	
+	mv mongodb-linux-x86_64-ubuntu2404-8.2.1 /opt/mongodb
+	mv mongosh-2.5.8-linux-x64 /opt/mongodb
+	mv mongodb-database-tools-ubuntu2404-x86_64-100.13.0 /opt/mongodb
+
+	rm -rf /tmp/mongo*	
+
+	cd ~	
+
+	apt-get autoremove -y
+	apt-get clean
+	rm -rf /root/.cache
+	rm -rf /var/lib/apt/lists/*
+
+%runscript
+	exec python3 "$@"
+

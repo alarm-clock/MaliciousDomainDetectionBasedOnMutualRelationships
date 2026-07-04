@@ -1,0 +1,34 @@
+{
+  "graph_repo_conf": {
+    "neo4j_db_conf": "../config/neo4j_config_server.json",
+    "k_hop_neigh_params": {
+      "max_depth": 3,
+      "max_sample_size": 1000,
+      "walk_seed": 42
+    }
+  },
+  "eval_app_conf": {
+    "result_removal_time": 1200.0,
+    "max_evaluations": 16,
+    "max_metapath2vec_evaluations": 16,
+    "eval_params": {
+      "w_size": 1,
+      "embedd_dim": 64,
+      "neg_size": 5,
+      "lr": 0.01,
+      "walk_seed": 42,
+      "regress_max_iters": 300
+    }
+  },
+  "logging_conf": {
+    "log_file": "../log/system_log.log",
+    "log_level": "DEBUG"
+  },
+  "server_conf": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "deploy_option": "read_and_graph_repository",
+    "auth_header_name": "Auth",
+    "pvd_hash": "56b1db8133d9eb398aabd376f07bf8ab5fc584ea0b8bd6a1770200cb613ca005"
+  }
+}

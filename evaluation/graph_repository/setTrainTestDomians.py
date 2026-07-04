@@ -1,3 +1,11 @@
+"""
+File: set_train_test.py
+Author: Jozef Michal Bukas <xbukas00@stud.fit.vutbr.cz>
+Date: 22.01.2026
+Brief: File that contains helper methods for generating train/test node-id ranges
+    and updating MongoDB collection documents with corresponding train split flags
+"""
+
 import argparse
 import json
 import random
@@ -5,10 +13,16 @@ import random
 import pymongo
 from pymongo import MongoClient
 
-from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
-
 
 def generateRanges(n: int, n_ranges: int, prob: float = 0.75) -> list[tuple[int,int]]:
+    """
+    Method that generates disjoint node-id ranges whose total covered size approximates
+    selected probability of all available nodes
+    :param n: `int` total number of nodes/documents
+    :param n_ranges: `int` number of ranges to generate
+    :param prob: `float` target fraction of nodes that should belong to train split
+    :return: `list[tuple[int, int]]` generated inclusive index ranges
+    """
 
     target = int(n * prob)
     lengths = [random.random() for _ in range(n_ranges)]
@@ -41,11 +55,16 @@ def generateRanges(n: int, n_ranges: int, prob: float = 0.75) -> list[tuple[int,
         ranges.append((curr, end))
         curr = end + 1
 
-
     return ranges
 
 
 def setTrainTestTODomains(ranges: list[tuple[int,int]], collection: pymongo.collection.Collection) -> None:
+    """
+    Method that resets all documents to test split and then marks selected node-id ranges as train split
+    :param ranges: `list[tuple[int, int]]` inclusive node-id ranges that should be marked as training data
+    :param collection: `pymongo.collection.Collection` MongoDB collection with domain documents
+    :return: None
+    """
 
     collection.update_many({}, {'$set': {"train": False}})
 
@@ -62,6 +81,11 @@ def setTrainTestTODomains(ranges: list[tuple[int,int]], collection: pymongo.coll
 
 
 def main():
+    """
+    Method that parses CLI arguments, loads MongoDB configuration, and either clears
+    or creates train/test split flags in configured collection
+    :return: None
+    """
 
     parser = argparse.ArgumentParser()
     parser.add_argument("mogno_db_conf",metavar='MONGO_CONF_FILE', type=str)
@@ -83,7 +107,6 @@ def main():
     ranges = generateRanges(collection.count_documents({}), 3,0.75)
     setTrainTestTODomains(ranges, collection)
 
-
     ranges_str=""
 
     for start, end in ranges:
@@ -96,4 +119,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
