@@ -216,7 +216,7 @@ sudo singularity build name_of_image.sif containers/singularity/pick_your_file.d
 ```
 Image must be built from 
 main folder due to path restrictions. Then with created `.sif` image you can write simple bash script that will execute
-anything you want. Note that Singularity container does not contain any code within. You use code inside your own file 
+anything you want. Note that Singularity container does not need to contain code within and can serve as only ready-made environment for fast development. You use code inside your own file 
 system and you execute it inside. Like for example: ```singularity exec python3 -m main --config path/to/conf.json server```.
 
 Docker image is built in similar manner and must be built from main folder. Created image is then started like this:
