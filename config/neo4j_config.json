@@ -1,0 +1,9 @@
+{
+  "host": "localhost",
+  "port": 7687,
+  "user": "neo4j",
+  "pwd": "amanHy-example-amanaHy",
+  "db": "neo4j",
+  "batch_delay": 0.2,
+  "batch_size": 1000
+}

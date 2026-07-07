@@ -2,12 +2,12 @@ Bootstrap: docker
 From: nvcr.io/nvidia/dgl:25.08-py3
 
 %files
-	requirements.txt ../../requirements.txt
+	requirements.txt /workspace/requirements.txt
 
 %post
 	apt-get update && apt-get install -y --no-install-recommends build-essential python3 python3-pip python3-dev wget tar libcurl4 openssl iputils-ping curl wget proxychains4 && apt-get clean
 	python3 -m pip install --upgrade pip
-	pip install -r requirements.txt
+	pip install -r /workspace/requirements.txt
 
 	cd ~
 	apt-get autoremove -y
