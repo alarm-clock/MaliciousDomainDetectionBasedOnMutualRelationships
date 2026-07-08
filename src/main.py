@@ -91,12 +91,12 @@ def main():
     edit_parser.add_argument('-d', '--delete', action='store_true', help="Delete domains from graph")
     edit_parser.add_argument('-e', '--edit', action="store_true", help="Edit domains in graph")
 
-    # tmp edit here
-    tmp_edit_parser = subparsers.add_parser('tmp')
+    # tmp_edge_workers edit here
+    tmp_edit_parser = subparsers.add_parser('tmp_edge_workers')
     tmp_edit_parser.add_argument("-jf", '--json_file', type=str, help="Path where json file will be temporary added/deleted")
     tmp_edit_parser.add_argument('-j', '--json', type=str, help="Json string that will be used to temporary add or delete domain")
-    tmp_edit_parser.add_argument('-a', '--add', action='store_true', help="Add tmp domain to graph")
-    tmp_edit_parser.add_argument('-d', '--delete', action='store_true', help="Delete tmp domain from graph")
+    tmp_edit_parser.add_argument('-a', '--add', action='store_true', help="Add tmp_edge_workers domain to graph")
+    tmp_edit_parser.add_argument('-d', '--delete', action='store_true', help="Delete tmp_edge_workers domain from graph")
 
     """
     classify_parser = subparsers.add_parser('classify')
@@ -105,7 +105,7 @@ def main():
     classify_parser.add_argument('-m','--mongo',action='store_true',help="Use MongoDB database to get domains")
     classify_parser.add_argument('-p',"--parallel", action='store_true', help="Parallel test domains")
     classify_parser.add_argument('-t','--trained',action='store_true', help="Flag indicating that some domains in mongo were train/test separated")
-    classify_parser.add_argument('-e','--exists',action='store_true',help="Flag that indicates that tmp domain is already in graph")
+    classify_parser.add_argument('-e','--exists',action='store_true',help="Flag that indicates that tmp_edge_workers domain is already in graph")
     classify_parser.add_argument('--test',type=str, metavar='OUT_FILE_CSV' ,help="Test metapath2vec model")
     """
 
@@ -241,7 +241,7 @@ def main():
         request.filter()
         request.edit(current_graph_version)
 
-    elif args.mode == "tmp":
+    elif args.mode == "tmp_edge_workers":
 
         repository: GraphRepository = GraphRepository.init(GraphRepository.ABI, args.neo_db)
 

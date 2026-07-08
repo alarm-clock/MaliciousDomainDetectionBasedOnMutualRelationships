@@ -41,7 +41,7 @@ def _find_domains_that_have_domain_as_cname(domain_name: str, version: int, driv
     RETURN collect(d.node_id) AS domains
     """
     domains = driver.execute_read(query)[0]['domains']
-    #for now, I will ignore the fact that there is dummy domain and same tmp domain, system will work regardless
+    #for now, I will ignore the fact that there is dummy domain and same tmp_edge_workers domain, system will work regardless
     return domains if len(domains) > 0 else None
 
 def tmp_add_cname_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBDriver) -> list[tuple[list[dict],dict[str,Any]]] | None:
@@ -49,7 +49,7 @@ def tmp_add_cname_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo
     Function for creating cname edges between `domain` and its alias in graph
     :param domain: `dict` that contains domain data
     :param version: `int` graph version that is used to find cname domains
-    :param tmp_node_id: `int` node_id of tmp domain
+    :param tmp_node_id: `int` node_id of tmp_edge_workers domain
     :param driver: `Neo4jDBClient` open driver for interacting with Neo4j
     :return: `list[(` edges `,` edge_creation_options `)]` if there is at least one cname node in graph, otherwise `None`
     """

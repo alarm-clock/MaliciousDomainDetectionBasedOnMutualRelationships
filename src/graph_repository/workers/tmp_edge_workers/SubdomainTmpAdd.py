@@ -11,7 +11,7 @@ def tmp_add_subdomain_edge(domain: dict, version: int, tmp_node_id: int, driver:
     Function for creating subdomain edges between `domain` and its parent domains in graph
     :param domain: `dict` that contains domain data
     :param version: `int` graph version that is used to find parent domains
-    :param tmp_node_id: `int` node_id of tmp domain
+    :param tmp_node_id: `int` node_id of tmp_edge_workers domain
     :param driver: `Neo4jDBClient` open driver for interacting with Neo4j
     :return: `list[(` edges `,` edge_creation_options `)]` if there is at least one parent node in graph, otherwise `None`
     """

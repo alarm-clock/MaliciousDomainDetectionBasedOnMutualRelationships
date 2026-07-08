@@ -9,8 +9,8 @@ Brief: File that holds functions for filtering out domains that already have sam
 """
 
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
+from graph_repository.graph_repo_misc import get_registrant_from_record
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
-
 
 def rm_domains_with_same_ip(domains: list[dict], version: int, driver: Neo4jDBDriver) -> set[str]:
     """
@@ -84,4 +84,36 @@ def rm_domains_with_same_cname(domains: list[dict], version: int, driver: Neo4jD
     diff_domains = set(diff_domain_names)
     del diff_domain_names, rows
 
+    return diff_domains
+
+def rm_domains_with_same_registrant(domains: list[dict], version: int, driver: Neo4jDBDriver) -> set[str]:
+    """
+    Method that filters out domains that have the same registrant as their graph counterparts
+    :param domains: `list[dict]` with domain data which may or may not hold A and AAAA records
+    :param version: `int` graph version
+    :param driver: `Neo4jDBClient` driver used to query db
+    :return: `set[str]` with domains (their domain names) that have different registrant in graph
+    """
+
+    rows = []
+    for domain in domains:
+        row = {"domain_name": domain['domain_name']}
+        registrant = get_registrant_from_record(domain)
+        if registrant is not None:
+            row['registrant'] = registrant
+
+        rows.append(row)
+
+    query = f"""
+    UNWIND $domains AS domain
+    OPTIONAL MATCH (:{NodeTypes.DOMAIN.neo4j} {{domain_name: domain.domain_name {get_version_query(version, False)} }})
+                  -[:{EdgeTypes.REGISTERED.value}]->(m:{NodeTypes.REGISTRANT.neo4j})
+    WITH domain, m
+    WHERE (domain.registrant IS NOT NULL AND m IS NULL) OR (domain.registrant IS NULL AND m IS NOT NULL) OR domain.registrant <> m.name
+    RETURN collect(domain.domain_name) AS diff_domains
+    """
+
+    diff_domain_names = driver.execute_read(query, domains=rows)[0]['diff_domains']
+    diff_domains = set(diff_domain_names)
+    del diff_domain_names, rows
     return diff_domains

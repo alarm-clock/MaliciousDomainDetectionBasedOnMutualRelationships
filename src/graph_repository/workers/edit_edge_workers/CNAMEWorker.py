@@ -108,21 +108,23 @@ class CNAMEWorker(EditWorker):
         for domain in self._domains:
 
             domain_name = str(domain['domain_name'])
-            try:
-                cname_domain = domain['dns']['CNAME']['value']
-            except (KeyError,TypeError):
-                try:
-                    cname_domain = domain['dns']['CNAME']
-                except (KeyError,TypeError):
-                    MyLogger.get_instance().log_debug(f'Omitting domain {domain_name} because it does not have a CNAME DNS entry')
-                    continue
+
+            cname_dict = domain.get('dns',{}).get('CNAME',None)
+            if type(cname_dict) is dict:
+                cname_domain = cname_dict.get('value', None)
+            elif type(cname_dict) is str:
+                cname_domain = cname_dict
+            else:
+                cname_domain = None
+
+            if cname_domain is None:
+                MyLogger.get_instance().log_debug(
+                    f'Omitting domain {domain_name} because it does not have a CNAME DNS entry'
+                )
+                continue
 
             self._domain_names.add(domain_name)
-
-            if cname_normal_dict.get(cname_domain) is None:
-                cname_normal_dict[cname_domain] = [domain_name]
-            else:
-                cname_normal_dict[cname_domain].append(domain_name)
+            cname_normal_dict.setdefault(cname_domain, []).append(domain_name)
 
         return cname_normal_dict
 

@@ -9,7 +9,7 @@ def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jD
     Function for creating edges between `domain` and it's IP addresses that are in the graph
     :param domain: `dict` with domain information
     :param version: `int` graph version in which to look for IP nodes
-    :param tmp_node_id: `int` node id of tmp domain
+    :param tmp_node_id: `int` node id of tmp_edge_workers domain
     :param driver: `Neo4jDBClient` open driver for graph querying
     :return: `tuple[` edges`,` edge_creation_options`]` when there is at least one domain's IP address in graph otherwise None
     """
@@ -25,7 +25,7 @@ def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jD
     RETURN ip_addr AS in_graph
     """
 
-    res = driver.execute_read(query, **{'ip_addrs': [str(ip) for ip in ips]})
+    res = driver.execute_read(query, ip_addrs=[str(ip) for ip in ips])
     ips_in_graph = [r['in_graph'] for r in res]
 
     if len(ips_in_graph) == 0:

@@ -6,6 +6,7 @@ import array
 from misc.Logger import MyLogger
 import copy
 import json
+from typing import Any
 
 
 def get_ips_from_record(doc) -> list[str]:
@@ -23,6 +24,14 @@ def get_ips_from_record(doc) -> list[str]:
         ips.append(ip_data_ip)
 
     return ips
+
+def get_registrant_from_record(domain: dict[str, Any]) -> str | None:
+    registrant = domain.get('rdap', {}).get('entities', {}).get('registrant', None)
+
+    if registrant is None:
+        registrant = domain.get('registrant', None)
+
+    return registrant
 
 
 def add_project_into_pipeline(project_body: dict, pipeline: list):

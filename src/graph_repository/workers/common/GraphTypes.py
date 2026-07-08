@@ -8,8 +8,9 @@ class NodeTypes(Enum):
 
     DOMAIN = ('Domain','d', 0)
     DUMMY_DOMAIN = ('Du_domain', 'du', 1)
-    TMP_DOMAIN = ('Tmp_domain', 'tm', 2)
-    IP = ('IP','ip',3) #since python guarantees that attributes are in the same order as they are written I can do dirty trick
+    TMP_DOMAIN = ('Tmp_domain', 'tm', 2),
+    REGISTRANT = ('Registrant', 'r', 3),
+    IP = ('IP','ip',4) #since python guarantees that attributes are in the same order as they are written I can do dirty trick
               #but one that makes my life easier, that when I want filter out supporting nodes then I just go until
               # I hit IP
               #IP MUST BE LAST DATA NODE, SOME PARTS OF CODE DEPENDENT ON THIS
@@ -111,7 +112,8 @@ class EdgeTypes(Enum):
     TRANSLATES = 'translates'
     SUBDOMAIN = 'subdomain'
     SUBDOMAIN_OF = 'subdomain_of'
-    CNAME = 'cname'
+    CNAME = 'cname',
+    REGISTERED = 'registered',
     NULL = 'null'
 
     @staticmethod
