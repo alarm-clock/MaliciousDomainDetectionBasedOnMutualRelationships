@@ -219,7 +219,20 @@ main folder due to path restrictions. Then with created `.sif` image you can wri
 anything you want. Note that Singularity container does not need to contain code within and can serve as only ready-made environment for fast development. You use code inside your own file 
 system and you execute it inside. Like for example: ```singularity exec python3 -m main --config path/to/conf.json server```.
 
-Docker image is built in similar manner and must be built from main folder. Created image is then started like this:
+Docker API image is built from the repository root. The image uses a multi-stage
+CPU-only build and expects Neo4j to run separately:
+```bash
+docker build -f containers/Docker/Dockerfile -t graph_repo .
+```
+
+The API image intentionally does not install DGL/GPU dependencies. This is
+enough for graph CRUD/read endpoints used by Thor, but not for
+evaluation/metapath2vec or runtime graph recalculations. That path likely needs
+a separate GPU/DGL image or Compose profile, because the NVIDIA base image is
+multi-GB, tied to CUDA/runtime compatibility, and hard to keep portable in dev
+containers.
+
+Created image is then started like this:
 ```bash
 sudo docker run -v "$(pwd)/path/to/your/config":/workspace/app/config:ro -v "$(pwd)/path/to/log":/workspace/app/log graph_repo
 ```
@@ -227,8 +240,18 @@ This command will start container and system within it. Of course, if you edit i
 start container accordingly. Also, if you want to start system with proxychains or in different manner you must do it
 using interactive session or any other way.
 
-If you want to start database you must bind given directories to directories inside container in both cases. Note that
-databases inside Docker were not tested how they behave. 
+Config templates may be mounted into `/workspace/app/config-templates` as
+`*.template` files. The Docker entrypoint renders them with environment
+variables into `/workspace/app/config` before starting the application.
+
+Before starting an empty development database for the first time, run:
+```bash
+python3 -m main --neo_db path_to_neo_conf.json import_db --empty
+```
+
+If you use the all-in-one Dockerfile with bundled databases, you must bind the
+database directories into the container. The separate Neo4j container setup is
+preferred for development and compose usage.
 
 ### API
 

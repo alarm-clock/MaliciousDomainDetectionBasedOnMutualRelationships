@@ -6,20 +6,14 @@ Brief: File that contains main CLI entry point for dataset import, graph editing
     temporary graph operations, and server startup
 """
 import json
-import dgl
 import uvicorn
 import signal
 from api.app_api import ApiOptions, create_app
 from api.config.config import Config
-from domain_evaluation.Evaluate import  test_from_collection
-from domain_evaluation.EvaluationApp import EvaluationApp, test_from_parquet
 #from evaluation.graph_repository.generate_and_send_new_domains import direct_test
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, CouldNotConnect
-from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
-from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
-from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
 from graph_repository.graph_main.graph_editing.requests.DeleteRequest import DeleteRequest
@@ -42,7 +36,11 @@ def add_signal_handlers():
         """
         MyLogger.get_instance().log(f"Received signal {signum}, gracefully exiting...")
 
-        eval_app = EvaluationApp.get_instance()
+        try:
+            from domain_evaluation.EvaluationApp import EvaluationApp
+            eval_app = EvaluationApp.get_instance()
+        except ImportError:
+            eval_app = None
         if eval_app is not None:
             eval_app.stop()
 
@@ -181,6 +179,8 @@ def main():
             return
 
         if args.convert_supporting:
+            from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
+
             driver = Neo4jDBDriver.from_config(args.neo_db)
             DatasetImporter.replace_other_dummies_with_default_dummy_domain(driver)
             driver.close()
@@ -190,8 +190,9 @@ def main():
             print("MongoDB connection config file not provided, exiting", file=sys.stderr)
             return
 
+        from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
+
         dset_importer = DatasetImporter.from_config(args.mongo_db, args.etypes, args.ranges, neo_config=args.neo_db)
-        g = dgl.DGLGraph()
 
         if args.dgl:
             g = dset_importer.create_dgl_graph()
@@ -201,6 +202,9 @@ def main():
             dset_importer.create_graph_and_import_to_neo4j()
 
     elif args.mode == "import_dgl":
+        from graph_repository.dataset_creator.DGLImporter import import_dgl_graph, export_dgl_graph
+        from graph_repository.dataset_creator.common.Graph import regenerate_train_test_mask
+
         g = import_dgl_graph(args.path_to_graph)
 
         if args.r is not None and g is not None:
@@ -284,7 +288,9 @@ def main():
             print("Neo database connection config file not provided, exiting", file=sys.stderr)
             return
 
-        if mode == ApiOptions.WHOLE_APP or mode == ApiOptions.EVALUATION or mode == ApiOptions.READ_AND_GRAPH_REPO:
+        if mode == ApiOptions.WHOLE_APP or mode == ApiOptions.EVALUATION or mode == ApiOptions.READ_AND_EVAL:
+            from domain_evaluation.EvaluationApp import EvaluationApp
+
             mp.set_start_method("spawn")
             EvaluationApp(g_r,conf.eval_app_conf.max_evaluations, conf.eval_app_conf.max_metapath2vec_evaluations)
 
@@ -300,6 +306,9 @@ def main():
 
 
     if args.mode == "test":
+        from domain_evaluation.Evaluate import test_from_collection
+        from domain_evaluation.EvaluationApp import EvaluationApp, test_from_parquet
+
         mp.set_start_method("spawn")
         r = GraphRepository.init(GraphRepository.ABI, args.neo_db)
         if r is None:

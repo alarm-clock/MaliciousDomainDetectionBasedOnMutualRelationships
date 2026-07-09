@@ -1,5 +1,4 @@
 from typing import Any
-import dgl
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_main.graph_editing.EditConsumer import FinishType
@@ -32,6 +31,5 @@ class GraphRepositoryAPI(GraphRepository):
     def delete_temporary_domain(self, tmp_nd_id: int) -> None:
         pass
 
-    def get_k_hop_neighborhood_dgl(self, tmp_node_id: int, for_ml: bool = False) -> dgl.DGLHeteroGraph:
+    def get_k_hop_neighborhood_dgl(self, tmp_node_id: int, for_ml: bool = False) -> Any:
         pass
-
