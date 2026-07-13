@@ -9,7 +9,6 @@ Brief: File that contains API application initialization logic, including availa
 import sys
 from fastapi import FastAPI, Depends
 from enum import Enum
-from api.routes import evaluation_api, graph_repository_api, read_query_api
 from api.config.auth import authenticate
 
 
@@ -53,7 +52,9 @@ def create_app(mode: ApiOptions = ApiOptions.WHOLE_APP) -> FastAPI:
     app = FastAPI()
 
     # Register evaluation routes when full API, evaluation-only API, or read-and-evaluation API is requested.
-    if mode == ApiOptions.WHOLE_APP or mode == ApiOptions.EVALUATION or mode == ApiOptions.READ_AND_EVAL:
+    if mode in (ApiOptions.WHOLE_APP, ApiOptions.EVALUATION, ApiOptions.READ_AND_EVAL):
+        from api.routes import evaluation_api
+
         app.include_router(
             evaluation_api.router,
             dependencies=[Depends(authenticate)]
@@ -61,14 +62,18 @@ def create_app(mode: ApiOptions = ApiOptions.WHOLE_APP) -> FastAPI:
 
     # Register graph repository routes when full API, graph-repository-only API,
     # or read-and-graph-repository API is requested.
-    if mode == ApiOptions.GRAPH_REPOSITORY or mode == ApiOptions.WHOLE_APP or mode == ApiOptions.READ_AND_GRAPH_REPO:
+    if mode in (ApiOptions.GRAPH_REPOSITORY, ApiOptions.WHOLE_APP, ApiOptions.READ_AND_GRAPH_REPO):
+        from api.routes import graph_repository_api
+
         app.include_router(
             graph_repository_api.router,
             dependencies=[Depends(authenticate)]
         )
 
     # Register read query routes when read functionality is enabled in selected deployment mode.
-    if mode == ApiOptions.READ_AND_EVAL or mode == ApiOptions.READ_AND_GRAPH_REPO or mode == ApiOptions.WHOLE_APP or mode == ApiOptions.READ:
+    if mode in (ApiOptions.READ_AND_EVAL, ApiOptions.READ_AND_GRAPH_REPO, ApiOptions.WHOLE_APP, ApiOptions.READ):
+        from api.routes import read_query_api
+
         app.include_router(
             read_query_api.router,
             dependencies=[Depends(authenticate)]
@@ -77,5 +82,5 @@ def create_app(mode: ApiOptions = ApiOptions.WHOLE_APP) -> FastAPI:
     return app
 
 
-# Create default application instance with all API parts enabled.
-app = create_app()
+# Module-level app stays lightweight; main.py creates the configured app.
+app = create_app(ApiOptions.READ_AND_GRAPH_REPO)

@@ -7,7 +7,6 @@ Brief: File that contains abstract base class for graph repository implementatio
 """
 
 from typing import Any
-import dgl
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from graph_repository.graph_main.graph_editing.EditConsumer import FinishType
 from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
@@ -122,7 +121,7 @@ class GraphRepository(ABC):
         pass
 
     @abstractmethod
-    def get_k_hop_neighborhood_dgl(self, tmp_node_id: int, for_ml: bool = False) -> dgl.DGLHeteroGraph:
+    def get_k_hop_neighborhood_dgl(self, tmp_node_id: int, for_ml: bool = False) -> Any:
         """
         Method that returns k-hop neighborhood as DGL graph
         :param tmp_node_id: `int` temporary node id

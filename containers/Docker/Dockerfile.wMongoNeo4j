@@ -5,8 +5,8 @@ EXPOSE 7474 7687 27017 8000
 
 WORKDIR /workspace
 
-COPY ../../src ./app/src
-COPY ../../requirements.txt ./requirements.txt
+COPY src ./app/src
+COPY requirements.txt ./requirements.txt
 
 ENV PATH="/opt/mongodb/mongodb-linux-x86_64-ubuntu2404-8.2.1/bin:/opt/mongodb/mongosh-2.5.8-linux-x64/bin:/opt/mongodb/mongodb-database-tools-ubuntu2404-x86_64-100.13.0/bin:${PATH}" \
     MONGO_DBPATH="/data/db" \
@@ -72,4 +72,4 @@ RUN set -eux && \
     mkdir app/log #mount logs here
 
 WORKDIR /workspace/app/src
-CMD ["systemctl", "start", "neo4j.service", "&&", "python3", "-m", "main" ,"--config","../config/config.json","server"]
+CMD ["sh", "-c", "neo4j start && python3 -m main --config ../config/config.json server"]

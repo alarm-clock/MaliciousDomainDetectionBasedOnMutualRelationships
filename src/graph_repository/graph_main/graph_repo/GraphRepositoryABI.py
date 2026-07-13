@@ -8,12 +8,10 @@ Brief: File that holds graph repository implementation
 import uuid
 from queue import PriorityQueue
 from typing import Any
-import dgl
 from api.app_api import ApiOptions
 from api.config.config import Config
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from graph_repository.graph_main.GraphRepository import GraphRepository
-from graph_repository.graph_main.conversion.FormatConverting import convert_form_neo4j_to_dgl, prepare_dgl_g_for_ml
 from graph_repository.graph_main.graph_editing.EditConsumer import edit_loop, FinishType
 from threading import Event, Thread, Lock
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest, FinishRequest
@@ -48,7 +46,7 @@ class GraphRepositoryABI(GraphRepository):
 
         d_option = ApiOptions.from_str(Config.get_instance().server_conf.deploy_option)
 
-        if d_option == ApiOptions.WHOLE_APP or d_option == ApiOptions.GRAPH_REPOSITORY or ApiOptions.READ_AND_GRAPH_REPO or ApiOptions.READ:
+        if d_option in (ApiOptions.WHOLE_APP, ApiOptions.GRAPH_REPOSITORY, ApiOptions.READ_AND_GRAPH_REPO):
 
             self._edit_worker = Thread(target=edit_loop,args=(self._worker_stop_event,self._request_q, self._neo4j_conf), daemon=True)
             self._edit_worker.start()
@@ -410,7 +408,7 @@ class GraphRepositoryABI(GraphRepository):
 
         return driver.get_neighborhood_maliciousness({'node_id': tmp_nd_id, 'label': NodeTypes.TMP_DOMAIN.neo4j})
 
-    def get_k_hop_neighborhood_dgl(self, tmp_node_id: int, for_ml: bool = False) -> dgl.DGLHeteroGraph:
+    def get_k_hop_neighborhood_dgl(self, tmp_node_id: int, for_ml: bool = False) -> Any:
         """
         Method that returns temporary nodes k-hop neighborhood graph
         :param tmp_node_id: node_id of temporary node
@@ -434,5 +432,10 @@ class GraphRepositoryABI(GraphRepository):
             {"label": NodeTypes.TMP_DOMAIN.neo4j, "node_id": tmp_node_id}, 3, 1500, seed, False)
 
         driver.close()
+        from graph_repository.graph_main.conversion.FormatConverting import (
+            convert_form_neo4j_to_dgl,
+            prepare_dgl_g_for_ml,
+        )
+
         graph = convert_form_neo4j_to_dgl(True, graph)
         return prepare_dgl_g_for_ml(graph) if for_ml else graph

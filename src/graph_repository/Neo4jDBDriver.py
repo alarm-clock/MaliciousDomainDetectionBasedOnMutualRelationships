@@ -11,7 +11,8 @@ import json
 import sys
 from neo4j import GraphDatabase
 from enum import Enum
-from sklearn.utils import deprecated
+def deprecated(func):
+    return func
 from misc.Logger import MyLogger
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
 from graph_repository.workers.common.Enums import EditTypes
