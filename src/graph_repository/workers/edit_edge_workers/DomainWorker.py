@@ -1,7 +1,7 @@
 from graph_repository.workers.common.EditWorker import EditWorker
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
-from graph_repository.workers.common.GraphTypes import NodeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, D_NAME, D_LABEL, NODE_ID, D_PARENT_DOMAINS, D_DEPTH
 from graph_repository.workers.common.Enums import EditTypes, CallbackWhen
 from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
 from functools import partial
@@ -29,8 +29,8 @@ class DomainWorker(EditWorker):
 
         UNWIND $domains as d
 
-        MATCH (old: {NodeTypes.DUMMY_DOMAIN.neo4j} {{domain_name: d {version_query}}})
-        MATCH (new: {NodeTypes.DOMAIN.neo4j} {{domain_name: d {version_query}}})
+        MATCH (old: {NodeTypes.DUMMY_DOMAIN.neo4j} {{{D_NAME}: d {version_query}}})
+        MATCH (new: {NodeTypes.DOMAIN.neo4j} {{{D_NAME}: d {version_query}}})
         {driver.get_node_replace_query('old','new', NodeTypes.DUMMY_DOMAIN.neo4j ,False)}
         """
 
@@ -42,7 +42,7 @@ class DomainWorker(EditWorker):
 
         find_if_domain_is_dummy_in_graph = f"""
         UNWIND $domains AS domain
-        OPTIONAL MATCH(n: {NodeTypes.DUMMY_DOMAIN.neo4j} {{domain_name: domain {get_version_query(self._version,False)}}})
+        OPTIONAL MATCH(n: {NodeTypes.DUMMY_DOMAIN.neo4j} {{{D_NAME}: domain {get_version_query(self._version,False)}}})
         WITH n, domain
         WHERE n IS NOT NULL
         RETURN domain AS domain_name
@@ -96,12 +96,12 @@ class DomainWorker(EditWorker):
             parent_domains = get_domains_parent_domains(domain_name)
             depth = domain_depth(domain_name)
             self._domains_for_creation.append({
-                'domain_name': domain_name,
-                'label': label,
-                'node_id': node_id,
+                D_NAME: domain_name,
+                D_LABEL: label,
+                NODE_ID: node_id,
                 'other_data': other_data,
-                'parent_domains': parent_domains,
-                'depth': depth
+                D_PARENT_DOMAINS: parent_domains,
+                D_DEPTH: depth
             })
             domain_names.add(domain_name)
 

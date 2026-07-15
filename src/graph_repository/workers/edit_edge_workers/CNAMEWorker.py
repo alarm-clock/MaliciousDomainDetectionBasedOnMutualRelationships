@@ -1,6 +1,6 @@
 import copy
 from graph_repository.workers.common.EditWorker import EditWorker
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, D_NAME, D_DEPTH, D_PARENT_DOMAINS
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
@@ -40,8 +40,8 @@ class CNAMEWorker(EditWorker):
             Neo4jDBDriver.E_NODE_T2: NodeTypes.DOMAIN,
             Neo4jDBDriver.E_OPTION: Neo4jDBDriver.EdgeCreationQueryOptions.WEIGHT_REVERSE,
             Neo4jDBDriver.E_EDGE_T: EdgeTypes.CNAME,
-            Neo4jDBDriver.E_MATCH1: "domain_name",
-            Neo4jDBDriver.E_MATCH2: "domain_name",
+            Neo4jDBDriver.E_MATCH1: D_NAME,
+            Neo4jDBDriver.E_MATCH2: D_NAME,
             Neo4jDBDriver.E_EDGE_VALUE_NAME: "owner"
         }
 
@@ -55,7 +55,7 @@ class CNAMEWorker(EditWorker):
     def _create_dummy_domains(self) -> None:
 
         for domain_name in self._create_domains:
-            self._dummy_nodes.append({'domain_name': domain_name, 'depth': domain_depth(domain_name), 'parent_domains': get_domains_parent_domains(domain_name)})
+            self._dummy_nodes.append({D_NAME: domain_name, D_DEPTH: domain_depth(domain_name), D_PARENT_DOMAINS: get_domains_parent_domains(domain_name)})
 
     def _create_edges(self):
 
@@ -75,8 +75,8 @@ class CNAMEWorker(EditWorker):
 
         find_cnames_in_domains = f"""
         UNWIND $rows AS cname
-        OPTIONAL MATCH (n: {NodeTypes.DOMAIN.neo4j} {{domain_name: cname {get_version_query(self._version,False)}}})
-        OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.neo4j} {{domain_name: cname {get_version_query(self._version,False)}}})  
+        OPTIONAL MATCH (n: {NodeTypes.DOMAIN.neo4j} {{{D_NAME}: cname {get_version_query(self._version,False)}}})
+        OPTIONAL MATCH (m: {NodeTypes.DUMMY_DOMAIN.neo4j} {{{D_NAME}: cname {get_version_query(self._version,False)}}})  
         RETURN cname, n AS domain, m AS dummy      
         """
 

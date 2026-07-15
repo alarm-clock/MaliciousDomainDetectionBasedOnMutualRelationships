@@ -68,7 +68,8 @@ def parse_cert(tls_data: dict[str, Any]) -> tuple[str, bool, tuple[str, str, str
 
     return cert_hash, ca, (cn, org, subj_id, start, end)
 
-
+def tls_data_in_presence(domain: dict[str, Any]) -> bool:
+    return domain.get('tls') is not None
 
 def add_project_into_pipeline(project_body: dict, pipeline: list):
     pipeline.append({"$project": project_body})
