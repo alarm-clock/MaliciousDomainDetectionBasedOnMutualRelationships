@@ -3,7 +3,7 @@ Author: Jozef Michal Bukas <jozefmbukas@gmail.com>
 """
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from misc.Logger import MyLogger
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, REG_NAME, NODE_ID
 from pymongo.collection import Collection
 
 
@@ -20,7 +20,7 @@ class RegistrantWorker(DatasetWorker):
     _reg_id_str = 'reg_id'
 
     def __init__(self, submit_callback_method, collection: Collection, ranges: list):
-        super().__init__(submit_callback_method, collection, ranges, self._project)
+        super().__init__(submit_callback_method, collection, ranges, self._project, [NodeTypes.REGISTRANT])
         self._registrant_data: dict[str, list] = {self._reg_name_str: [], self._reg_id_str: []}
         self._reg_id_dict: dict[str, int] = {}
         self._reg_id_cnt = 0
@@ -29,7 +29,7 @@ class RegistrantWorker(DatasetWorker):
 
         self._submit_callback_method(
             self._u, self._v, NodeTypes.DOMAIN, EdgeTypes.REGISTERED, NodeTypes.REGISTRANT,
-            None, None, self._registrant_data
+            None, None, self._n_data.get_n_data(NodeTypes.REGISTRANT)
         )
         self._submit_callback_method(
             self._v, self._u, NodeTypes.REGISTRANT, EdgeTypes.REGISTERED, NodeTypes.DOMAIN,
@@ -44,8 +44,7 @@ class RegistrantWorker(DatasetWorker):
             self._reg_id_cnt += 1
 
             self._reg_id_dict[registrant] = registrant_id
-            self._registrant_data[self._reg_name_str].append(registrant)
-            self._registrant_data[self._reg_id_str].append(registrant_id)
+            self._n_data.store_n_data(NodeTypes.REGISTRANT, {REG_NAME: registrant, NODE_ID: registrant_id})
 
         return registrant_id
 

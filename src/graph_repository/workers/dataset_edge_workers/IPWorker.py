@@ -1,7 +1,7 @@
 from graph_repository.workers.common.Misc import IPModes, get_ips_from_record
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from misc.Logger import MyLogger
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, IP_STR, IP_VERSION
 from pymongo.collection import Collection
 from pymongo import ASCENDING
 
@@ -18,24 +18,20 @@ class IPWorker(DatasetWorker):
     _project = {'_id': 0, 'domain_name': 1, 'dns.A': 1, 'dns.AAAA': 1, 'ip_data': 1, 'node_id': 1 }
     _sort = {'node_id': ASCENDING}
 
-    _version_str = 'ip_version'
-    _ip_str_str = 'ip_str'
-
     _node_type1 = NodeTypes.DOMAIN
     _node_type2 = NodeTypes.IP
     _edge_type = EdgeTypes.TRANSLATES
 
     def __init__(self, submit_callback_method, collection: Collection, ranges: list, mode: IPModes = IPModes.BOTH):
-        super().__init__(submit_callback_method, collection, ranges, self._project)
+        super().__init__(submit_callback_method, collection, ranges, self._project, [NodeTypes.IP])
         #add_sort_into_pipeline(self._sort, self._pipeline)
         self._mode = mode
         self._curr_ip_id = 0
-        self._ip_data: dict[str, list] = {self._ip_str_str: [], self._version_str: []}
         self._ip_htab: dict[int,tuple[int,list[int]]] = {}
 
     def _submit_results(self) -> None:
 
-        self._submit_callback_method(self._u,self._v,self._node_type1,self._edge_type,self._node_type2,v_data=self._ip_data)
+        self._submit_callback_method(self._u,self._v,self._node_type1,self._edge_type,self._node_type2,v_data=self._n_data.get_n_data(NodeTypes.IP))
         self._submit_callback_method(self._v,self._u,self._node_type2,self._edge_type,self._node_type1)
 
     def _create_edges(self) -> None:
@@ -51,8 +47,7 @@ class IPWorker(DatasetWorker):
 
             if self._ip_htab.get(ip_id) is None:
                 self._ip_htab[ip_id] = (self._curr_ip_id,[node_id])
-                self._ip_data[self._ip_str_str].append(str(ip))
-                self._ip_data[self._version_str].append(ip.version)
+                self._n_data.store_n_data(NodeTypes.IP, {IP_STR: str(ip), IP_VERSION: ip.version})
                 self._curr_ip_id += 1
             else:
                 self._ip_htab[ip_id][1].append(node_id)

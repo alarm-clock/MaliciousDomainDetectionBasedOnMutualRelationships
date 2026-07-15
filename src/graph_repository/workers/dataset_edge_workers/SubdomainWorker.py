@@ -1,5 +1,5 @@
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, D_NAME, D_DEPTH, D_PARENT_DOMAINS
 from graph_repository.graph_repo_misc import domain_depth, reverse_domain, get_domains_parent_domains
 import pymongo
 from concurrent.futures import ThreadPoolExecutor
@@ -12,27 +12,18 @@ from misc.Logger import MyLogger
 # noinspection DuplicatedCode
 class SubdomainWorker(DatasetWorker):
 
-    #class Modes(Enum):
-    #    BOTH = 0
-     #   SUBDOMAIN = 1
-        #SUBDOMAIN_OF = 2
-
     worker_name = "subdomain"
     _e_type = EdgeTypes.SUBDOMAIN
-    #_e_type2 = EdgeTypes.SUBDOMAIN_OF
     available_options = [
         (worker_name, _e_type.value, None),
         (worker_name, f"{worker_name}_all", None)
-        #(worker_name, _e_type1.value, {'mode': Modes.SUBDOMAIN}),
-        #(worker_name, _e_type2.value, {'mode': Modes.SUBDOMAIN_OF}),
-        #(worker_name,f"{worker_name}_all",{'mode': Modes.SUBDOMAIN})
     ]
     _project = {"_id": 0, "domain_name": 1, "node_id": 1}
     _nd_type1 = NodeTypes.DOMAIN
     _nd_type2 = NodeTypes.DUMMY_SUB_DOMAIN
 
     def __init__(self, submit_callback_method, collection: pymongo.collection.Collection, ranges: list):
-        super().__init__(submit_callback_method, collection, ranges, self._project)
+        super().__init__(submit_callback_method, collection, ranges, self._project, [NodeTypes.DUMMY_SUB_DOMAIN])
 
         self._subs: dict = {}
         self._du_d_u: list = []
@@ -52,7 +43,7 @@ class SubdomainWorker(DatasetWorker):
             self._nd_type2,
             self._e_type,
             self._nd_type2,
-            u_data={"domain_name": self._dummy_name, 'depth': self._dummy_depth, "parent_domains": [get_domains_parent_domains(domain_name) for domain_name in self._dummy_name] }
+            u_data=self._n_data.get_n_data(NodeTypes.DUMMY_SUB_DOMAIN)
         )
         self._submit_callback_method(self._du_d_u,self._du_d_v,self._nd_type2,self._e_type, self._nd_type1)
         self._submit_callback_method(self._du_d_v,self._du_d_u,self._nd_type1, self._e_type, self._nd_type2)
@@ -145,8 +136,10 @@ class SubdomainWorker(DatasetWorker):
                     domain_id_dict[domain] = domain_id
                     non_dset_id -= 1            # "nedavaju sa ziadne zaporne body, oni si ich len zarobili zaporne" cca Hlineny
                     reversed_domain = reverse_domain(domain)
-                    self._dummy_name.append(reversed_domain)
-                    self._dummy_depth.append(domain_depth(reversed_domain))
+                    self._n_data.store_n_data(
+                        NodeTypes.DUMMY_SUB_DOMAIN,
+                        {D_NAME: reversed_domain, D_DEPTH: domain_depth(reversed_domain), D_PARENT_DOMAINS: get_domains_parent_domains(reversed_domain)}
+                    )
 
                 self._check_domain_and_put_it_in_dict(trie,
                                                       (domain_id, domain),

@@ -8,7 +8,7 @@ Description: Class used for parallel creation of CNAME edges from dataset
 """
 
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, D_DEPTH, D_NAME, D_PARENT_DOMAINS
 from graph_repository.graph_repo_misc import domain_depth
 from graph_repository.graph_repo_misc import get_domains_parent_domains
 from concurrent.futures import ThreadPoolExecutor
@@ -57,15 +57,13 @@ class CNAMEWorker(DatasetWorker):
         :param collection: Mongo collection with dataset
         :param ranges: Dictionary with `or` conditions used to filter collection entries by `node_id`
         """
-        super().__init__(submit_callback_method, collection, ranges, self._project)
+        super().__init__(submit_callback_method, collection, ranges, self._project, [NodeTypes.DUMMY_DOMAIN])
         self._domains: dict[str, tuple[bool, int, list[int], list[str]]] = {}
 
         self._owners = []
         self._d_du_owners = []
         self._du: list[int] = []
         self._dum_dv: list[int] = []
-        self._dum_d_names: list[str] = []
-        self._dum_d_depth: list[int] = []
         self._mode = mode
 
     def _submit_result(self) -> None:
@@ -93,11 +91,7 @@ class CNAMEWorker(DatasetWorker):
                 self._nd_type1,
                 EdgeTypes.CNAME,
                 self._nd_type2,
-                v_data={
-                    'domain_name': self._dum_d_names,
-                    'depth': self._dum_d_depth,
-                    'parent_domains': [get_domains_parent_domains(domain) for domain in self._dum_d_names]
-                },
+                v_data=self._n_data.get_n_data(NodeTypes.DUMMY_DOMAIN),
                 e_data=("owner",self._d_du_owners)
             )
             self._submit_callback_method(
@@ -184,10 +178,11 @@ class CNAMEWorker(DatasetWorker):
         found = self._collection.find(match, {"domain_name": 1, "_id": 0, "node_id": 1})
 
         for doc in found:
-            self._domains[doc["domain_name"]] = (self._DOMAIN, int(doc['node_id']),
-                                                 self._domains[doc["domain_name"]][self._DOMAINS_LIST],
-                                                 self._domains[doc["domain_name"]][self._DOMAIN_NAMES_LIST]
-                                                 )
+            self._domains[doc["domain_name"]] = (
+                self._DOMAIN, int(doc['node_id']),
+                self._domains[doc["domain_name"]][self._DOMAINS_LIST],
+                self._domains[doc["domain_name"]][self._DOMAIN_NAMES_LIST]
+            )
             # I don't need to check if domain is in the domains dictionary because I got it from it
             # also I don't need to check if there is a list because there already must be one
             # there also isn't need for the lock because in dictionary this domain is a key
@@ -215,9 +210,10 @@ class CNAMEWorker(DatasetWorker):
 
                 #based on the chosen mode dummy domains are created or not
                 if self._mode == self.LONE_CNAMES or len(self._domains[key][self._DOMAINS_LIST]) > 1:
-                    self._dum_d_names.append(key)
-                    self._dum_d_depth.append(domain_depth(key))
-
+                    self._n_data.store_n_data(
+                        NodeTypes.DUMMY_DOMAIN,
+                        {D_NAME: key, D_DEPTH: domain_depth(key), D_PARENT_DOMAINS: get_domains_parent_domains(key)}
+                    )
 
     def _match_entries_with_same_cname(self):
 

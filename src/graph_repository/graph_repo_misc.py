@@ -7,7 +7,7 @@ from misc.Logger import MyLogger
 import copy
 import json
 from typing import Any
-
+import hashlib
 
 def get_ips_from_record(doc) -> list[str]:
     ips = doc['dns']['A']
@@ -32,6 +32,42 @@ def get_registrant_from_record(domain: dict[str, Any]) -> str | None:
         registrant = domain.get('registrant', None)
 
     return registrant
+
+_auth_key_Id = 'authorityKeyIdentifier'
+_subj_key_Id = 'subjectKeyIdentifier'
+_basic_const = 'basicConstraints'
+__not_ca = 'CA:FALSE'
+
+def parse_extensions(extensions: list[dict[str, Any]]) -> tuple[str, str, bool]:
+
+    auth_Id = ''
+    subj_Id = ''
+    ca = False
+
+    for extension in extensions:
+        name = extension['name']
+        val = extension['value']
+
+        if name == _auth_key_Id: auth_Id = val
+        elif name == _subj_key_Id: subj_Id = val
+        elif name == _basic_const: ca = val != __not_ca
+
+    return auth_Id, subj_Id, ca
+def generate_certificate_hash(cn: str, org: str, subj_key_id: str, start: float, end: float) -> str:
+    return hashlib.sha256(f"{cn}|{org}|{subj_key_id}|{start}|{end}".encode()).hexdigest()
+
+def parse_cert(tls_data: dict[str, Any]) -> tuple[str, bool, tuple[str, str, str, float, float]]:
+
+    entity_cert_data = tls_data['certificates'][0]
+    cn = entity_cert_data['common_name']
+    org = entity_cert_data['organization']
+    start = entity_cert_data['validity_start']
+    end = entity_cert_data['validity_end']
+    auth_id, subj_id, ca = parse_extensions(entity_cert_data['extensions'])
+    cert_hash = generate_certificate_hash(auth_id, subj_id, subj_id, start, end)
+
+    return cert_hash, ca, (cn, org, subj_id, start, end)
+
 
 
 def add_project_into_pipeline(project_body: dict, pipeline: list):

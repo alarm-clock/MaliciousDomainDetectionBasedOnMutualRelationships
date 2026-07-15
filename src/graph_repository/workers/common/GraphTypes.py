@@ -4,13 +4,15 @@ Author: Jozef Michal Bukas <xbukas00@stud.fit.vutbr.cz>
 """
 from enum import Enum
 
+
 class NodeTypes(Enum):
 
     DOMAIN = ('Domain','d', 0)
     DUMMY_DOMAIN = ('Du_domain', 'du', 1)
     TMP_DOMAIN = ('Tmp_domain', 'tm', 2),
     REGISTRANT = ('Registrant', 'r', 3),
-    IP = ('IP','ip',4) #since python guarantees that attributes are in the same order as they are written I can do dirty trick
+    CERTIFICATE = ('Certificate', 'c', 4),
+    IP = ('IP','ip',5) #since python guarantees that attributes are in the same order as they are written I can do dirty trick
               #but one that makes my life easier, that when I want filter out supporting nodes then I just go until
               # I hit IP
               #IP MUST BE LAST DATA NODE, SOME PARTS OF CODE DEPENDENT ON THIS
@@ -108,12 +110,39 @@ class NodeTypes(Enum):
 
         return None
 
+
+NODE_ID = 'node_id'
+IP_STR = 'ip_str'
+IP_VERSION = 'ip_version'
+REG_NAME = 'name'
+CERT_CN = 'cn'
+CERT_ORG = 'org'
+CERT_SUBJ_K_ID = 'subj_key_id'
+CERT_BEFORE = 'not_before'
+CERT_AFTER = 'not_after'
+CERT_HASH = 'data_hash'
+D_NAME = 'domain_name'
+D_LABEL = 'label'
+D_DEPTH = 'depth'
+D_PARENT_DOMAINS = 'parent_domains'
+
+NODE_ATTRIBUTES: dict[NodeTypes, list[str]] = {
+    NodeTypes.IP: [IP_STR, IP_VERSION, NODE_ID],
+    NodeTypes.REGISTRANT: [REG_NAME, NODE_ID],
+    NodeTypes.CERTIFICATE: [CERT_CN, CERT_ORG, CERT_SUBJ_K_ID, CERT_BEFORE, CERT_AFTER, CERT_HASH, NODE_ID],
+    NodeTypes.DOMAIN: [D_NAME, D_LABEL, D_DEPTH, D_PARENT_DOMAINS, NODE_ID],
+    NodeTypes.DUMMY_DOMAIN: [D_NAME, D_DEPTH, D_PARENT_DOMAINS, NODE_ID],
+    NodeTypes.DUMMY_SUB_DOMAIN: [D_NAME, D_DEPTH, D_PARENT_DOMAINS, NODE_ID]
+}
+
+
 class EdgeTypes(Enum):
     TRANSLATES = 'translates'
     SUBDOMAIN = 'subdomain'
     SUBDOMAIN_OF = 'subdomain_of'
     CNAME = 'cname',
     REGISTERED = 'registered',
+    HAS_CERTIFICATE = 'has_certificate',
     NULL = 'null'
 
     @staticmethod
