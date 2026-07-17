@@ -1,6 +1,7 @@
 """
 Author: Jozef Michal Bukas <jozefmbukas@gmail.com>
 """
+from graph_repository.graph_repo_misc import get_registrant_from_record
 from graph_repository.workers.common.DatasetWorker import DatasetWorker
 from misc.Logger import MyLogger
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, REG_NAME, NODE_ID
@@ -15,7 +16,7 @@ class RegistrantWorker(DatasetWorker):
         (worker_name, f'{worker_name}_all',None)
     ]
 
-    _project = {'_id': 0, 'rdap.entities.registrant': 1, 'node_id': 1}
+    _project = {'_id': 0, 'rdap': 1, 'node_id': 1}
     _reg_name_str = 'name'
     _reg_id_str = 'reg_id'
 
@@ -44,7 +45,7 @@ class RegistrantWorker(DatasetWorker):
             self._reg_id_cnt += 1
 
             self._reg_id_dict[registrant] = registrant_id
-            self._n_data.store_n_data(NodeTypes.REGISTRANT, {REG_NAME: registrant, NODE_ID: registrant_id})
+            self._n_data.store_n_data(NodeTypes.REGISTRANT, **{REG_NAME: registrant, NODE_ID: registrant_id})
 
         return registrant_id
 
@@ -54,7 +55,9 @@ class RegistrantWorker(DatasetWorker):
 
         for doc in cursor:
             domain_id = int(doc['node_id'])
-            registrant = str(doc['rdap.entities.registrant'])
+            registrant = get_registrant_from_record(doc)
+            if registrant is None:
+                continue
             registrant_id = self._store_registrant(registrant)
             self._u.append(domain_id)
             self._v.append(registrant_id)

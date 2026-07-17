@@ -212,7 +212,7 @@ class CNAMEWorker(DatasetWorker):
                 if self._mode == self.LONE_CNAMES or len(self._domains[key][self._DOMAINS_LIST]) > 1:
                     self._n_data.store_n_data(
                         NodeTypes.DUMMY_DOMAIN,
-                        {D_NAME: key, D_DEPTH: domain_depth(key), D_PARENT_DOMAINS: get_domains_parent_domains(key)}
+                        **{D_NAME: key, D_DEPTH: domain_depth(key), D_PARENT_DOMAINS: get_domains_parent_domains(key)}
                     )
 
     def _match_entries_with_same_cname(self):

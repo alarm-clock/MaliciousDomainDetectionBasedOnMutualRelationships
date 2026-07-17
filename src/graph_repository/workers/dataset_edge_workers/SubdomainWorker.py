@@ -138,7 +138,7 @@ class SubdomainWorker(DatasetWorker):
                     reversed_domain = reverse_domain(domain)
                     self._n_data.store_n_data(
                         NodeTypes.DUMMY_SUB_DOMAIN,
-                        {D_NAME: reversed_domain, D_DEPTH: domain_depth(reversed_domain), D_PARENT_DOMAINS: get_domains_parent_domains(reversed_domain)}
+                        **{D_NAME: reversed_domain, D_DEPTH: domain_depth(reversed_domain), D_PARENT_DOMAINS: get_domains_parent_domains(reversed_domain)}
                     )
 
                 self._check_domain_and_put_it_in_dict(trie,

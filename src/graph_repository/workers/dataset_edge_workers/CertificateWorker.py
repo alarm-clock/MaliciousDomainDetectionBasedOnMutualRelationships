@@ -53,7 +53,7 @@ class CertificateWorker(DatasetWorker):
         self._cert_id_cnt += 1
 
         cn, org, subj_id, start, end = data
-        self._n_data.store_n_data(NodeTypes.CERTIFICATE, {
+        self._n_data.store_n_data(NodeTypes.CERTIFICATE, **{
             NODE_ID: cert_id,
             CERT_CN: cn,
             CERT_ORG: org,

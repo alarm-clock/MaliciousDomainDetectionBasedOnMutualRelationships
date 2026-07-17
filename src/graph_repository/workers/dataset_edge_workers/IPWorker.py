@@ -47,7 +47,7 @@ class IPWorker(DatasetWorker):
 
             if self._ip_htab.get(ip_id) is None:
                 self._ip_htab[ip_id] = (self._curr_ip_id,[node_id])
-                self._n_data.store_n_data(NodeTypes.IP, {IP_STR: str(ip), IP_VERSION: ip.version})
+                self._n_data.store_n_data(NodeTypes.IP, **{IP_STR: str(ip), IP_VERSION: ip.version})
                 self._curr_ip_id += 1
             else:
                 self._ip_htab[ip_id][1].append(node_id)

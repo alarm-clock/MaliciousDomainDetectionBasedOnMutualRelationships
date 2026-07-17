@@ -9,20 +9,21 @@ class NodeTypes(Enum):
 
     DOMAIN = ('Domain','d', 0)
     DUMMY_DOMAIN = ('Du_domain', 'du', 1)
-    TMP_DOMAIN = ('Tmp_domain', 'tm', 2),
-    REGISTRANT = ('Registrant', 'r', 3),
-    CERTIFICATE = ('Certificate', 'c', 4),
-    IP = ('IP','ip',5) #since python guarantees that attributes are in the same order as they are written I can do dirty trick
+    TMP_DOMAIN = ('Tmp_domain', 'tm', 2)
+    REGISTRANT = ('Registrant', 'r', 3)
+    CERTIFICATE = ('Certificate', 'c', 4)
+    IP = ('IP','ip',5)
+              #since python guarantees that attributes are in the same order as they are written I can do dirty trick
               #but one that makes my life easier, that when I want filter out supporting nodes then I just go until
               # I hit IP
               #IP MUST BE LAST DATA NODE, SOME PARTS OF CODE DEPENDENT ON THIS
 
     #supporting node types
-    DUMMY_SUB_DOMAIN = ('Sdu_sub_domain','none',4)  #all dummy domains that will be created after initial creation must have prefix Sdu_
-    CURRENT_VERSION = ('CurrentGraphVersion','none',4)
-    VERSION = ('GraphVersion','none',4)
-    ND_ID_CNT = ('NodeIdCnt','none',4)
-    MAINTENANCE = ('Maintenance','none',4)
+    DUMMY_SUB_DOMAIN = ('Sdu_sub_domain','none',6)  #all dummy domains that will be created after initial creation must have prefix Sdu_
+    CURRENT_VERSION = ('CurrentGraphVersion','none',7)
+    VERSION = ('GraphVersion','none',8)
+    ND_ID_CNT = ('NodeIdCnt','none',9)
+    MAINTENANCE = ('Maintenance','none',10)
 
 
     def __init__(self, neo4j: str, dgl: str, dgl_code: int):
@@ -140,9 +141,9 @@ class EdgeTypes(Enum):
     TRANSLATES = 'translates'
     SUBDOMAIN = 'subdomain'
     SUBDOMAIN_OF = 'subdomain_of'
-    CNAME = 'cname',
-    REGISTERED = 'registered',
-    HAS_CERTIFICATE = 'has_certificate',
+    CNAME = 'cname'
+    REGISTERED = 'registered'
+    HAS_CERTIFICATE = 'has_certificate'
     NULL = 'null'
 
     @staticmethod
