@@ -10,7 +10,7 @@ Description: Worker class used for parallel creation of edges from dataset
 import copy
 from graph_repository.graph_repo_misc import add_project_into_pipeline
 from graph_repository.workers.common.Worker import Worker
-from graph_repository.workers.common.GraphTypes import NodeTypes, NODE_ATTRIBUTES
+from graph_repository.workers.common.GraphTypes import NodeTypes, NODE_ATTRIBUTES, NODE_ID
 import pymongo
 
 """

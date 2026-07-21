@@ -34,7 +34,7 @@ class CertificateWorker(DatasetWorker):
             NodeTypes.CERTIFICATE,
             EdgeTypes.HAS_CERTIFICATE,
             NodeTypes.DOMAIN,
-            u_data=self._n_data[NodeTypes.CERTIFICATE]
+            u_data=self._n_data.get_n_data(NodeTypes.CERTIFICATE)
         )
         self._submit_callback_method(
             self._v,
@@ -73,11 +73,11 @@ class CertificateWorker(DatasetWorker):
 
         for doc in cursor:
 
-            if doc['tls'] is None:
+            if doc.get('tls') is None:
                 continue
 
             domain_id = doc['node_id']
-            cert_hash, ca, data = parse_cert(doc)
+            cert_hash, ca, data = parse_cert(doc['tls'])
             cert_id = self._store_cert_data(data, cert_hash)
             self._u.append(cert_id)
             self._v.append(domain_id)
