@@ -12,7 +12,7 @@ def tmp_add_registrant_edge(domain: dict[str, Any], version: int, tmp_node_id: i
     OPTIONAL MATCH (r: {NodeTypes.REGISTRANT.neo4j} {{ {REG_NAME}: $registrant {get_version_query(version, False)} }})
     RETURN r IS NOT NULL AS in_g
     """
-    registrant_in_graph = driver.execute_read(query,registrant=registrant)['in_g']
+    registrant_in_graph = driver.execute_read(query,registrant=registrant)[0]['in_g']
 
     if not registrant_in_graph:
         return None
@@ -25,7 +25,7 @@ def tmp_add_registrant_edge(domain: dict[str, Any], version: int, tmp_node_id: i
         Neo4jDBDriver.E_MATCH1: NODE_ID,
         Neo4jDBDriver.E_MATCH2: REG_NAME
     }
-    return [{NODE_ID: tmp_node_id, REG_NAME: registrant}], query_params
+    return [{'u': tmp_node_id, 'v': registrant}], query_params
 
 
 

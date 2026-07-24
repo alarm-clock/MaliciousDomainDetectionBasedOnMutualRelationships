@@ -13,7 +13,7 @@ from neo4j import GraphDatabase
 from enum import Enum
 from sklearn.utils import deprecated
 from misc.Logger import MyLogger
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, NODE_ID
 from graph_repository.workers.common.Enums import EditTypes
 from neo4j.exceptions import ServiceUnavailable, AuthError
 from graph_repository.graph_main.graph_editing.common.Exceptions import TooManyVersions, Neo4jIndexError
@@ -907,7 +907,7 @@ class Neo4jDBDriver:
                 MyLogger.get_instance().log_warning("Can not delete node without any label!")
                 return
 
-        if n_t is NodeTypes:
+        if type(n_t) is NodeTypes:
             n_t = n_t.neo4j
 
         node.pop('label', "")
@@ -917,8 +917,8 @@ class Neo4jDBDriver:
         MATCH (n: {n_t}  {{ {item_str} }})
         CALL (n) {{
             WITH n
-            WHERE n.node_id IS NOT NULL
-            {Neo4jDBDriver.get_node_id_return_query(n_t, 'n.node_id', 'n', True)}
+            WHERE n.{NODE_ID} IS NOT NULL
+            {Neo4jDBDriver.get_node_id_return_query(n_t, f'n.{NODE_ID}', 'n', True)}
         }}
         DETACH DELETE n 
         """

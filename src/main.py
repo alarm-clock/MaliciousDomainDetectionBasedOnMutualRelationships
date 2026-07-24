@@ -23,6 +23,7 @@ from graph_repository.dataset_creator.DatasetImporter import DatasetImporter
 from graph_repository.graph_main.graph_editing.requests.EditRequest import EditRequest
 from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
 from graph_repository.graph_main.graph_editing.requests.DeleteRequest import DeleteRequest
+from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
 import sys
 import argparse
@@ -252,7 +253,7 @@ def main():
 
     elif args.mode == "tmp_edge_workers":
 
-        repository: GraphRepository = GraphRepository.init(GraphRepository.ABI, args.neo_db)
+        repository: GraphRepository | None = GraphRepository.init(GraphRepository.ABI, conf.graph_repo_conf.neo4j_db_conf)
 
         if repository is None:
             print("Neo database connection config file not provided, exiting", file=sys.stderr)
@@ -272,7 +273,7 @@ def main():
             repository.temporary_add_domain(data, None)
         elif args.delete:
             driver = repository.get_neo4j_driver()
-            driver.delete_node(data)
+            driver.delete_node(data, NodeTypes.TMP_DOMAIN.neo4j)
 
         else:
             return

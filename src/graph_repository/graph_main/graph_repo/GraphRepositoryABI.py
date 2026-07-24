@@ -43,8 +43,8 @@ class GraphRepositoryABI(GraphRepository):
         self._neo4j_conf = neo4j_conf
         self._worker_stop_event = Event()
         self._stop_event = Event()
-        import_all_modules_from_package("graph_repository.workers.edit_node_edge_workers")
-        import_all_modules_from_package("graph_repository.workers.tmp")
+        import_all_modules_from_package("graph_repository.workers.edit_edge_workers")
+        import_all_modules_from_package("graph_repository.workers.tmp_edge_workers")
 
         d_option = ApiOptions.from_str(Config.get_instance().server_conf.deploy_option)
 
@@ -59,7 +59,7 @@ class GraphRepositoryABI(GraphRepository):
         self._state_dict: dict[str, GraphRequest] = {}
         self._state_dict_lock = Lock()
 
-        # job id   [version, number of tmp domains]
+        # job id   [version, number of tmp_edge_workers domains]
         self._transaction_context: dict[str, Transaction] = {}
         self._transaction_context_operations_cnt = 0
         self._transaction_context_lock = Lock()
@@ -176,7 +176,7 @@ class GraphRepositoryABI(GraphRepository):
         was chosen to reflect possible differences in load of graph repository. This way if there is no load, transaction
         can live for long time but with high load it may be deleted right after the limit.
 
-        After limit has passed, and it is checked by this method, all tmp domains of this transaction will be deleted.
+        After limit has passed, and it is checked by this method, all tmp_edge_workers domains of this transaction will be deleted.
         :return: Nothing
         """
 
@@ -191,7 +191,7 @@ class GraphRepositoryABI(GraphRepository):
             keys_for_del = []
             for key, transaction in self._transaction_context.items():
                 if transaction.is_over_time():
-                    MyLogger.get_instance().log_warning(f"Transaction {transaction.job_id} was over time limit and therefore it and all of it's tmp domains are deleted")
+                    MyLogger.get_instance().log_warning(f"Transaction {transaction.job_id} was over time limit and therefore it and all of it's tmp_edge_workers domains are deleted")
                     transaction.delete_all_tmp_nodes(driver)
                     driver.end_transaction(transaction.version)
                     keys_for_del.append(key)
@@ -332,7 +332,7 @@ class GraphRepositoryABI(GraphRepository):
         """
 
         if self._stop_event.is_set():
-            MyLogger.get_instance().log("Graph repository is being shut down, can not add tmp domain")
+            MyLogger.get_instance().log("Graph repository is being shut down, can not add tmp_edge_workers domain")
             return self.TMP_ADD_STOP
 
         driver = self.get_neo4j_driver()
@@ -391,9 +391,9 @@ class GraphRepositoryABI(GraphRepository):
         MyLogger.get_instance().log(f"Deleting temporary domain with id {tmp_nd_id} for job context {job_id}")
         if job_id is not None:
             self._remove_tmp_from_transaction(job_id, driver, tmp_nd_id)
-            MyLogger.get_instance().log_debug(f"Deleting tmp node f{tmp_nd_id}")
-            driver.delete_node({'node_id': tmp_nd_id}, NodeTypes.TMP_DOMAIN.neo4j)
+            MyLogger.get_instance().log_debug(f"Deleting tmp_edge_workers node f{tmp_nd_id}")
 
+        driver.delete_node({'node_id': tmp_nd_id}, NodeTypes.TMP_DOMAIN.neo4j)
         driver.close()
         return
 

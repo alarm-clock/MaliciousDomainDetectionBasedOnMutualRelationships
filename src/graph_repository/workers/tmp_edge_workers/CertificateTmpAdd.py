@@ -14,7 +14,7 @@ def tmp_add_certificate_edge(domain: dict[str, Any], version: int, tmp_node_id: 
     RETURN c IS NOT NULL AS in_g
     """
 
-    in_g = driver.execute_read(query, cert_hash=cert_hash)
+    in_g = driver.execute_read(query, cert_hash=cert_hash)[0]['in_g']
 
     if not in_g:
         return None
@@ -28,6 +28,6 @@ def tmp_add_certificate_edge(domain: dict[str, Any], version: int, tmp_node_id: 
         Neo4jDBDriver.E_MATCH2: CERT_HASH
     }
 
-    return [{D_NAME: domain['domain_name'], CERT_HASH: cert_hash}], query_params
+    return [{'u': tmp_node_id, 'v': cert_hash}], query_params
 
 register('certificate', tmp_add_certificate_edge)
