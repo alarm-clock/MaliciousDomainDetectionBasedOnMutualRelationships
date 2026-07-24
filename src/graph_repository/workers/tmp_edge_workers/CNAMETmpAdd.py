@@ -1,7 +1,6 @@
 from typing import Any
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, D_NAME, NODE_ID
-from graph_repository.workers.common.TmpFunctions import register
 
 
 def _find_cname_in_graph(cname_domain: str, version: int, driver: Neo4jDBDriver) -> dict[str, Any] | None:
@@ -92,6 +91,3 @@ def tmp_add_cname_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo
         edges.append((d_tmp_edges, edge_creation_dict))
 
     return edges if len(edges) > 0 else None
-
-
-register('cname', tmp_add_cname_edge)

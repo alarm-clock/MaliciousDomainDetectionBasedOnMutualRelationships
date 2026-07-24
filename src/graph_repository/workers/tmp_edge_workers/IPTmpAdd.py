@@ -2,7 +2,6 @@ from typing import Any
 from graph_repository.workers.common.Misc import IPModes, get_ips_from_record
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, IP_STR, NODE_ID
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
-from graph_repository.workers.common.TmpFunctions import register
 
 def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBDriver) -> tuple[list[dict], dict[str, Any]] | None:
     """
@@ -45,6 +44,3 @@ def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jD
     }
 
     return edges, query_params
-
-
-register("ip", tmp_add_ip_edge)

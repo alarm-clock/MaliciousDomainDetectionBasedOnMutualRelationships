@@ -1,7 +1,6 @@
 from typing import Any
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, NODE_ID, REG_NAME
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
-from graph_repository.workers.common.TmpFunctions import register
 from graph_repository.graph_repo_misc import get_registrant_from_record
 
 def tmp_add_registrant_edge(domain: dict[str, Any], version: int, tmp_node_id: int, driver: Neo4jDBDriver) -> tuple[list[dict], dict[str, Any]] | None:
@@ -26,7 +25,3 @@ def tmp_add_registrant_edge(domain: dict[str, Any], version: int, tmp_node_id: i
         Neo4jDBDriver.E_MATCH2: REG_NAME
     }
     return [{'u': tmp_node_id, 'v': registrant}], query_params
-
-
-
-register("registrant", tmp_add_registrant_edge)

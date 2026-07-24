@@ -2,7 +2,6 @@ import copy
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.graph_repo_misc import get_domains_parent_domains
 from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, D_NAME, NODE_ID
-from graph_repository.workers.common.TmpFunctions import register
 from typing import Any
 
 def tmp_add_subdomain_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBDriver) -> list[tuple[list[dict], dict[str,Any]]] | None:
@@ -72,5 +71,3 @@ def tmp_add_subdomain_edge(domain: dict, version: int, tmp_node_id: int, driver:
     edges.append((dum_edges, query_option_dum))
 
     return edges
-
-register("subdomain", tmp_add_subdomain_edge)
