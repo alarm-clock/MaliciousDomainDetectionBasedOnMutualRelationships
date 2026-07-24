@@ -60,9 +60,10 @@ class CertificateWorker(EditWorker):
             OPTIONAL MATCH (n: {NodeTypes.CERTIFICATE.neo4j}  {{ {CERT_HASH}: cert {get_version_query(self._version, False)} }} )
             WITH cert, n
             WHERE n IS NULL
-            RETURN cert AS missing
+            RETURN collect(cert) AS missing
         """
-        missing = driver.execute_read(query, certificates=list(certificates))['missing']
+        missing = driver.execute_read(query, certificates=list(certificates))[0]['missing']
+
         n_missing = len(missing)
         ids = driver.get_free_node_id(NodeTypes.CERTIFICATE, n_missing)
 
@@ -89,7 +90,6 @@ class CertificateWorker(EditWorker):
                     CERT_AFTER: end,
                     NODE_ID: ids[cnt]
                 })
-
         return
 
     def _extract_certificates(self) -> dict[str, tuple[str, str, str, float, float]]:
@@ -107,7 +107,7 @@ class CertificateWorker(EditWorker):
 
             hash, ca, data = parse_cert(domain['tls'])
             certificates[hash] = data
-            self._edges.append({D_NAME: domain_name, CERT_HASH: hash})
+            self._edges.append({'u': domain_name, 'v': hash})
 
         return certificates
 
@@ -115,3 +115,4 @@ class CertificateWorker(EditWorker):
         certificates = self._extract_certificates()
         self._find_certificates_in_graph(certificates)
         del certificates
+        self._submit_edges()

@@ -62,14 +62,14 @@ class RegistrantWorker(EditWorker):
         OPTIONAL MATCH (r: {NodeTypes.REGISTRANT.neo4j} {{name: registrant {get_version_query(self._version, False)} }})
         WITH registrant, r
         WHERE r IS NULL
-        RETURN collect(r) AS missing
+        RETURN collect(registrant) AS missing
         """
 
-        missing_registrants = driver.execute_read(query,registrants=list(registrants))['missing']
+        missing_registrants = driver.execute_read(query,registrants=list(registrants))[0]['missing']
         len_miss_reg = len(missing_registrants)
         ids = driver.get_free_node_id(NodeTypes.REGISTRANT, len_miss_reg)
 
-        if ids == 1:
+        if len_miss_reg == 1:
             self._registrants_to_create.append({REG_NAME: missing_registrants[0], NODE_ID: ids})
         else:
             for cnt in range(len_miss_reg):
@@ -89,7 +89,7 @@ class RegistrantWorker(EditWorker):
                 MyLogger.get_instance().log_debug(f"Omitting domain {domain_name} because it does not have a registrant entry!")
                 continue
 
-            self._edges.append({"name": registrant, "domain_name": domain_name})
+            self._edges.append({'u': registrant, "v": domain_name})
             registrants.add(registrant)
 
         return registrants

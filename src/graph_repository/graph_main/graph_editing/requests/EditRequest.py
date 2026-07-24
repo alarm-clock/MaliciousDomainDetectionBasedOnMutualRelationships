@@ -9,7 +9,8 @@ Brief: File that contains graph-editing request implementation for updating
 from graph_repository.graph_main.graph_editing.common.RequestStates import RequestStates
 from graph_repository.graph_main.graph_editing.requests.AddRequest import AddRequest
 from graph_repository.graph_main.graph_editing.common.GraphRequest import GraphRequest
-from graph_repository.graph_main.graph_editing.DomainFiltering import update_filter_domains, basic_filter_domains
+from graph_repository.graph_main.graph_editing.DomainFiltering import update_filter_domains, basic_filter_domains, \
+    rm_duplicates_and_no_basic_info
 from graph_repository.graph_main.graph_editing.common.RequestPriority import RequestPriority
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver
@@ -55,7 +56,7 @@ class EditRequest(GraphRequest):
 
         if self._first_filter:
             self._first_filter = False
-            self._domains = basic_filter_domains(self._domains)
+            self._domains = rm_duplicates_and_no_basic_info(self._domains) #basic_filter_domains(self._domains)
         else:
             add, update = filter_func(self._domains)
             #print(add, update)

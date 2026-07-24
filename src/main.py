@@ -210,7 +210,12 @@ def main():
             export_dgl_graph(g, args.exp)
 
     elif args.mode == "edit":
-        repository = GraphRepository.init(GraphRepository.ABI, args.neo_db)
+
+        if conf is None:
+            print("No configuration file!", file=sys.stderr)
+            return
+
+        repository = GraphRepository.init(GraphRepository.ABI, conf.graph_repo_conf.neo4j_db_conf)
 
         if repository is None:
             print("Neo database connection config file not provided, exiting", file=sys.stderr)
@@ -239,6 +244,10 @@ def main():
         current_graph_version = driver.get_current_active_graph_version()
         driver.close()
         request.filter()
+
+        if args.edit:
+            request.filter()
+
         request.edit(current_graph_version)
 
     elif args.mode == "tmp_edge_workers":
