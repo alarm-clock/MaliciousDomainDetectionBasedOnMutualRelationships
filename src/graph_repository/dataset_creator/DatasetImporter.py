@@ -14,7 +14,7 @@ from pymongo import MongoClient
 from functools import partial
 from graph_repository.workers.common.DatasetWorker import DATASET_WORKER_REGISTRY
 from graph_repository.dataset_creator.common.LabelExtractor import LabelExtractor
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, NODE_ID
 from graph_repository.dataset_creator.common.Graph import create_dgl_graph
 from graph_repository.dataset_creator.DGLImporter import export_dgl_graph
 from misc.Logger import MyLogger
@@ -272,15 +272,14 @@ class DatasetImporter:
         :param n_data: `dict[str, list]` node data values
         :return: None
         """
-
         keys = list(n_data.keys())
+
+        if NODE_ID not in keys:
+            n_data[NODE_ID] = [cnt for cnt in range(len(n_data[keys[0]]))]
+        elif not n_data[NODE_ID]:
+            n_data[NODE_ID] = [cnt for cnt in range(len(n_data[keys[0]]))]
+
         rows = [dict(zip(keys, values)) for values in zip(*n_data.values())]
-
-        if "node_id" not in keys:
-
-            for cnt, row in enumerate(rows):
-                row["node_id"] = cnt
-
 
         if self._n_data_neo4j.get(n_t) is None:
             self._n_data_neo4j[n_t] = rows

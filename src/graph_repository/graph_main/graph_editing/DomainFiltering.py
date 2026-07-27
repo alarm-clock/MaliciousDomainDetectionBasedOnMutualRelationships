@@ -14,7 +14,7 @@ from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 import inspect
 
 
-def _rm_duplicates_and_no_basic_info(domains: list[dict]) -> list[dict]:
+def rm_duplicates_and_no_basic_info(domains: list[dict]) -> list[dict]:
     """
     Method that removes duplicate domains and domains missing required basic information
     :param domains: `list[dict]` submitted domains
@@ -122,7 +122,7 @@ def update_filter_domains(domains: list[dict]) -> tuple[list[dict], list[dict]]:
     :param domains: `list[dict]` submitted domains
     :return: `tuple[list[dict], list[dict]]` add and update domain lists
     """
-    filtered_domains = _rm_duplicates_and_no_basic_info(domains)
+    filtered_domains = rm_duplicates_and_no_basic_info(domains)
     driver: Neo4jDBDriver = GraphRepository.get_instance().get_neo4j_driver()
     add_domains, update_domains = _get_add_update_sets(filtered_domains, driver, False)
     update_domains = _rm_domains_that_are_in_graph(update_domains, driver)
@@ -139,7 +139,7 @@ def basic_filter_domains(domains: list[dict]) -> list[dict]:
     :return: `list[dict]` filtered domains
     """
     MyLogger.get_instance().log_debug(f" basic_filter_domains - Starting to filter domains")
-    filtered_domains = _rm_duplicates_and_no_basic_info(domains)
+    filtered_domains = rm_duplicates_and_no_basic_info(domains)
 
     MyLogger.get_instance().log_debug(
         f" basic_filter_domains - Removed duplicate domains or domains without basic data")
