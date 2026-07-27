@@ -32,7 +32,7 @@ source .venv/bin/activate
 ```
 and then you install requirements using command:
 ```bash
-pip install -r requirements.txt
+pip install -r requirements_docker.txt
 ```
 Now the system should be able to run. Optionally, you can create a Singularity container from the TODO.def file and run the system inside it. For how to work with singularity containers, see their official tutorials.
 Mapoc is being built simply using the command:
@@ -289,3 +289,8 @@ timeout again in `application/json` format:
 }
 ```
 System will then return evaluation id that can be used to retrieve evaluation result using `/evaluate/<evaluation_id>` endpoint.
+
+# Future
+
+In the future I plan to move whole graph repository (or mainly the graph editing) to Java and run it directly inside 
+Neo4j database as plugin.
