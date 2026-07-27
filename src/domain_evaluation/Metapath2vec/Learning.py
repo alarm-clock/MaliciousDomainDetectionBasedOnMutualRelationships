@@ -399,6 +399,10 @@ def classify_domain(g: dgl.DGLHeteroGraph, eval_result: EvaluationResult, mode: 
     # Define meta-paths used for relation-based embedding generation.
     paths = [[f"{EdgeTypes.CNAME.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.DOMAIN.dgl}"] * 6,
              [f"{EdgeTypes.SUBDOMAIN.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.DOMAIN.dgl}"] * 6,
+             [f"{EdgeTypes.HAS_CERTIFICATE.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.CERTIFICATE.dgl}",
+              f"{EdgeTypes.HAS_CERTIFICATE.value}_{NodeTypes.CERTIFICATE.dgl}_{NodeTypes.DOMAIN.dgl}"] * 4,
+             [f"{EdgeTypes.REGISTERED.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.REGISTRANT.dgl}",
+              f"{EdgeTypes.REGISTERED.value}_{NodeTypes.REGISTRANT.dgl}_{NodeTypes.DOMAIN.dgl}"] * 4,
              [f"{EdgeTypes.TRANSLATES.value}_{NodeTypes.DOMAIN.dgl}_{NodeTypes.IP.dgl}",
               f"{EdgeTypes.TRANSLATES.value}_{NodeTypes.IP.dgl}_{NodeTypes.DOMAIN.dgl}"] * 4,
              ]

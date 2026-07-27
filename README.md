@@ -312,3 +312,8 @@ timeout again in `application/json` format:
 }
 ```
 System will then return evaluation id that can be used to retrieve evaluation result using `/evaluate/<evaluation_id>` endpoint.
+
+# Future
+
+In the future I plan to move whole graph repository (or mainly the graph editing) to Java and run it directly inside 
+Neo4j database as plugin.

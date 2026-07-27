@@ -1,6 +1,6 @@
 import copy
 from graph_repository.workers.common.EditWorker import EditWorker
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, D_PARENT_DOMAINS, D_NAME, D_DEPTH
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.graph_repo_misc import get_domains_parent_domains, domain_depth
@@ -18,7 +18,7 @@ class SubdomainWorker(EditWorker):
         CREATE INDEX parentDomainsIndex 
         IF NOT EXISTS
         FOR (d: {NodeTypes.DOMAIN.neo4j})
-        ON EACH [d.parent_domains];
+        ON EACH [d.{D_PARENT_DOMAINS}];
         """
 
     _NODE_TYPE_POS = 0
@@ -80,8 +80,8 @@ class SubdomainWorker(EditWorker):
             Neo4jDBDriver.E_NODE_T2: NodeTypes.DOMAIN,
             Neo4jDBDriver.E_OPTION: Neo4jDBDriver.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
             Neo4jDBDriver.E_EDGE_T: EdgeTypes.SUBDOMAIN,
-            Neo4jDBDriver.E_MATCH1: "domain_name",
-            Neo4jDBDriver.E_MATCH2: "domain_name",
+            Neo4jDBDriver.E_MATCH1: D_NAME,
+            Neo4jDBDriver.E_MATCH2: D_NAME,
         }
         self._edge_submit_callback(self._d_d_sub_edges, query_option, self.worker_name + "_d_d")
 
@@ -102,9 +102,9 @@ class SubdomainWorker(EditWorker):
         find_related_domains_query = f"""
         UNWIND $parent_domains AS parent_domain    
         
-        OPTIONAL MATCH (n: {NodeTypes.DUMMY_DOMAIN.neo4j} {{ domain_name: parent_domain {get_version_query(self._version, False)} }}) 
+        OPTIONAL MATCH (n: {NodeTypes.DUMMY_DOMAIN.neo4j} {{ {D_NAME}: parent_domain {get_version_query(self._version, False)} }}) 
         WITH n, parent_domain
-        OPTIONAL MATCH (m: {NodeTypes.DOMAIN.neo4j} {{ domain_name: parent_domain {get_version_query(self._version, False)} }})
+        OPTIONAL MATCH (m: {NodeTypes.DOMAIN.neo4j} {{ {D_NAME}: parent_domain {get_version_query(self._version, False)} }})
         WHERE n IS NULL
         WITH coalesce(n, m) AS parent_in_graph, parent_domain
         WITH parent_domain, CASE 
@@ -144,9 +144,9 @@ class SubdomainWorker(EditWorker):
                 if n_t is None:
                     n_t = NodeTypes.DUMMY_DOMAIN.neo4j
                     self._dummies_for_creation.append({
-                        "domain_name": row['d'],
-                        "depth": domain_depth(row['d']),
-                        "parent_domains": get_domains_parent_domains(row['d'])
+                        D_NAME: row['d'],
+                        D_DEPTH: domain_depth(row['d']),
+                        D_PARENT_DOMAINS: get_domains_parent_domains(row['d'])
                     })
                 self._subs[row['d']] = replace(self._subs[row['d']],self._NODE_TYPE_POS,n_t)
 

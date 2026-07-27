@@ -1,0 +1,5 @@
+{
+  "graph_repo_conf": {
+    "neo4j_db_conf": "../config/neo4j_config_local.json"
+  }
+}

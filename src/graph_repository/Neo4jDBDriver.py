@@ -14,7 +14,7 @@ from enum import Enum
 def deprecated(func):
     return func
 from misc.Logger import MyLogger
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, NODE_ID
 from graph_repository.workers.common.Enums import EditTypes
 from neo4j.exceptions import ServiceUnavailable, AuthError
 from graph_repository.graph_main.graph_editing.common.Exceptions import TooManyVersions, Neo4jIndexError
@@ -399,10 +399,8 @@ class Neo4jDBDriver:
         if req_number_of_ids < 1:
             return []
 
-        #__NODE_ID_LOCKS__[n_t].acquire_lock()
         self.check_and_create_node_id_cnt(n_t)
         res = self.execute_write(self.get_free_node_id_query(n_t, False, req_number_of_ids))
-        #__NODE_ID_LOCKS__[n_t].release_lock()
 
         ret_val = res[0]['free_node_id' if req_number_of_ids == 1 else 'free_node_ids']
         return ret_val
@@ -801,7 +799,7 @@ class Neo4jDBDriver:
 
     def delete_all_tmp_nodes(self) -> None:
         """
-        Method that deletes all tmp nodes, with no regard if they are used or not
+        Method that deletes all tmp_edge_workers nodes, with no regard if they are used or not
         :return: Nothing
         """
         self.execute_write(f"MATCH (n: {NodeTypes.TMP_DOMAIN.neo4j}) DETACH DELETE n")
@@ -910,7 +908,7 @@ class Neo4jDBDriver:
                 MyLogger.get_instance().log_warning("Can not delete node without any label!")
                 return
 
-        if n_t is NodeTypes:
+        if type(n_t) is NodeTypes:
             n_t = n_t.neo4j
 
         node.pop('label', "")
@@ -920,8 +918,8 @@ class Neo4jDBDriver:
         MATCH (n: {n_t}  {{ {item_str} }})
         CALL (n) {{
             WITH n
-            WHERE n.node_id IS NOT NULL
-            {Neo4jDBDriver.get_node_id_return_query(n_t, 'n.node_id', 'n', True)}
+            WHERE n.{NODE_ID} IS NOT NULL
+            {Neo4jDBDriver.get_node_id_return_query(n_t, f'n.{NODE_ID}', 'n', True)}
         }}
         DETACH DELETE n 
         """
@@ -963,10 +961,10 @@ class Neo4jDBDriver:
 
         e_t = e_t.value if type(e_t) == EdgeTypes else e_t
         if option == self.EdgeCreationQueryOptions.NO_WEIGHT_NO_REVERSE or option == self.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE:
-            query += f" {creation_command} (u)-[:{e_t}]->(v)"
+            query += f"{creation_command} (u)-[:{e_t}]->(v)"
 
             if option == self.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE:
-                query += f" {creation_command} (v)-[:{e_t}]->(u)"
+                query += f"{creation_command} (v)-[:{e_t}]->(u)"
 
         elif option == self.EdgeCreationQueryOptions.WEIGHT_NO_REVERSE or option == self.EdgeCreationQueryOptions.WEIGHT_REVERSE:
 
@@ -975,10 +973,10 @@ class Neo4jDBDriver:
                     f"Edge value was not given a name to edge type {e_t}. Default value \"weight\" will be used")
                 e_v = "weight"
 
-            query += f" {creation_command} (u)-[:{e_t} {{{e_v}: edge.{e_v}}}]->(v)"
+            query += f"{creation_command} (u)-[:{e_t} {{{e_v}: edge.{e_v}}}]->(v)"
 
             if option == self.EdgeCreationQueryOptions.WEIGHT_REVERSE:
-                query += f" {creation_command} (v)-[:{e_t} {{{e_v}: edge.{e_v}}}]->(u)"
+                query += f"{creation_command} (v)-[:{e_t} {{{e_v}: edge.{e_v}}}]->(u)"
 
         return {"edges": query}
 
@@ -1130,7 +1128,7 @@ class Neo4jDBDriver:
 
     def get_k_hop_neighborhood_universal(self, match: dict[str, Any], max_depth: int, max_sample_size: int, seed: int, get_back_edges: bool):
         """
-        Method that gets matched tmp node's k-hop (max_depth-hop) sampled neighborhood
+        Method that gets matched tmp_edge_workers node's k-hop (max_depth-hop) sampled neighborhood
         :param match: dictionary with data used to match given domain
         :param max_depth: k parameter, max length from node to edge node
         :param max_sample_size: max number of neighbors that will be sampled with uniform probability

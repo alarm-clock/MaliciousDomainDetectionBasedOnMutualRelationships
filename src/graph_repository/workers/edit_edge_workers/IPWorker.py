@@ -4,7 +4,7 @@ from graph_repository.graph_main.GraphRepository import GraphRepository
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
 from graph_repository.workers.common.Misc import IPModes, get_ips_from_record
 from graph_repository.workers.common.Enums import EditTypes
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, IP_STR, D_NAME, IP_VERSION, NODE_ID
 
 
 #TODO add modes and run options
@@ -30,8 +30,8 @@ class IPWorker(EditWorker):
             Neo4jDBDriver.E_NODE_T1: NodeTypes.IP,
             Neo4jDBDriver.E_NODE_T2: NodeTypes.DOMAIN,
             Neo4jDBDriver.E_OPTION: Neo4jDBDriver.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
-            Neo4jDBDriver.E_MATCH1: "ip_str",
-            Neo4jDBDriver.E_MATCH2: "domain_name"
+            Neo4jDBDriver.E_MATCH1: IP_STR,
+            Neo4jDBDriver.E_MATCH2: D_NAME
         }
         self._submit_edges_callback(self._edges, query_params, self.worker_name)
 
@@ -45,14 +45,14 @@ class IPWorker(EditWorker):
         CREATE INDEX {NodeTypes.IP.neo4j}_ip_str_idx
         IF NOT EXISTS
         FOR (n: {NodeTypes.IP.neo4j})
-        ON (n.ip_str);
+        ON (n.{IP_STR});
         """)
 
         driver.wait_for_index_creation([f'{NodeTypes.IP.neo4j}_ip_str_idx'])
 
     def _append_ip_new_ip_addr(self, ip, node_id: int) -> None:
         ip_address = self._ip_dict[str(ip)]
-        self._ips.append({'ip_str': str(ip), 'ip_version': ip_address.version, 'node_id': node_id})
+        self._ips.append({IP_STR: str(ip), IP_VERSION: ip_address.version, NODE_ID: node_id})
         return
 
     def _create_ip_nodes(self) -> None:
@@ -62,7 +62,7 @@ class IPWorker(EditWorker):
 
         query = f"""
         UNWIND $rows AS ip
-        OPTIONAL MATCH (n:{NodeTypes.IP.neo4j} {{ip_str: ip {get_version_query(self._version,False)}}})
+        OPTIONAL MATCH (n:{NodeTypes.IP.neo4j} {{{IP_STR}: ip {get_version_query(self._version,False)}}})
         WITH ip, n
         WHERE n IS NULL
         RETURN collect(ip) AS missing

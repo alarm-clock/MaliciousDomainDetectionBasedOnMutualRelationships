@@ -1,15 +1,14 @@
 from typing import Any
 from graph_repository.workers.common.Misc import IPModes, get_ips_from_record
-from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes
+from graph_repository.workers.common.GraphTypes import NodeTypes, EdgeTypes, IP_STR, NODE_ID
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver, get_version_query
-from graph_repository.workers.common.TmpFunctions import register
 
 def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jDBDriver) -> tuple[list[dict], dict[str, Any]] | None:
     """
     Function for creating edges between `domain` and it's IP addresses that are in the graph
     :param domain: `dict` with domain information
     :param version: `int` graph version in which to look for IP nodes
-    :param tmp_node_id: `int` node id of tmp domain
+    :param tmp_node_id: `int` node id of tmp_edge_workers domain
     :param driver: `Neo4jDBClient` open driver for graph querying
     :return: `tuple[` edges`,` edge_creation_options`]` when there is at least one domain's IP address in graph otherwise None
     """
@@ -19,13 +18,13 @@ def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jD
 
     query = f"""
     UNWIND $ip_addrs AS ip_addr
-    OPTIONAL MATCH (n:{NodeTypes.IP.neo4j} {{ip_str: ip_addr {get_version_query(version, False)}}})
+    OPTIONAL MATCH (n:{NodeTypes.IP.neo4j} {{{IP_STR}: ip_addr {get_version_query(version, False)}}})
     WITH ip_addr, n
     WHERE n IS NOT NULL
     RETURN ip_addr AS in_graph
     """
 
-    res = driver.execute_read(query, **{'ip_addrs': [str(ip) for ip in ips]})
+    res = driver.execute_read(query, ip_addrs=[str(ip) for ip in ips])
     ips_in_graph = [r['in_graph'] for r in res]
 
     if len(ips_in_graph) == 0:
@@ -40,11 +39,8 @@ def tmp_add_ip_edge(domain: dict, version: int, tmp_node_id: int, driver: Neo4jD
         Neo4jDBDriver.E_NODE_T1: NodeTypes.TMP_DOMAIN,
         Neo4jDBDriver.E_NODE_T2: NodeTypes.IP,
         Neo4jDBDriver.E_OPTION: Neo4jDBDriver.EdgeCreationQueryOptions.NO_WEIGHT_REVERSE,
-        Neo4jDBDriver.E_MATCH1: "node_id",
-        Neo4jDBDriver.E_MATCH2: "ip_str"
+        Neo4jDBDriver.E_MATCH1: NODE_ID,
+        Neo4jDBDriver.E_MATCH2: IP_STR
     }
 
     return edges, query_params
-
-
-register("ip", tmp_add_ip_edge)
