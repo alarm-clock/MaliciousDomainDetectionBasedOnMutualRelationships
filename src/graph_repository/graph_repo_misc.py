@@ -26,10 +26,19 @@ def get_ips_from_record(doc) -> list[str]:
     return ips
 
 def get_registrant_from_record(domain: dict[str, Any]) -> str | None:
-    registrant = domain.get('rdap', {}).get('entities', {}).get('registrant', None)
+
+    rdap_data = domain.get('rdap')
+    if rdap_data is None:
+        return None
+
+    registrants = ((rdap_data or {}).get('entities') or {} ).get('registrant') or []
+    registrant = (registrants[0] or {}).get('name') if registrants else None
 
     if registrant is None:
         registrant = domain.get('registrant', None)
+
+    if type(registrant) is str and registrant == '':
+        return None
 
     return registrant
 
@@ -64,11 +73,11 @@ def parse_cert(tls_data: dict[str, Any]) -> tuple[str, bool, tuple[str, str, str
     start = entity_cert_data['validity_start']
     end = entity_cert_data['validity_end']
     auth_id, subj_id, ca = parse_extensions(entity_cert_data['extensions'])
-    cert_hash = generate_certificate_hash(auth_id, subj_id, subj_id, start, end)
+    cert_hash = generate_certificate_hash(cn, org, subj_id, start, end)
 
     return cert_hash, ca, (cn, org, subj_id, start, end)
 
-def tls_data_in_presence(domain: dict[str, Any]) -> bool:
+def tls_data_present(domain: dict[str, Any]) -> bool:
     return domain.get('tls') is not None
 
 def add_project_into_pipeline(project_body: dict, pipeline: list):
