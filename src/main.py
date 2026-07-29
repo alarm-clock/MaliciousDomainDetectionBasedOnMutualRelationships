@@ -311,16 +311,14 @@ def main():
 
     if args.mode == "test":
         mp.set_start_method("spawn")
-        r = GraphRepository.init(GraphRepository.ABI, args.neo_db)
+        r = GraphRepository.init(GraphRepository.ABI, conf.graph_repo_conf.neo4j_db_conf)
         if r is None:
-            print("amana hy")
             return
 
         if args.p is None:
             test_from_collection(args.mongo_db,args.output,True)
         else:
             EvaluationApp(r)
-
             test_from_parquet(args.p,args.output)
 
         GraphRepository.get_instance().stop()

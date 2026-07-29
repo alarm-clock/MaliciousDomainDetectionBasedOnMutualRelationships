@@ -9,7 +9,7 @@ Brief: File that contains helper functions for creating temporary domains and
 from graph_repository.workers.common.GraphTypes import NodeTypes
 from misc.Logger import MyLogger
 from misc.PackageImporter import get_functions_from_registry
-from graph_repository.workers.common.TmpFunctions import TMP_REGISTRY, TMP_FUNC_T, EDGES_T
+from graph_repository.workers.tmp_edge_workers import TMP_REGISTRY, EDGES_T, TMP_FUNC_T
 from graph_repository.Neo4jDBDriver import Neo4jDBDriver
 from typing import Any
 

@@ -162,8 +162,6 @@ def _check_for_duplicity(eval_job: EvaluationJob, g: dgl.DGLHeteroGraph, start_t
 
     return
 
-
-
 def _wait_on_gpu(eval_job: EvaluationJob, gpu_semaphore: Semaphore) -> None:
     """
     Method that waits on gpu and calculates time spent waiting on gpu
@@ -179,8 +177,6 @@ def _wait_on_gpu(eval_job: EvaluationJob, gpu_semaphore: Semaphore) -> None:
     eval_job.result.set_times(time.time() - wait_start, EvaluationResult.Times.WAITING_ON_GPU_T)
     eval_job.set_state(EvaluationJob.EvaluationState.EVALUATING)
     MyLogger.get_instance().log(f"job {eval_job.id}: Starting to classify domain {eval_job.domain_name}...")
-
-
 
 def evaluate_domain_metapath2vec(eval_job: EvaluationJob, gpu_semaphore: Semaphore, return_result: bool = False) -> None | EvaluationJob:
     """
@@ -233,7 +229,7 @@ def evaluate_domain_metapath2vec(eval_job: EvaluationJob, gpu_semaphore: Semapho
     if eval_job.is_finished():
         return eval_job if return_result else None
 
-    _wait_on_gpu(eval_job, gpu_semaphore)
+    #_wait_on_gpu(eval_job, gpu_semaphore) #for now I just comment it out but most likely I will remove it entirely
 
     try:
         class_start = time.time()

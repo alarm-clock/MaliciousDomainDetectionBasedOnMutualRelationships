@@ -431,8 +431,10 @@ class EvaluationJob:
     __EXISTING_RESULT_PROVIDERS = {EdgeTypes.CNAME.value: (10, 14),
                                    EdgeTypes.SUBDOMAIN.value : (14, 18),
                                    EdgeTypes.TRANSLATES.value: (18, 22),
-                                   'AVERAGE': (22, 26),
-                                   'CONCAT': (26, 30)}
+                                   EdgeTypes.HAS_CERTIFICATE.value: (22,26),
+                                   EdgeTypes.REGISTERED.value: (26,30),
+                                   'AVERAGE': (30, 34),
+                                   'CONCAT': (34, 38)}
 
     def to_text_csv_output(self) -> list[Any]:
         """

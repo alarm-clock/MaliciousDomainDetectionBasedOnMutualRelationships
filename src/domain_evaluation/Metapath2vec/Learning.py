@@ -27,7 +27,6 @@ import torch.multiprocessing as mp
 PRODUCTION = True
 TESTING = False
 
-
 def _train_regress(model_embedding: th.Tensor, train_mask,
                    classify_mask: th.Tensor, labels: th.Tensor, scale: bool) -> th.Tensor:
     """
@@ -221,15 +220,15 @@ def _gen_embeds_parallel_safe(
     with mp.Pool(processes=3) as pool:
         results = pool.starmap(_train_metapath2vec_safe, [(device, lr, cnt, g, path, w_size, emb_dim, neg_size) for cnt, path in enumerate(m_paths)])
 
-    filt_res = []
+    filter_res = []
 
     # Filter out meta-paths for which model creation or training failed.
     for res in results:
         if res is None:
             continue
-        filt_res.append(res)
+        filter_res.append(res)
 
-    return zip(*filt_res)
+    return zip(*filter_res)
 
 
 def _gen_embeds_parallel(models: list[tuple[MetaPath2Vec, DataLoader, str]], device: th.device, lr=0.01) -> tuple[list[th.Tensor], list[list[float]], list[str]]:
@@ -245,92 +244,6 @@ def _gen_embeds_parallel(models: list[tuple[MetaPath2Vec, DataLoader, str]], dev
         results = pool.starmap(_train_metapath2vec, [(model, device, lr, cnt) for cnt, model in enumerate(models)])
 
     return zip(*results)
-
-
-def _generate_embeddings(models: list[tuple[MetaPath2Vec, DataLoader]], device: th.device, lr=0.01) -> tuple[list[th.Tensor], list[list[float]]]:
-    """
-    Method that uses models to generate embeddings, where they are generated one after the other
-    :param models: List of models and their dataloaders for walk generating
-    :param device: Device on which model is located
-    :param lr: Learning rate
-    :return: Embeddings and loss values for each model
-    """
-
-    embeds = []
-    loss_arr = []
-    cnt = 0
-
-    # Train all provided models sequentially and collect their embeddings and losses.
-    for model, dataloader in models:
-        print(f"Model {cnt}")
-        MyLogger.get_instance().log(f"Working on model {cnt}")
-        optimizer = SparseAdam(model.parameters(), lr=lr)
-        loss_cum = []
-
-        for epoch in range(5):
-            for pos_u, pos_v, neg_v in dataloader:
-                pos_u = pos_u.to(device)
-                pos_v = pos_v.to(device)
-                neg_v = neg_v.to(device)
-
-                loss = model(pos_u, pos_v, neg_v)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                print(f"Model {cnt}, epoch {epoch} - loss: {loss.item()}")
-                loss_cum.append(loss.item())
-
-            MyLogger.get_instance().log(f"Model {cnt} epoch {epoch} loss {loss_cum[-1]}")
-
-        d_node_ids = torch.LongTensor(model.local_to_global_nid['d']).to(device)
-        d_emb = model.node_embed(d_node_ids).to(th.device('cpu'))  #model.node_embed(d_node_ids)
-        embeds.append(d_emb)
-        loss_arr.append(loss_cum)
-        print(f'Model {cnt} done')
-        MyLogger.get_instance().log(f"Model {cnt} done")
-        cnt += 1
-
-    return embeds, loss_arr
-
-
-def _create_models_for_meta_paths(
-        m_paths: list[list[str]],
-        g: dgl.DGLHeteroGraph,
-        device: th.device,
-        w_size: int = 1,
-        emb_dim: int = 64,
-        neg_size: int = 5) -> tuple[list[tuple[MetaPath2Vec, DataLoader, str]], list[str]]:
-    """
-    Method that creates model for each metapath on given graph and device
-    :param m_paths: List of metapaths
-    :param g: Graph with which model will work
-    :param device: Device on which model will run, must be same as graph
-    :param w_size: Window size
-    :param emb_dim: Embeddings dimension
-    :param neg_size: Negative sample size
-    :return: Tuple[ models and their dataloader for generating random walks, used paths]
-    """
-    models = []
-    paths = []
-
-    # Create one MetaPath2Vec model for every supplied meta-path.
-    for path in m_paths:
-
-        try:
-            model = MetaPath2Vec(g, path, window_size=w_size, emb_dim=emb_dim, negative_size=neg_size)
-        except Exception as e:
-            MyLogger.get_instance().log_error(str(e))
-            MyLogger.get_instance().log_warning(f"Ommiting metapath {path} because there are no edges of given type")
-            continue
-
-        model.to(device)
-        dataloader = DataLoader(torch.arange(g.num_nodes(ntype='d')), batch_size=128, shuffle=True,collate_fn=model.sample)
-        path_name = path[0].split('_')[0]
-        models.append((model, dataloader, path_name))
-        paths.append(path_name)
-
-    return models, paths
-
 
 def get_class_counts(g: dgl.DGLHeteroGraph):
     """

@@ -10,7 +10,7 @@ Brief: File that contains configuration classes used for loading and storing app
 import json
 import sys
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional
 from misc.Logger import MyLogger
@@ -107,7 +107,7 @@ class EvalAppConf:
     result lifetime, and model parameters.
     """
 
-    eval_params: EvalParams = EvalParams.from_dict(None)
+    eval_params: EvalParams = field(default_factory = lambda: EvalParams.from_dict(None))
     result_removal_time: float= 600.0
     max_evaluations: int = 24
     max_metapath2vec_evaluations: int = 24
