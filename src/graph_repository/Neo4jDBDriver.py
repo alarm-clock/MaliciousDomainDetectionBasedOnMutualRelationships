@@ -159,6 +159,8 @@ class Neo4jDBDriver:
         Method that closes connection with the database
         :return: None
         """
+        if self._err or self.driver is None:
+            return
         self.driver.close()
 
     def execute_write(self, query, **params) -> Any:
